@@ -464,7 +464,7 @@ TEST(FileSystemTest, RmDir_NonEmptyWithoutRecursion) {
     // 注意：这个测试的行为可能因实现而异
 
     // 清理
-    FileSystem::rmDir(parentDir, true);
+    EXPECT_TRUE(FileSystem::rmDir(parentDir, true));
 }
 
 // 测试文件大小

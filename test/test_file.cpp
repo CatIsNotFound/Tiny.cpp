@@ -5,7 +5,7 @@
 
 TEST(FileTest, Path_test) {
     Tiny::OS::Path path(".");
-    Tiny::OS::Path p2 = path;
+    // Tiny::OS::Path p2 = path;
     EXPECT_TRUE(path.isValid());
     EXPECT_TRUE(path.isDirectory());
     EXPECT_FALSE(path.isFile());
@@ -13,6 +13,7 @@ TEST(FileTest, Path_test) {
     EXPECT_STRNE(path.path().data(), ".");
     std::cout << "File Path: " << path.path() << "\n";
     std::cout << "Short File name: " << path.shortFileName() << "\n";
+
     path.setPath("./assets/File/test.txt");
     EXPECT_TRUE(path.isValid());
     EXPECT_FALSE(path.isDirectory());
@@ -56,5 +57,6 @@ TEST(FileTest, File_Operate) {
     EXPECT_TRUE(Tiny::OS::FileSystem::mkFile(temp_path, "Here is a sample text!"));
     EXPECT_TRUE(Tiny::OS::FileSystem::chDir("./test_dir"));
     EXPECT_FALSE(Tiny::OS::FileSystem::chDir("./test_dir/test.txt"));
-
+    EXPECT_TRUE(Tiny::OS::FileSystem::chDir(current_path));
+    EXPECT_TRUE(Tiny::OS::FileSystem::rmDir(temp_path, true));
 }

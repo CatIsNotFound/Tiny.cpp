@@ -29,19 +29,17 @@
 #ifndef TINY_CPP_OS_FILE_H
 #define TINY_CPP_OS_FILE_H
 #include <cstdint>
-#include <cstring>
-#include <iostream>
-#include <sstream>
 #include <string>
 #include <vector>
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
 #include <shlobj.h>
-#elif defined(__linux__) || defined(__unix__)
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
 #include <dirent.h>
-#elif defined(__APPLE__)
-#include <dirent.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 #endif
 
 namespace Tiny {
@@ -89,13 +87,12 @@ namespace Tiny {
             Directory,
             File,
             SymbolLink,
-            Device
+            Device,
+            Socket
         };
 
         inline const char* fileTypeName(FileType type) {
             switch (type) {
-                case FileType::Unknown:
-                    return "Unknown";
                 case FileType::Directory:
                     return "Directory";
                 case FileType::File:
@@ -104,6 +101,10 @@ namespace Tiny {
                     return "Symbol Link";
                 case FileType::Device:
                     return "Device";
+                case FileType::Socket:
+                    return "Socket";
+                default:
+                    return "Unknown";
             }
             return "";
         }
@@ -240,12 +241,11 @@ namespace Tiny {
         CloseHandle(h_file);
         if (!ok) return 0;
         return large_int.QuadPart;
-#elif defined(__linux__) || defined(__unix__)
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
         // TODO:
-
-#elif defined(__APPLE__)
-        // TODO:
-
+        struct stat file_stat;
+        if (stat(_path.c_str(), &file_stat) == -1) return 0;
+        return file_stat.st_size;
 #else
         return 0;
 #endif
@@ -274,12 +274,29 @@ namespace Tiny {
         GetFullPathNameA(my_path.c_str(), ok, &new_full_path[0], nullptr);
         _path.assign(new_full_path.begin(), new_full_path.end() - 1);
         _short_file_name = _path.substr(_path.find_last_of('\\') + 1);
-#elif defined(__linux__) || defined(__unix__)
+#elif defined(__linux__) || defined(__unix__) || defined(__APPLE__)
         // TODO:
-
-#elif defined(__APPLE__)
-        // TODO:
-
+        char* new_path = realpath(_path.c_str(), nullptr);
+        if (new_path) {
+            _path = new_path;
+            free(new_path);
+        } else return;
+        struct stat file_stat;
+        if (stat(_path.c_str(), &file_stat) == -1) return;
+        if (S_ISDIR(file_stat.st_mode)) {
+            _type = FileType::Directory;
+        } else if (S_ISREG(file_stat.st_mode)) {
+            _type = FileType::File;
+        } else if (S_ISLNK(file_stat.st_mode)) {
+            _type = FileType::SymbolLink;
+        } else if (S_ISCHR(file_stat.st_mode) || S_ISBLK(file_stat.st_mode)) {
+            _type = FileType::Device;
+        } else if (S_ISSOCK(file_stat.st_mode)) {
+            _type = FileType::Socket;
+        } else {
+            _type = FileType::Unknown;
+        }
+        _short_file_name = _path.substr(_path.find_last_of('/') + 1);
 #endif
     }
 
@@ -288,11 +305,8 @@ namespace Tiny {
         if (!path.isValid()) return false;
         auto ok = SetCurrentDirectoryA(path.path().data());
         if (ok == 0) return false;
-#elif defined(__linux__) || defined(__unix__)
-        // TODO:
-
-#elif defined(__APPLE__)
-        // TODO:
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+        if (chdir(path.path().c_str()) == -1) return false;
 #else
         return false;
 #endif
@@ -303,11 +317,8 @@ namespace Tiny {
 #if defined(_WIN32) || defined(_WIN64)
         auto ok = SetCurrentDirectoryA(path.data());
         if (ok == 0) return false;
-#elif defined(__linux__) || defined(__unix__)
-        // TODO:
-
-#elif defined(__APPLE__)
-        // TODO:
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+        if (chdir(path.c_str()) == -1) return false;
 #else
         return false;
 #endif
@@ -319,11 +330,8 @@ namespace Tiny {
 #if defined(_WIN32) || defined(_WIN64)
         auto ok = DeleteFileA(path.path().data());
         if (ok == 0) return false;
-#elif defined(__linux__) || defined(__unix__)
-        // TODO:
-
-#elif defined(__APPLE__)
-        // TODO:
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+        if (unlink(path.path().c_str()) == -1) return false;
 #else
         return false;
 #endif
@@ -338,11 +346,11 @@ namespace Tiny {
         }
         auto ok = RemoveDirectoryA(path.path().data());
         if (ok == 0) return false;
-#elif defined(__linux__) || defined(__unix__)
-        // TODO:
-
-#elif defined(__APPLE__)
-        // TODO:
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+        if (recursion) {
+            if (!rmDirCompletely(path)) return false;
+        }
+        if (rmdir(path.path().c_str()) == -1) return false;
 #else
         return false;
 #endif
@@ -353,11 +361,11 @@ namespace Tiny {
 #if defined(_WIN32) || defined(_WIN64)
         auto ok = CreateDirectoryA(path.path().data(), nullptr);
         if (ok == 0) return false;
-#elif defined(__linux__) || defined(__unix__)
-        // TODO:
-
-#elif defined(__APPLE__)
-        // TODO:
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+        if (path.isValid() && path.isDirectory()) {
+            return (chmod(path.path().c_str(), 0777 - umask(0000)) != -1);
+        }
+        if (mkdir(path.path().c_str(), 0777 - umask(0000)) == -1) return false;
 #else
         return false;
 #endif
@@ -372,11 +380,8 @@ namespace Tiny {
 #if defined(_WIN32) || defined(_WIN64)
         auto ok = CreateDirectoryA(path.c_str(), nullptr);
         if (ok == 0) return false;
-#elif defined(__linux__) || defined(__unix__)
-        // TODO:
-
-#elif defined(__APPLE__)
-        // TODO:
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+        if (mkdir(path.c_str(), 0777 - umask(0000)) == -1) return false;
 #else
         return false;
 #endif
@@ -392,11 +397,12 @@ namespace Tiny {
         auto ok = WriteFile(handler, data.data(), data.size(), nullptr, nullptr);
         CloseHandle(handler);
         if (ok == 0) return false;
-#elif defined(__linux__) || defined(__unix__)
-        // TODO:
-
-#elif defined(__APPLE__)
-        // TODO:
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+        auto ok = open(path.path().c_str(), O_WRONLY | O_CREAT | O_EXCL | O_TRUNC, 0777 - umask(0000));
+        if (ok == -1) return false;
+        auto size = write(ok, data.data(), data.size() * sizeof(uint8_t));
+        if (size == -1) return false;
+        close(ok);
 #else
         return false;
 #endif
@@ -412,11 +418,12 @@ namespace Tiny {
         auto ok = WriteFile(handler, data.data(), data.size(), nullptr, nullptr);
         CloseHandle(handler);
         if (ok == 0) return false;
-#elif defined(__linux__) || defined(__unix__)
-        // TODO:
-
-#elif defined(__APPLE__)
-        // TODO:
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+        auto ok = open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_TRUNC, 0777 - umask(0000));
+        if (ok == -1) return false;
+        auto size = write(ok, data.data(), data.size() * sizeof(uint8_t));
+        if (size == -1) return false;
+        close(ok);
 #else
         return false;
 #endif
@@ -432,11 +439,12 @@ namespace Tiny {
         auto ok = WriteFile(handler, data.data(), data.size(), nullptr, nullptr);
         CloseHandle(handler);
         if (ok == 0) return false;
-#elif defined(__linux__) || defined(__unix__)
-        // TODO:
-
-#elif defined(__APPLE__)
-        // TODO:
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+        auto ok = open(path.path().c_str(), O_WRONLY | O_CREAT | O_EXCL | O_TRUNC, 0777 - umask(0000));
+        if (ok == -1) return false;
+        auto size = write(ok, data.data(), data.size() * sizeof(uint8_t));
+        if (size == -1) return false;
+        close(ok);
 #else
         return false;
 #endif
@@ -452,11 +460,12 @@ namespace Tiny {
         auto ok = WriteFile(handler, data.data(), data.size(), nullptr, nullptr);
         CloseHandle(handler);
         if (ok == 0) return false;
-#elif defined(__linux__) || defined(__unix__)
-        // TODO:
-
-#elif defined(__APPLE__)
-        // TODO:
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+        auto ok = open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_TRUNC, 0777 - umask(0000));
+        if (ok == -1) return false;
+        auto size = write(ok, data.data(), data.size() * sizeof(char));
+        if (size == -1) return false;
+        close(ok);
 #else
         return false;
 #endif
@@ -467,12 +476,8 @@ namespace Tiny {
 #if defined(_WIN32) || defined(_WIN64)
         auto ok = DeleteFileA(path.c_str());
         if (ok == 0) return false;
-#elif defined(__linux__) || defined(__unix__)
-        // TODO:
-
-#elif defined(__APPLE__)
-        // TODO:
-
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+        if (unlink(path.c_str()) == -1) return false;
 #endif
         return true;
     }
@@ -486,12 +491,11 @@ namespace Tiny {
         }
         BOOL ok = RemoveDirectoryA(cur_dir.path().data());
         if (ok == 0) return false;
-#elif defined(__linux__) || defined(__unix__)
-        // TODO:
-
-#elif defined(__APPLE__)
-        // TODO:
-
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+        if (recursion) {
+            if (!rmDirCompletely(cur_dir)) return false;
+        }
+        if (rmdir(path.c_str()) == -1) return false;
 #endif
         return true;
     }
@@ -505,6 +509,9 @@ namespace Tiny {
 #if defined(_WIN32) || defined(_WIN64)
         if (FAILED(SHGetFolderPathA(nullptr, CSIDL_PROFILE, nullptr, 0, user)))
             return Path("");
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+        auto home_path = std::getenv("HOME");
+        strcpy(user, home_path);
 #endif
         return Path(user);
     }
@@ -543,10 +550,16 @@ namespace Tiny {
             if (!is_ok) ok = false;
         }
         return ok;
-#elif defined(__linux__) || defined(__unix__)
-
-#elif defined(__APPLE__)
-
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+        bool is_ok = true;
+        for (auto& path : paths) {
+            if (path.isDirectory()) {
+                if (rmdir(path.path().data()) == -1) is_ok = false;
+            } else {
+                if (unlink(path.path().data()) == -1) is_ok = false;
+            }
+        }
+        return is_ok;
 #endif
         return true;
     }
@@ -575,10 +588,27 @@ namespace Tiny {
             paths.emplace_back(new_path);
         } while (FindNextFileW(iter, &res));
         FindClose(iter);
-#elif defined(__linux__) || defined(__unix__)
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+        auto dir = opendir(path.path().data());
+        if (!dir) return paths;
+        auto iter = readdir(dir);
+        if (!iter) {
+            closedir(dir);
+            return paths;
+        }
+        do {
+            std::string short_file_name = iter->d_name;
+            if (short_file_name == "." || short_file_name == "..") continue;
+            auto full_path = path.path() + "/" + short_file_name;
+            Path new_found(full_path);
+            if (new_found.isDirectory()) {
+                auto found_path = listAllPath(new_found, current_recursion + 1, recursion_count);
+                paths.insert(paths.end(), found_path.begin(), found_path.end());
+            }
+            paths.emplace_back(new_found);
+        } while ((iter = readdir(dir)) != nullptr);
 
-#elif defined(__APPLE__)
-
+        closedir(dir);
 #endif
         return paths;
     }
