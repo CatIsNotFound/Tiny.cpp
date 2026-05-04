@@ -113,7 +113,7 @@ namespace Tiny {
             explicit Path(const std::string& path);
             explicit Path(const Path& path);
             explicit Path(Path&& path) noexcept;
-            Path& operator=(const Path& path);
+            Path& operator=(const Path& path) noexcept;
             [[nodiscard]] Path& operator=(Path&& path) noexcept;
             ~Path();
 
@@ -131,7 +131,7 @@ namespace Tiny {
             void checkPath();
 
             std::string _path;
-            std::string _short_file_name;
+            std::string _short_file_name{};
             FileType    _type;
         };
 
@@ -139,12 +139,12 @@ namespace Tiny {
         public:
             static bool chDir(const Path& path);
             static bool chDir(const std::string& path);
-            static bool makeDirectory(const Path& path);
-            static bool makeDirectory(const std::string& path);
-            static bool makeFile(const Path& path, const std::vector<uint8_t>& data = {});
-            static bool makeFile(const std::string& path, const std::vector<uint8_t>& data = {});
-            static bool makeFile(const Path& path, const std::string& data);
-            static bool makeFile(const std::string& path, const std::string& data);
+            static bool mkDir(const Path& path);
+            static bool mkDir(const std::string& path);
+            static bool mkFile(const Path& path, const std::vector<uint8_t>& data = {});
+            static bool mkFile(const std::string& path, const std::vector<uint8_t>& data = {});
+            static bool mkFile(const Path& path, const std::string& data);
+            static bool mkFile(const std::string& path, const std::string& data);
             static bool rmFile(const Path& path);
             static bool rmFile(const std::string& path);
             static bool rmDir(const Path& path, bool recursion = false);
@@ -180,15 +180,15 @@ namespace Tiny {
         checkPath();
     }
 
-    inline OS::Path & OS::Path::operator=(const Path &path) {
+    inline OS::Path& OS::Path::operator=(const Path &path) noexcept {
         _path = path._path;
-        _type = path._type;
+        checkPath();
         return *this;
     }
 
-    inline OS::Path & OS::Path::operator=(Path &&path) noexcept {
+    inline OS::Path& OS::Path::operator=(Path &&path) noexcept {
         _path = std::move(path._path);
-        _type = path._type;
+        checkPath();
         return *this;
     }
 
@@ -201,7 +201,7 @@ namespace Tiny {
 
     inline void OS::Path::setPath(const Path &path) {
         _path = path._path;
-        _type = path._type;
+        checkPath();
     }
 
     inline const std::string & OS::Path::path() const {
@@ -315,12 +315,10 @@ namespace Tiny {
     }
 
     inline bool OS::FileSystem::rmFile(const Path &path) {
-        if (path.isValid()) return false;
+        if (!path.isValid() || !path.isFile()) return false;
 #if defined(_WIN32) || defined(_WIN64)
-        if (path.isFile()) {
-            auto ok = DeleteFileA(path.path().data());
-            if (ok == 0) return false;
-        } else return false;
+        auto ok = DeleteFileA(path.path().data());
+        if (ok == 0) return false;
 #elif defined(__linux__) || defined(__unix__)
         // TODO:
 
@@ -351,7 +349,7 @@ namespace Tiny {
         return true;
     }
 
-    inline bool OS::FileSystem::makeDirectory(const Path &path) {
+    inline bool OS::FileSystem::mkDir(const Path &path) {
 #if defined(_WIN32) || defined(_WIN64)
         auto ok = CreateDirectoryA(path.path().data(), nullptr);
         if (ok == 0) return false;
@@ -366,7 +364,11 @@ namespace Tiny {
         return true;
     }
 
-    inline bool OS::FileSystem::makeDirectory(const std::string &path) {
+    inline bool OS::FileSystem::mkDir(const std::string &path) {
+        Path my_path(path);
+        if (my_path.isValid()) {
+            return my_path.isDirectory();
+        }
 #if defined(_WIN32) || defined(_WIN64)
         auto ok = CreateDirectoryA(path.c_str(), nullptr);
         if (ok == 0) return false;
@@ -381,7 +383,7 @@ namespace Tiny {
         return true;
     }
 
-    inline bool OS::FileSystem::makeFile(const Path &path, const std::vector<uint8_t> &data) {
+    inline bool OS::FileSystem::mkFile(const Path &path, const std::vector<uint8_t> &data) {
 #if defined(_WIN32) || defined(_WIN64)
         auto handler = CreateFileA(path.path().data(), GENERIC_READ | GENERIC_WRITE,
             FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, CREATE_ALWAYS,
@@ -401,7 +403,7 @@ namespace Tiny {
         return true;
     }
 
-    inline bool OS::FileSystem::makeFile(const std::string &path, const std::vector<uint8_t> &data) {
+    inline bool OS::FileSystem::mkFile(const std::string &path, const std::vector<uint8_t> &data) {
 #if defined(_WIN32) || defined(_WIN64)
         auto handler = CreateFileA(path.c_str(), GENERIC_READ | GENERIC_WRITE,
             FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, CREATE_ALWAYS,
@@ -421,7 +423,7 @@ namespace Tiny {
         return true;
     }
 
-    inline bool OS::FileSystem::makeFile(const Path &path, const std::string &data) {
+    inline bool OS::FileSystem::mkFile(const Path &path, const std::string &data) {
         #if defined(_WIN32) || defined(_WIN64)
         auto handler = CreateFileA(path.path().data(), GENERIC_READ | GENERIC_WRITE,
             FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, CREATE_ALWAYS,
@@ -441,7 +443,7 @@ namespace Tiny {
         return true;
     }
 
-    inline bool OS::FileSystem::makeFile(const std::string &path, const std::string &data) {
+    inline bool OS::FileSystem::mkFile(const std::string &path, const std::string &data) {
 #if defined(_WIN32) || defined(_WIN64)
         auto handler = CreateFileA(path.c_str(), GENERIC_READ | GENERIC_WRITE,
             FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, CREATE_ALWAYS,
@@ -480,7 +482,7 @@ namespace Tiny {
         if (!cur_dir.isValid() || !cur_dir.isDirectory()) return false;
 #if defined(_WIN32) || defined(_WIN64)
         if (recursion) {
-            return rmDirCompletely(cur_dir);
+            if (!rmDirCompletely(cur_dir)) return false;
         }
         BOOL ok = RemoveDirectoryA(cur_dir.path().data());
         if (ok == 0) return false;

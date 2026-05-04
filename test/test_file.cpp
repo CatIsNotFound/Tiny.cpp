@@ -5,6 +5,7 @@
 
 TEST(FileTest, Path_test) {
     Tiny::OS::Path path(".");
+    Tiny::OS::Path p2 = path;
     EXPECT_TRUE(path.isValid());
     EXPECT_TRUE(path.isDirectory());
     EXPECT_FALSE(path.isFile());
@@ -50,9 +51,9 @@ TEST(FileTest, File_Operate) {
     if (temp_path.isValid()) {
         EXPECT_TRUE(Tiny::OS::FileSystem::rmDir(temp_path, true));
     }
-    EXPECT_TRUE(Tiny::OS::FileSystem::makeDirectory(temp_path));
+    EXPECT_TRUE(Tiny::OS::FileSystem::mkDir(temp_path));
     temp_path.setPath("./test_dir/test.txt");
-    EXPECT_TRUE(Tiny::OS::FileSystem::makeFile(temp_path, "Here is a sample text!"));
+    EXPECT_TRUE(Tiny::OS::FileSystem::mkFile(temp_path, "Here is a sample text!"));
     EXPECT_TRUE(Tiny::OS::FileSystem::chDir("./test_dir"));
     EXPECT_FALSE(Tiny::OS::FileSystem::chDir("./test_dir/test.txt"));
 
