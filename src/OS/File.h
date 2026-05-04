@@ -202,7 +202,7 @@ namespace Tiny {
         else if (is_device) _type = FileType::Device;
         else if (is_link)   _type = FileType::SymbolLink;
         else if (is_file)   _type = FileType::File;
-        else                _type = FileType::Special;
+        else                _type = FileType::Unknown;
         ok = GetFullPathNameA(my_path.c_str(), 0, nullptr, nullptr);
         if (ok == 0) return;
         std::string new_full_path(ok, 0);

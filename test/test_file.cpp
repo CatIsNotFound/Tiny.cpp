@@ -5,12 +5,12 @@
 
 TEST(FileTest, Path_test) {
     Tiny::OS::Path path(".");
-
     EXPECT_TRUE(path.isExist());
     EXPECT_TRUE(path.isDirectory());
     EXPECT_FALSE(path.isFile());
     EXPECT_EQ(path.fileType(), Tiny::OS::FileType::Directory);
     EXPECT_STRNE(path.path().data(), ".");
+    std::cout << "File Path: " << path.path() << "\n";
     path.setPath("./assets/File/test.txt");
     EXPECT_TRUE(path.isExist());
     EXPECT_FALSE(path.isDirectory());
