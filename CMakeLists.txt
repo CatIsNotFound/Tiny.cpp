@@ -18,7 +18,7 @@ add_library(${PROJECT_NAME} STATIC
 
 if (TINY_BUILD_TEST)
     if (TINY_GTEST_SRC)
-        if (EXISTS ${CMAKE_SOURCE_DIR}/test/libs/gtest)
+        if (EXISTS ${CMAKE_SOURCE_DIR}/test/libs/gtest/CMakeLists.txt)
             add_subdirectory(${CMAKE_SOURCE_DIR}/test/libs/gtest)
             message("-- Found Source directory: \"${CMAKE_SOURCE_DIR}/test/libs/gtest\".")
         else ()

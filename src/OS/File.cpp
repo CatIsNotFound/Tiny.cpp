@@ -404,8 +404,8 @@ namespace Tiny {
             link_dest.c_str(), dest.isDirectory());
         if (ok == 0) return false;
 #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
-        // TODO:
-
+        auto ok = symlink(link_dest.c_str(), path.c_str());
+        if (ok == -1) return false;
 #else
         return false;
 #endif
@@ -419,8 +419,8 @@ namespace Tiny {
             link_dest.path().c_str(), link_dest.isDirectory());
         if (ok == 0) return false;
 #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
-        // TODO:
-
+        auto ok = symlink(link_dest.path().c_str(), path.c_str());
+        if (ok == -1) return false;
 #else
         return false;
 #endif
@@ -428,13 +428,30 @@ namespace Tiny {
     }
 
     bool OS::FileSystem::cpFile(const Path &src, const Path &dest) {
-        if (!src.isValid()) return false;
+        if (!src.isValid() || src.isDirectory()) return false;
 #if defined(_WIN32) || defined(_WIN64)
         auto ok = CopyFileA(src.path().c_str(), dest.path().c_str(), false);
         if (ok == 0) return false;
 #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
-        // TODO:
-
+        int src_fd = open(src.path().c_str(), O_RDONLY);
+        if (src_fd == -1) return false;
+        int dest_fd = open(dest.path().c_str(), O_WRONLY | O_CREAT | O_EXCL | O_TRUNC, 0777 - umask(0000));
+        if (dest_fd == -1) {
+            close(src_fd);
+            return false;
+        }
+        char buffer[4096];
+        ssize_t bytes_read;
+        while ((bytes_read = read(src_fd, buffer, sizeof(buffer))) > 0) {
+            ssize_t bytes_written = write(dest_fd, buffer, bytes_read);
+            if (bytes_written == -1) {
+                close(src_fd);
+                close(dest_fd);
+                return false;
+            }
+        }
+        close(src_fd);
+        close(dest_fd);
 #else
         return false;
 #endif
@@ -442,13 +459,30 @@ namespace Tiny {
     }
 
     bool OS::FileSystem::cpFile(const Path &src, const std::string &dest) {
-        if (!src.isValid()) return false;
+        if (!src.isValid() || src.isDirectory()) return false;
 #if defined(_WIN32) || defined(_WIN64)
         auto ok = CopyFileA(src.path().c_str(), dest.c_str(), false);
         if (ok == 0) return false;
 #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
-        // TODO:
-
+        int src_fd = open(src.path().c_str(), O_RDONLY);
+        if (src_fd == -1) return false;
+        int dest_fd = open(dest.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_TRUNC, 0777 - umask(0000));
+        if (dest_fd == -1) {
+            close(src_fd);
+            return false;
+        }
+        char buffer[4096];
+        ssize_t bytes_read;
+        while ((bytes_read = read(src_fd, buffer, sizeof(buffer))) > 0) {
+            ssize_t bytes_written = write(dest_fd, buffer, bytes_read);
+            if (bytes_written == -1) {
+                close(src_fd);
+                close(dest_fd);
+                return false;
+            }
+        }
+        close(src_fd);
+        close(dest_fd);
 #else
         return false;
 #endif
@@ -456,7 +490,7 @@ namespace Tiny {
     }
 
     bool OS::FileSystem::cpDir(const Path &src, const Path &dest) {
-        if (!src.isValid()) return false;
+        if (!src.isValid() || !src.isDirectory()) return false;
         auto file_list = listAllPath(src, 1, 0);
         auto parent_dir = src.parentDirectory();
 #if defined(_WIN32) || defined(_WIN64)
@@ -473,7 +507,18 @@ namespace Tiny {
             }
         }
 #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
-
+        auto ok = mkdir(dest.path().c_str(), 0777 - umask(0000));
+        if (ok == -1) return false;
+        for (auto& file : file_list) {
+            if (file.isDirectory()) {
+                bool is_ok = cpDir(file, dest.path() + "/" + file.shortFileName());
+                if (!is_ok) return false;
+            } else {
+                auto new_file_path = dest.path() + "/" + file.shortFileName();
+                ok = cpFile(file, new_file_path);
+                if (!ok) return false;
+            }
+        }
 #else
         return false;
 #endif
@@ -481,7 +526,7 @@ namespace Tiny {
     }
 
     bool OS::FileSystem::cpDir(const Path &src, const std::string &dest) {
-        if (!src.isValid()) return false;
+        if (!src.isValid() || !src.isDirectory()) return false;
         auto file_list = listAllPath(src, 1, 0);
         auto parent_dir = src.parentDirectory();
 #if defined(_WIN32) || defined(_WIN64)
@@ -498,7 +543,18 @@ namespace Tiny {
             }
         }
 #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
-
+        auto ok = mkdir(dest.c_str(), 0777 - umask(0000));
+        if (ok == -1) return false;
+        for (auto& file : file_list) {
+            if (file.isDirectory()) {
+                bool is_ok = cpDir(file, dest + "/" + file.shortFileName());
+                if (!is_ok) return false;
+            } else {
+                auto new_file_path = dest + "/" + file.shortFileName();
+                ok = cpFile(file, new_file_path);
+                if (!ok) return false;
+            }
+        }
 #else
         return false;
 #endif
@@ -511,7 +567,8 @@ namespace Tiny {
         auto ok = MoveFileA(src.path().c_str(), dest.path().c_str());
         if (ok == 0) return false;
 #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
-
+        auto ok = rename(src.path().c_str(), dest.path().c_str());
+        if (ok == -1) return false;
 #else
         return false;
 #endif
@@ -524,7 +581,8 @@ namespace Tiny {
         auto ok = MoveFileA(src.path().c_str(), dest.c_str());
         if (ok == 0) return false;
 #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
-
+        auto ok = rename(src.path().c_str(), dest.c_str());
+        if (ok == -1) return false;
 #else
         return false;
 #endif
@@ -537,7 +595,8 @@ namespace Tiny {
         auto ok = MoveFileA(src.path().c_str(), dest.path().c_str());
         if (ok == 0) return false;
 #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
-
+        auto ok = rename(src.path().c_str(), dest.path().c_str());
+        if (ok == -1) return false;
 #else
         return false;
 #endif
@@ -550,7 +609,8 @@ namespace Tiny {
         auto ok = MoveFileA(src.path().c_str(), dest.c_str());
         if (ok == 0) return false;
 #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
-
+        auto ok = rename(src.path().c_str(), dest.c_str());
+        if (ok == -1) return false;
 #else
         return false;
 #endif
@@ -694,7 +754,7 @@ namespace Tiny {
                 auto found_path = listAllPath(new_found, current_recursion + 1, recursion_count);
                 paths.insert(paths.end(), found_path.begin(), found_path.end());
             }
-            if (filter && !filter(new_path)) continue;
+            if (filter && !filter(new_found)) continue;
             paths.emplace_back(new_found);
         } while ((iter = readdir(dir)) != nullptr);
 

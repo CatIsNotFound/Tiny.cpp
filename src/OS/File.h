@@ -26,6 +26,7 @@
 #ifndef TINY_CPP_OS_FILE_H
 #define TINY_CPP_OS_FILE_H
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <string>
 #include <vector>
