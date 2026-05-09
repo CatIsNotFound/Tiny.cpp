@@ -114,9 +114,9 @@ namespace Tiny {
 
     std::string OS::Path::fileNameWithoutExtension() const {
         if (_type == FileType::Directory) return _short_file_name;
-        auto pos = _short_file_name.find_first_of('.');
+        auto pos = _short_file_name.find_last_of('.');
         if (pos == std::string::npos) return _short_file_name;
-        return _short_file_name.substr(pos - 1);
+        return _short_file_name.substr(0, pos);
     }
 
     const std::string &OS::Path::shortFileName() const {
@@ -126,7 +126,7 @@ namespace Tiny {
     std::string OS::Path::parentDirectory() const {
         size_t pos = _path.find_last_of('/');
         if (pos == 0) return "/";
-        return _path.substr(pos + 1);
+        return _path.substr(0, pos);
     }
 
     bool OS::Path::isValid() const {
