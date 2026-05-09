@@ -37,7 +37,7 @@
 
 namespace Tiny {
 #if defined(_WIN32) || defined(_WIN64)
-    inline std::string OS::convert2Win(const std::string& path) {
+    std::string OS::convert2Win(const std::string& path) {
         std::string _new_path;
         for (auto c : path) {
             _new_path.push_back(c == '/' ? '\\' : c);
@@ -45,7 +45,7 @@ namespace Tiny {
         return _new_path;
     }
 
-    inline std::wstring OS::string2Wide(const std::string& str, uint32_t codepage) {
+    std::wstring OS::string2Wide(const std::string& str, uint32_t codepage) {
         auto len = MultiByteToWideChar(codepage, 0, str.data(),
         str.size(), nullptr, 0);
         std::wstring w_str(len, 0);
@@ -54,7 +54,7 @@ namespace Tiny {
         return w_str;
     }
 
-    inline std::string OS::wide2String(const std::wstring& w_str, uint32_t codepage) {
+    std::string OS::wide2String(const std::wstring& w_str, uint32_t codepage) {
         auto len = WideCharToMultiByte(codepage, 0, w_str.data(), w_str.size(),
             nullptr, 0, nullptr, nullptr);
         std::string str(len, 0);
@@ -64,44 +64,44 @@ namespace Tiny {
     }
 #endif
 
-    inline OS::Path::Path(const std::string& path) : _path(path), _type() {
+    OS::Path::Path(const std::string& path) : _path(path), _type() {
         checkPath();
     }
 
-    inline OS::Path::Path(const Path &path) : _path(path._path),
+    OS::Path::Path(const Path &path) : _path(path._path),
                                               _type(path._type) {
         checkPath();
     }
 
-    inline OS::Path::Path(Path &&path) noexcept : _path(std::move(path._path)), _type(path._type) {
+    OS::Path::Path(Path &&path) noexcept : _path(std::move(path._path)), _type(path._type) {
         checkPath();
     }
 
-    inline OS::Path& OS::Path::operator=(const Path &path) noexcept {
+    OS::Path& OS::Path::operator=(const Path &path) noexcept {
         _path = path._path;
         checkPath();
         return *this;
     }
 
-    inline OS::Path& OS::Path::operator=(Path &&path) noexcept {
+    OS::Path& OS::Path::operator=(Path &&path) noexcept {
         _path = std::move(path._path);
         checkPath();
         return *this;
     }
 
-    inline OS::Path::~Path() = default;
+    OS::Path::~Path() = default;
 
-    inline void OS::Path::setPath(const std::string &path) {
+    void OS::Path::setPath(const std::string &path) {
         _path = path;
         checkPath();
     }
 
-    inline void OS::Path::setPath(const Path &path) {
+    void OS::Path::setPath(const Path &path) {
         _path = path._path;
         checkPath();
     }
 
-    inline const std::string & OS::Path::path() const {
+    const std::string & OS::Path::path() const {
         return _path;
     }
 
@@ -119,19 +119,25 @@ namespace Tiny {
         return _short_file_name.substr(pos - 1);
     }
 
-    inline const std::string &OS::Path::shortFileName() const {
+    const std::string &OS::Path::shortFileName() const {
         return _short_file_name;
     }
 
-    inline bool OS::Path::isValid() const {
+    std::string OS::Path::parentDirectory() const {
+        size_t pos = _path.find_last_of('/');
+        if (pos == 0) return "/";
+        return _path.substr(pos + 1);
+    }
+
+    bool OS::Path::isValid() const {
         return _type != FileType::Unknown;
     }
 
-    inline bool OS::Path::isDirectory() const {
+    bool OS::Path::isDirectory() const {
         return _type == FileType::Directory;
     }
 
-    inline bool OS::Path::isFile() const {
+    bool OS::Path::isFile() const {
         return _type != FileType::Unknown && _type != FileType::Directory;
     }
 
@@ -139,11 +145,11 @@ namespace Tiny {
         return _type == FileType::SymbolLink;
     }
 
-    inline OS::FileType OS::Path::fileType() const {
+    OS::FileType OS::Path::fileType() const {
         return _type;
     }
 
-    inline size_t OS::Path::fileSize() const {
+    size_t OS::Path::fileSize() const {
 #if defined(_WIN32) || defined(_WIN64)
         size_t size = 0;
         auto h_file = CreateFileA(_path.c_str(), GENERIC_READ,
@@ -169,7 +175,7 @@ namespace Tiny {
         return *this;
     }
 
-    inline void OS::Path::checkPath() {
+    void OS::Path::checkPath() {
 #if defined(_WIN32) || defined(_WIN64)
         auto my_path = convert2Win(_path);
         auto ok = GetFileAttributesA(my_path.c_str());
@@ -218,7 +224,7 @@ namespace Tiny {
 #endif
     }
 
-    inline bool OS::FileSystem::chDir(const Path &path) {
+    bool OS::FileSystem::chDir(const Path &path) {
 #if defined(_WIN32) || defined(_WIN64)
         if (!path.isValid()) return false;
         auto ok = SetCurrentDirectoryA(path.path().data());
@@ -231,7 +237,7 @@ namespace Tiny {
         return true;
     }
 
-    inline bool OS::FileSystem::chDir(const std::string &path) {
+    bool OS::FileSystem::chDir(const std::string &path) {
 #if defined(_WIN32) || defined(_WIN64)
         auto ok = SetCurrentDirectoryA(path.data());
         if (ok == 0) return false;
@@ -243,7 +249,7 @@ namespace Tiny {
         return true;
     }
 
-    inline bool OS::FileSystem::rmFile(const Path &path) {
+    bool OS::FileSystem::rmFile(const Path &path) {
         if (!path.isValid() || !path.isFile()) return false;
 #if defined(_WIN32) || defined(_WIN64)
         auto ok = DeleteFileA(path.path().data());
@@ -256,7 +262,7 @@ namespace Tiny {
         return true;
     }
 
-    inline bool OS::FileSystem::rmDir(const Path &path, bool recursion) {
+    bool OS::FileSystem::rmDir(const Path &path, bool recursion) {
         if (!path.isValid() || !path.isDirectory()) return false;
 #if defined(_WIN32) || defined(_WIN64)
         if (recursion) {
@@ -275,7 +281,7 @@ namespace Tiny {
         return true;
     }
 
-    inline bool OS::FileSystem::mkDir(const Path &path) {
+    bool OS::FileSystem::mkDir(const Path &path) {
 #if defined(_WIN32) || defined(_WIN64)
         auto ok = CreateDirectoryA(path.path().data(), nullptr);
         if (ok == 0) return false;
@@ -290,7 +296,7 @@ namespace Tiny {
         return true;
     }
 
-    inline bool OS::FileSystem::mkDir(const std::string &path) {
+    bool OS::FileSystem::mkDir(const std::string &path) {
         Path my_path(path);
         if (my_path.isValid()) {
             return my_path.isDirectory();
@@ -306,7 +312,7 @@ namespace Tiny {
         return true;
     }
 
-    inline bool OS::FileSystem::mkFile(const Path &path, const std::vector<uint8_t> &data) {
+    bool OS::FileSystem::mkFile(const Path &path, const std::vector<uint8_t> &data) {
 #if defined(_WIN32) || defined(_WIN64)
         auto handler = CreateFileA(path.path().data(), GENERIC_READ | GENERIC_WRITE,
             FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, CREATE_ALWAYS,
@@ -327,7 +333,7 @@ namespace Tiny {
         return true;
     }
 
-    inline bool OS::FileSystem::mkFile(const std::string &path, const std::vector<uint8_t> &data) {
+    bool OS::FileSystem::mkFile(const std::string &path, const std::vector<uint8_t> &data) {
 #if defined(_WIN32) || defined(_WIN64)
         auto handler = CreateFileA(path.c_str(), GENERIC_READ | GENERIC_WRITE,
             FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, CREATE_ALWAYS,
@@ -348,7 +354,7 @@ namespace Tiny {
         return true;
     }
 
-    inline bool OS::FileSystem::mkFile(const Path &path, const std::string &data) {
+    bool OS::FileSystem::mkFile(const Path &path, const std::string &data) {
         #if defined(_WIN32) || defined(_WIN64)
         auto handler = CreateFileA(path.path().data(), GENERIC_READ | GENERIC_WRITE,
             FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, CREATE_ALWAYS,
@@ -369,7 +375,7 @@ namespace Tiny {
         return true;
     }
 
-    inline bool OS::FileSystem::mkFile(const std::string &path, const std::string &data) {
+    bool OS::FileSystem::mkFile(const std::string &path, const std::string &data) {
 #if defined(_WIN32) || defined(_WIN64)
         auto handler = CreateFileA(path.c_str(), GENERIC_READ | GENERIC_WRITE,
             FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, CREATE_ALWAYS,
@@ -423,9 +429,9 @@ namespace Tiny {
 
     bool OS::FileSystem::cpFile(const Path &src, const Path &dest) {
         if (!src.isValid()) return false;
-        bool is_already_exist = dest.isValid();
 #if defined(_WIN32) || defined(_WIN64)
-
+        auto ok = CopyFileA(src.path().c_str(), dest.path().c_str(), false);
+        if (ok == 0) return false;
 #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
         // TODO:
 
@@ -436,9 +442,12 @@ namespace Tiny {
     }
 
     bool OS::FileSystem::cpFile(const Path &src, const std::string &dest) {
+        if (!src.isValid()) return false;
 #if defined(_WIN32) || defined(_WIN64)
-
+        auto ok = CopyFileA(src.path().c_str(), dest.c_str(), false);
+        if (ok == 0) return false;
 #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+        // TODO:
 
 #else
         return false;
@@ -447,8 +456,22 @@ namespace Tiny {
     }
 
     bool OS::FileSystem::cpDir(const Path &src, const Path &dest) {
+        if (!src.isValid()) return false;
+        auto file_list = listAllPath(src, 1, 0);
+        auto parent_dir = src.parentDirectory();
 #if defined(_WIN32) || defined(_WIN64)
-
+        auto ok = CreateDirectoryA(dest.path().c_str(), nullptr);
+        if (ok == 0) return false;
+        for (auto& file : file_list) {
+            if (file.isDirectory()) {
+                bool is_ok = cpDir(file, dest.path() + "/" + file.shortFileName());
+                if (!is_ok) return false;
+            } else {
+                auto new_file_path = dest.path() + "/" + file.shortFileName();
+                ok = CopyFileA(file.path().c_str(), new_file_path.c_str(), false);
+                if (!ok) return false;
+            }
+        }
 #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
 
 #else
@@ -458,8 +481,22 @@ namespace Tiny {
     }
 
     bool OS::FileSystem::cpDir(const Path &src, const std::string &dest) {
+        if (!src.isValid()) return false;
+        auto file_list = listAllPath(src, 1, 0);
+        auto parent_dir = src.parentDirectory();
 #if defined(_WIN32) || defined(_WIN64)
-
+        auto ok = CreateDirectoryA(dest.c_str(), nullptr);
+        if (ok == 0) return false;
+        for (auto& file : file_list) {
+            if (file.isDirectory()) {
+                bool is_ok = cpDir(file, dest + "/" + file.shortFileName());
+                if (!is_ok) return false;
+            } else {
+                auto new_file_path = dest + "/" + file.shortFileName();
+                ok = CopyFileA(file.path().c_str(), new_file_path.c_str(), false);
+                if (!ok) return false;
+            }
+        }
 #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
 
 #else
@@ -469,8 +506,10 @@ namespace Tiny {
     }
 
     bool OS::FileSystem::mvFile(const Path &src, const Path &dest) {
+        if (!src.isValid()) return false;
 #if defined(_WIN32) || defined(_WIN64)
-
+        auto ok = MoveFileA(src.path().c_str(), dest.path().c_str());
+        if (ok == 0) return false;
 #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
 
 #else
@@ -480,8 +519,10 @@ namespace Tiny {
     }
 
     bool OS::FileSystem::mvFile(const Path &src, const std::string &dest) {
+        if (!src.isValid()) return false;
 #if defined(_WIN32) || defined(_WIN64)
-
+        auto ok = MoveFileA(src.path().c_str(), dest.c_str());
+        if (ok == 0) return false;
 #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
 
 #else
@@ -491,8 +532,10 @@ namespace Tiny {
     }
 
     bool OS::FileSystem::mvDir(const Path &src, const Path &dest) {
+        if (!src.isValid()) return false;
 #if defined(_WIN32) || defined(_WIN64)
-
+        auto ok = MoveFileA(src.path().c_str(), dest.path().c_str());
+        if (ok == 0) return false;
 #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
 
 #else
@@ -502,8 +545,10 @@ namespace Tiny {
     }
 
     bool OS::FileSystem::mvDir(const Path &src, const std::string &dest) {
+        if (!src.isValid()) return false;
 #if defined(_WIN32) || defined(_WIN64)
-
+        auto ok = MoveFileA(src.path().c_str(), dest.c_str());
+        if (ok == 0) return false;
 #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
 
 #else
@@ -512,7 +557,7 @@ namespace Tiny {
         return true;
     }
 
-    inline bool OS::FileSystem::rmFile(const std::string &path) {
+    bool OS::FileSystem::rmFile(const std::string &path) {
 #if defined(_WIN32) || defined(_WIN64)
         auto ok = DeleteFileA(path.c_str());
         if (ok == 0) return false;
@@ -522,7 +567,7 @@ namespace Tiny {
         return true;
     }
 
-    inline bool OS::FileSystem::rmDir(const std::string &path, bool recursion) {
+    bool OS::FileSystem::rmDir(const std::string &path, bool recursion) {
         auto cur_dir = Path(path);
         if (!cur_dir.isValid() || !cur_dir.isDirectory()) return false;
 #if defined(_WIN32) || defined(_WIN64)
@@ -540,11 +585,11 @@ namespace Tiny {
         return true;
     }
 
-    inline OS::Path OS::FileSystem::currentPath() {
+    OS::Path OS::FileSystem::currentPath() {
         return Path(".");
     }
 
-    inline OS::Path OS::FileSystem::homePath() {
+    OS::Path OS::FileSystem::homePath() {
         char user[256] = {};
 #if defined(_WIN32) || defined(_WIN64)
         if (FAILED(SHGetFolderPathA(nullptr, CSIDL_PROFILE, nullptr, 0, user)))
@@ -556,30 +601,30 @@ namespace Tiny {
         return Path(user);
     }
 
-    inline std::vector<OS::Path> OS::FileSystem::listPath(const std::string &path, uint8_t recursion_count,
+    std::vector<OS::Path> OS::FileSystem::listPath(const std::string &path, uint8_t recursion_count,
                                                           const std::function<bool(const Path&)>& filter) {
         Path current_path(path);
         if (!current_path.isValid()) return {};
         if (recursion_count == 0) recursion_count = 255;
-        return listAllPath(current_path, 1, recursion_count);
+        return listAllPath(current_path, 1, recursion_count, filter);
     }
 
-    inline std::vector<OS::Path> OS::FileSystem::listPath(const Path &path, uint8_t recursion_count,
+    std::vector<OS::Path> OS::FileSystem::listPath(const Path &path, uint8_t recursion_count,
                                                           const std::function<bool(const Path&)>& filter) {
         if (!path.isValid()) return {};
         if (recursion_count == 0) recursion_count = 255;
-        return listAllPath(path, 1, recursion_count);
+        return listAllPath(path, 1, recursion_count, filter);
     }
 
-    inline std::vector<OS::Path> OS::FileSystem::listPath(uint8_t recursion_count,
+    std::vector<OS::Path> OS::FileSystem::listPath(uint8_t recursion_count,
                                                           const std::function<bool(const Path&)>& filter) {
         auto current_path = Path(".");
         if (!current_path.isValid()) return {};
         if (recursion_count == 0) recursion_count = 255;
-        return listAllPath(current_path, 1, recursion_count);
+        return listAllPath(current_path, 1, recursion_count, filter);
     }
 
-    inline bool OS::FileSystem::rmDirCompletely(const Path &path) {
+    bool OS::FileSystem::rmDirCompletely(const Path &path) {
         auto paths = listPath(path, 0);
 #if defined(_WIN32) || defined(_WIN64)
         BOOL ok = 1;
@@ -607,7 +652,7 @@ namespace Tiny {
         return true;
     }
 
-    inline std::vector<OS::Path> OS::FileSystem::listAllPath(const Path &path, uint8_t current_recursion,
+    std::vector<OS::Path> OS::FileSystem::listAllPath(const Path &path, uint8_t current_recursion,
                                                              uint8_t recursion_count,
                                                              const std::function<bool(const Path&)>& filter) {
         std::vector<Path> paths;
@@ -628,7 +673,8 @@ namespace Tiny {
                 auto found_path = listAllPath(new_path, current_recursion + 1, recursion_count);
                 paths.insert(paths.end(), found_path.begin(), found_path.end());
             }
-            if (filter && filter(new_path)) paths.emplace_back(new_path);
+            if (filter && !filter(new_path)) continue;
+            paths.emplace_back(new_path);
         } while (FindNextFileW(iter, &res));
         FindClose(iter);
 #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
@@ -648,7 +694,8 @@ namespace Tiny {
                 auto found_path = listAllPath(new_found, current_recursion + 1, recursion_count);
                 paths.insert(paths.end(), found_path.begin(), found_path.end());
             }
-            if (filter && filter(new_path)) paths.emplace_back(new_found);
+            if (filter && !filter(new_path)) continue;
+            paths.emplace_back(new_found);
         } while ((iter = readdir(dir)) != nullptr);
 
         closedir(dir);

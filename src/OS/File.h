@@ -88,6 +88,7 @@ namespace Tiny {
             [[nodiscard]] std::string extensionName() const;
             [[nodiscard]] std::string fileNameWithoutExtension() const;
             [[nodiscard]] const std::string& shortFileName() const;
+            [[nodiscard]] std::string parentDirectory() const;
 
             [[nodiscard]] bool isValid() const;
             [[nodiscard]] bool isDirectory() const;

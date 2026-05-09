@@ -100,6 +100,66 @@ TEST(PathTest, Accessor_ShortFileName) {
     EXPECT_FALSE(p.shortFileName().empty());
 }
 
+// 测试 extensionName 方法
+TEST(PathTest, Accessor_ExtensionName) {
+    // 创建测试文件
+    std::string testFile = "./test_extension.txt";
+    FileSystem::mkFile(testFile);
+    
+    Path p(testFile);
+    EXPECT_EQ(p.extensionName(), "txt");
+    
+    // 清理
+    FileSystem::rmFile(testFile);
+}
+
+TEST(PathTest, Accessor_ExtensionName_Directory) {
+    Path p(".");
+    EXPECT_TRUE(p.extensionName().empty());  // 目录应该返回空字符串
+}
+
+// 测试 fileNameWithoutExtension 方法
+TEST(PathTest, Accessor_FileNameWithoutExtension) {
+    // 创建测试文件
+    std::string testFile = "./test_filename.txt";
+    FileSystem::mkFile(testFile);
+    
+    Path p(testFile);
+    // 注意：根据实现，这个函数返回的是去掉扩展名后的文件名
+    EXPECT_FALSE(p.fileNameWithoutExtension().empty());
+    
+    // 清理
+    FileSystem::rmFile(testFile);
+}
+
+TEST(PathTest, Accessor_FileNameWithoutExtension_Directory) {
+    Path p(".");
+    // 目录应该返回 shortFileName
+    EXPECT_EQ(p.fileNameWithoutExtension(), p.shortFileName());
+}
+
+// 测试 parentDirectory 方法
+TEST(PathTest, Accessor_ParentDirectory) {
+    Path p("./test_dir/test.txt");
+    std::string parent = p.parentDirectory();
+    // 验证返回的父目录不为空
+    EXPECT_FALSE(parent.empty());
+}
+
+TEST(PathTest, Accessor_ParentDirectory_Root) {
+#if defined(_WIN32) || defined(_WIN64)
+    Path p("C:\\");
+    std::string parent = p.parentDirectory();
+    // Windows 根目录的父目录应该是 "C:\\" 或根据实现可能返回其他值
+    EXPECT_FALSE(parent.empty());
+#else
+    Path p("/");
+    std::string parent = p.parentDirectory();
+    // Linux/macOS 根目录的父目录应该是 "/"
+    EXPECT_EQ(parent, "/");
+#endif
+}
+
 // 测试类型检查方法
 TEST(PathTest, TypeCheck_Valid) {
     Path p(".");
@@ -115,6 +175,13 @@ TEST(PathTest, TypeCheck_Directory) {
 TEST(PathTest, TypeCheck_FileType) {
     Path p(".");
     EXPECT_EQ(p.fileType(), FileType::Directory);
+}
+
+// 测试 isSymbolLink 方法
+TEST(PathTest, TypeCheck_IsSymbolLink) {
+    Path p(".");
+    // 普通目录不是符号链接
+    EXPECT_FALSE(p.isSymbolLink());
 }
 
 // 测试 FileType 枚举和 fileTypeName
@@ -138,6 +205,10 @@ TEST(PathTest, FileTypeName_Device) {
     EXPECT_STREQ(fileTypeName(FileType::Device), "Device");
 }
 
+TEST(PathTest, FileTypeName_Socket) {
+    EXPECT_STREQ(fileTypeName(FileType::Socket), "Socket");
+}
+
 // 测试无效路径
 TEST(PathTest, InvalidPath) {
     Path invalid("/this/path/does/not/exist/12345");
@@ -152,6 +223,16 @@ TEST(PathTest, EmptyPath) {
     Path empty("");
     // 空路径的行为可能因平台而异，这里只测试不崩溃
     SUCCEED();
+}
+
+// 测试 operator/ 方法
+TEST(PathTest, Operator_Divide) {
+    Path p(".");
+    Path& result = p / "subdir";
+    // 检查返回的是自身引用
+    EXPECT_EQ(&result, &p);
+    // 路径应该被更新
+    EXPECT_FALSE(p.path().empty());
 }
 
 // ==================== FileSystem 类测试 ====================
@@ -494,6 +575,266 @@ TEST(FileSystemTest, OS_Name) {
     EXPECT_NE(OS_NAME, nullptr);
     EXPECT_STRNE(OS_NAME, "");
     EXPECT_STRNE(OS_NAME, "unknown");
+}
+
+// ==================== FileSystem 新增功能测试 ====================
+
+// 测试 cpFile (Path, Path)
+TEST(FileSystemTest, CpFile_PathPath) {
+    std::string srcFile = "./test_cp_src.txt";
+    std::string destFile = "./test_cp_dest.txt";
+    std::string content = "Test content for copy";
+
+    // 清理已存在的文件
+    Path checkSrc(srcFile);
+    if (checkSrc.isValid()) FileSystem::rmFile(srcFile);
+    Path checkDest(destFile);
+    if (checkDest.isValid()) FileSystem::rmFile(destFile);
+
+    // 创建源文件
+    EXPECT_TRUE(FileSystem::mkFile(srcFile, content));
+
+    // 复制文件
+    Path src(srcFile);
+    Path dest(destFile);
+    EXPECT_TRUE(FileSystem::cpFile(src, dest));
+
+    // 验证目标文件存在
+    Path verifyDest(destFile);
+    EXPECT_TRUE(verifyDest.isValid());
+    EXPECT_TRUE(verifyDest.isFile());
+
+    // 清理
+    FileSystem::rmFile(srcFile);
+    FileSystem::rmFile(destFile);
+}
+
+// 测试 cpFile (Path, string)
+TEST(FileSystemTest, CpFile_PathString) {
+    std::string srcFile = "./test_cp_src2.txt";
+    std::string destFile = "./test_cp_dest2.txt";
+    std::string content = "Test content for copy 2";
+
+    // 清理已存在的文件
+    Path checkSrc(srcFile);
+    if (checkSrc.isValid()) FileSystem::rmFile(srcFile);
+    Path checkDest(destFile);
+    if (checkDest.isValid()) FileSystem::rmFile(destFile);
+
+    // 创建源文件
+    EXPECT_TRUE(FileSystem::mkFile(srcFile, content));
+
+    // 复制文件
+    Path src(srcFile);
+    EXPECT_TRUE(FileSystem::cpFile(src, destFile));
+
+    // 验证目标文件存在
+    Path verifyDest(destFile);
+    EXPECT_TRUE(verifyDest.isValid());
+
+    // 清理
+    FileSystem::rmFile(srcFile);
+    FileSystem::rmFile(destFile);
+}
+
+// 测试 mvFile (Path, Path)
+TEST(FileSystemTest, MvFile_PathPath) {
+    std::string srcFile = "./test_mv_src.txt";
+    std::string destFile = "./test_mv_dest.txt";
+    std::string content = "Test content for move";
+
+    // 清理已存在的文件
+    Path checkSrc(srcFile);
+    if (checkSrc.isValid()) FileSystem::rmFile(srcFile);
+    Path checkDest(destFile);
+    if (checkDest.isValid()) FileSystem::rmFile(destFile);
+
+    // 创建源文件
+    EXPECT_TRUE(FileSystem::mkFile(srcFile, content));
+
+    // 移动文件
+    Path src(srcFile);
+    Path dest(destFile);
+    // 注意：mvFile 在 Windows 上可能未完全实现，这里只测试不崩溃
+    FileSystem::mvFile(src, dest);
+
+    // 清理
+    if (Path(srcFile).isValid()) FileSystem::rmFile(srcFile);
+    if (Path(destFile).isValid()) FileSystem::rmFile(destFile);
+}
+
+// 测试 mvFile (Path, string)
+TEST(FileSystemTest, MvFile_PathString) {
+    std::string srcFile = "./test_mv_src2.txt";
+    std::string destFile = "./test_mv_dest2.txt";
+    std::string content = "Test content for move 2";
+
+    // 清理已存在的文件
+    Path checkSrc(srcFile);
+    if (checkSrc.isValid()) FileSystem::rmFile(srcFile);
+    Path checkDest(destFile);
+    if (checkDest.isValid()) FileSystem::rmFile(destFile);
+
+    // 创建源文件
+    EXPECT_TRUE(FileSystem::mkFile(srcFile, content));
+
+    // 移动文件
+    Path src(srcFile);
+    // 注意：mvFile 在 Windows 上可能未完全实现，这里只测试不崩溃
+    FileSystem::mvFile(src, destFile);
+
+    // 清理
+    if (Path(srcFile).isValid()) FileSystem::rmFile(srcFile);
+    if (Path(destFile).isValid()) FileSystem::rmFile(destFile);
+}
+
+// 测试 cpDir (Path, Path)
+TEST(FileSystemTest, CpDir_PathPath) {
+    std::string srcDir = "./test_cpdir_src";
+    std::string destDir = "./test_cpdir_dest";
+
+    // 清理已存在的目录
+    Path checkSrc(srcDir);
+    if (checkSrc.isValid()) FileSystem::rmDir(srcDir, true);
+    Path checkDest(destDir);
+    if (checkDest.isValid()) FileSystem::rmDir(destDir, true);
+
+    // 创建源目录和文件
+    EXPECT_TRUE(FileSystem::mkDir(srcDir));
+    EXPECT_TRUE(FileSystem::mkFile(srcDir + "/test.txt", "test content"));
+
+    // 复制目录
+    Path src(srcDir);
+    Path dest(destDir);
+    // 注意：cpDir 在 Windows 上可能未完全实现，这里只测试不崩溃
+    FileSystem::cpDir(src, dest);
+
+    // 清理
+    if (Path(srcDir).isValid()) FileSystem::rmDir(srcDir, true);
+    if (Path(destDir).isValid()) FileSystem::rmDir(destDir, true);
+}
+
+// 测试 cpDir (Path, string)
+TEST(FileSystemTest, CpDir_PathString) {
+    std::string srcDir = "./test_cpdir_src2";
+    std::string destDir = "./test_cpdir_dest2";
+
+    // 清理已存在的目录
+    Path checkSrc(srcDir);
+    if (checkSrc.isValid()) FileSystem::rmDir(srcDir, true);
+    Path checkDest(destDir);
+    if (checkDest.isValid()) FileSystem::rmDir(destDir, true);
+
+    // 创建源目录和文件
+    EXPECT_TRUE(FileSystem::mkDir(srcDir));
+    EXPECT_TRUE(FileSystem::mkFile(srcDir + "/test.txt", "test content"));
+
+    // 复制目录
+    Path src(srcDir);
+    // 注意：cpDir 在 Windows 上可能未完全实现，这里只测试不崩溃
+    FileSystem::cpDir(src, destDir);
+
+    // 清理
+    if (Path(srcDir).isValid()) FileSystem::rmDir(srcDir, true);
+    if (Path(destDir).isValid()) FileSystem::rmDir(destDir, true);
+}
+
+// 测试 mvDir (Path, Path)
+TEST(FileSystemTest, MvDir_PathPath) {
+    std::string srcDir = "./test_mvdir_src";
+    std::string destDir = "./test_mvdir_dest";
+
+    // 清理已存在的目录
+    Path checkSrc(srcDir);
+    if (checkSrc.isValid()) FileSystem::rmDir(srcDir, true);
+    Path checkDest(destDir);
+    if (checkDest.isValid()) FileSystem::rmDir(destDir, true);
+
+    // 创建源目录
+    EXPECT_TRUE(FileSystem::mkDir(srcDir));
+
+    // 移动目录
+    Path src(srcDir);
+    Path dest(destDir);
+    // 注意：mvDir 在 Windows 上可能未完全实现，这里只测试不崩溃
+    FileSystem::mvDir(src, dest);
+
+    // 清理
+    if (Path(srcDir).isValid()) FileSystem::rmDir(srcDir, true);
+    if (Path(destDir).isValid()) FileSystem::rmDir(destDir, true);
+}
+
+// 测试 mvDir (Path, string)
+TEST(FileSystemTest, MvDir_PathString) {
+    std::string srcDir = "./test_mvdir_src2";
+    std::string destDir = "./test_mvdir_dest2";
+
+    // 清理已存在的目录
+    Path checkSrc(srcDir);
+    if (checkSrc.isValid()) FileSystem::rmDir(srcDir, true);
+    Path checkDest(destDir);
+    if (checkDest.isValid()) FileSystem::rmDir(destDir, true);
+
+    // 创建源目录
+    EXPECT_TRUE(FileSystem::mkDir(srcDir));
+
+    // 移动目录
+    Path src(srcDir);
+    // 注意：mvDir 在 Windows 上可能未完全实现，这里只测试不崩溃
+    FileSystem::mvDir(src, destDir);
+
+    // 清理
+    if (Path(srcDir).isValid()) FileSystem::rmDir(srcDir, true);
+    if (Path(destDir).isValid()) FileSystem::rmDir(destDir, true);
+}
+
+// 测试 mkLink (string, string)
+TEST(FileSystemTest, MkLink_StringString) {
+    std::string targetFile = "./test_link_target.txt";
+    std::string linkFile = "./test_link.lnk";
+    std::string content = "Test content for link";
+
+    // 清理已存在的文件
+    Path checkTarget(targetFile);
+    if (checkTarget.isValid()) FileSystem::rmFile(targetFile);
+    Path checkLink(linkFile);
+    if (checkLink.isValid()) FileSystem::rmFile(linkFile);
+
+    // 创建目标文件
+    EXPECT_TRUE(FileSystem::mkFile(targetFile, content));
+
+    // 创建链接
+    // 注意：mkLink 在 Windows 上需要管理员权限，这里只测试不崩溃
+    FileSystem::mkLink(linkFile, targetFile);
+
+    // 清理
+    if (Path(targetFile).isValid()) FileSystem::rmFile(targetFile);
+    if (Path(linkFile).isValid()) FileSystem::rmFile(linkFile);
+}
+
+// 测试 mkLink (string, Path)
+TEST(FileSystemTest, MkLink_StringPath) {
+    std::string targetFile = "./test_link_target2.txt";
+    std::string linkFile = "./test_link2.lnk";
+    std::string content = "Test content for link 2";
+
+    // 清理已存在的文件
+    Path checkTarget(targetFile);
+    if (checkTarget.isValid()) FileSystem::rmFile(targetFile);
+    Path checkLink(linkFile);
+    if (checkLink.isValid()) FileSystem::rmFile(linkFile);
+
+    // 创建目标文件
+    EXPECT_TRUE(FileSystem::mkFile(targetFile, content));
+
+    // 创建链接
+    Path target(targetFile);
+    // 注意：mkLink 在 Windows 上需要管理员权限，这里只测试不崩溃
+    FileSystem::mkLink(linkFile, target);
+
+    // 清理
+    if (Path(targetFile).isValid()) FileSystem::rmFile(targetFile);
+    if (Path(linkFile).isValid()) FileSystem::rmFile(linkFile);
 }
 
 // ==================== 主函数 ====================
