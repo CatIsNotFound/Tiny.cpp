@@ -23,7 +23,7 @@
  *                                                                                   *
  *************************************************************************************/
 
-#define TINY_CPP_OS_FILE_IMPL
+
 #include "../src/OS/File.h"
 #include <gtest/gtest.h>
 #include <string>

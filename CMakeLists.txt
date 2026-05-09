@@ -12,13 +12,15 @@ add_library(${PROJECT_NAME} STATIC
         src/Tiny.h
         src/Tiny.cpp
         src/OS/File.h
+        src/OS/File.cpp
 
 )
 
 if (TINY_BUILD_TEST)
     if (TINY_GTEST_SRC)
-        if (EXISTS "test/libs/gtest")
-            add_subdirectory(test/libs/gtest)
+        if (EXISTS ${CMAKE_SOURCE_DIR}/test/libs/gtest)
+            add_subdirectory(${CMAKE_SOURCE_DIR}/test/libs/gtest)
+            message("-- Found Source directory: \"${CMAKE_SOURCE_DIR}/test/libs/gtest\".")
         else ()
             message("-- Downloading Google test from \"https://github.com/google/googletest/archive/refs/heads/main.zip\"...")
             message("-- Press Ctrl+C to cancel.")
@@ -31,6 +33,7 @@ if (TINY_BUILD_TEST)
             FetchContent_MakeAvailable(googletest)
         endif ()
     else ()
+        message("-- Using specified path for Google test. ")
         find_package(GTest REQUIRED)
     endif ()
     add_subdirectory(test)

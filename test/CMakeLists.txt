@@ -11,10 +11,6 @@ function(addModule NAME MODULE_LIST)
     set(${MODULE_LIST} ${${MODULE_LIST}} ${NAME} PARENT_SCOPE)
 endfunction()
 
-addModule(Test_File MY_MODULE
-        test_file.cpp
-)
-
 addModule(TestFile MY_MODULE
         testFile.cpp
 )
