@@ -34,18 +34,18 @@
 namespace Tiny {
     namespace OS {
 #if defined(_WIN32) || defined(_WIN64)
-        inline const char* OS_NAME = "win";
+        constexpr const char* OS_NAME("win");
         inline std::string convert2Win(const std::string& path);
         inline std::wstring string2Wide(const std::string& str, uint32_t codepage = 65001);
         inline std::string wide2String(const std::wstring& w_str, uint32_t codepage = 65001);
 #elif defined(__linux__)
-        inline const char* OS_NAME = "linux";
+        constexpr const char* OS_NAME("linux");
 #elif defined(__APPLE__)
-        inline const char* OS_NAME = "apple";
+        constexpr const char* OS_NAME("apple");
 #elif defined(__unix__)
-        inline const char* OS_NAME = "unix";
+        constexpr const char* OS_NAME("unix");
 #else
-        inline const char* OS_NAME = "unknown";
+        constexpr const char* OS_NAME("unknown");
 #endif
 
         enum class FileType : uint8_t {
@@ -76,9 +76,9 @@ namespace Tiny {
 
         class Path {
         public:
-            explicit Path(const std::string& path);
-            explicit Path(const Path& path);
-            explicit Path(Path&& path) noexcept;
+            Path(const std::string& path);
+            Path(const Path& path);
+            Path(Path&& path) noexcept;
             Path& operator=(const Path& path) noexcept;
             [[nodiscard]] Path& operator=(Path&& path) noexcept;
             ~Path();
