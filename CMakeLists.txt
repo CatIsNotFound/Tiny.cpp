@@ -13,6 +13,7 @@ add_library(${PROJECT_NAME} STATIC
         src/Tiny.cpp
         src/OS/File.h
         src/OS/File.cpp
+        src/TUI/TUI.h
 
 
 )
