@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 project(Tiny.cpp LANGUAGES CXX VERSION 0.0.1)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(TINY_BUILD_TEST "Build test module" ON)
@@ -9,13 +9,13 @@ option(TINY_GTEST_SRC "Include Source code from local." ON)
 
 
 add_library(${PROJECT_NAME} STATIC
-        src/Tiny.h
+        src/Tiny.hpp
         src/Tiny.cpp
-        src/OS/File.h
+        src/OS/File.hpp
         src/OS/File.cpp
-        src/TUI/TUI.h
-
-
+        src/TUI/TUI.hpp
+        src/TUI/TUI.cpp
+        src/Events/Events.hpp
 )
 
 if (TINY_BUILD_TEST)

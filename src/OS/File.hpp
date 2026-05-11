@@ -38,25 +38,29 @@
  *      #define TINY_CPP_MY_OS_UNIX                                                        *
  *******************************************************************************************/
 
-#if defined(_WIN32) || defined(_WIN64)
-#if not defined(TINY_CPP_MY_OS_WINDOWS) && not defined(TINY_CPP_MY_OS_UNIX)
-#define TINY_CPP_MY_OS_WINDOWS
+#if !defined(TINY_CPP_MY_OS_WINDOWS) && !defined(TINY_CPP_MY_OS_UNIX)
+    #if defined(_WIN32) || defined(_WIN64)
+        #define TINY_CPP_MY_OS_WINDOWS
+    #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+        #define TINY_CPP_MY_OS_UNIX
+    #endif
 #endif
-#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
-#if not defined(TINY_CPP_MY_OS_WINDOWS) && not defined(TINY_CPP_MY_OS_UNIX)
-#define TINY_CPP_MY_OS_UNIX
-#endif
+
+#if defined(TINY_CPP_MY_OS_WINDOWS) && !defined(TINY_CPP_DEFINED_WIN)
+#define TINY_CPP_DEFINED_WIN
+namespace Tiny {
+    namespace Win {
+        std::string convert2Win(const std::string& path);
+        std::wstring string2Wide(const std::string& str, uint32_t codepage = 65001);
+        std::string wide2String(const std::wstring& w_str, uint32_t codepage = 65001);
+    }
+}
 #endif
 
 namespace Tiny {
     namespace OS {
 #if defined(_WIN32) || defined(_WIN64)
         constexpr const char* OS_NAME("win");
-#ifdef TINY_CPP_MY_OS_WINDOWS
-        inline std::string convert2Win(const std::string& path);
-        inline std::wstring string2Wide(const std::string& str, uint32_t codepage = 65001);
-        inline std::string wide2String(const std::wstring& w_str, uint32_t codepage = 65001);
-#endif
 #elif defined(__linux__)
         constexpr const char* OS_NAME("linux");
 #elif defined(__APPLE__)
@@ -162,6 +166,8 @@ namespace Tiny {
         };
     }
 }
+
+
 
 #endif //TINY_CPP_OS_FILE_HPP
 

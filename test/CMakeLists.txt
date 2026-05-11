@@ -15,6 +15,10 @@ addModule(TestFile MY_MODULE
         testFile.cpp
 )
 
+addModule(TestTUI MY_MODULE
+        Test_TUI.cpp
+)
+
 
 foreach (MODULE IN ITEMS ${MY_MODULE})
     set_target_properties(${MODULE} PROPERTIES

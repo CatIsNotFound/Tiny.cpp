@@ -37,9 +37,10 @@
 #include <sys/stat.h>
 #endif
 
+#if defined(TINY_CPP_MY_OS_WINDOWS) && !defined(TINY_CPP_DEFINED_WIN)
+#define TINY_CPP_DEFINED_WIN
 namespace Tiny {
-#ifdef TINY_CPP_MY_OS_WINDOWS
-    std::string OS::convert2Win(const std::string& path) {
+    std::string Win::convert2Win(const std::string& path) {
         std::string _new_path;
         for (auto c : path) {
             _new_path.push_back(c == '/' ? '\\' : c);
@@ -47,7 +48,7 @@ namespace Tiny {
         return _new_path;
     }
 
-    std::wstring OS::string2Wide(const std::string& str, uint32_t codepage) {
+    std::wstring Win::string2Wide(const std::string& str, uint32_t codepage) {
         auto len = MultiByteToWideChar(codepage, 0, str.data(),
         str.size(), nullptr, 0);
         std::wstring w_str(len, 0);
@@ -56,7 +57,7 @@ namespace Tiny {
         return w_str;
     }
 
-    std::string OS::wide2String(const std::wstring& w_str, uint32_t codepage) {
+    std::string Win::wide2String(const std::wstring& w_str, uint32_t codepage) {
         auto len = WideCharToMultiByte(codepage, 0, w_str.data(), w_str.size(),
             nullptr, 0, nullptr, nullptr);
         std::string str(len, 0);
@@ -64,8 +65,10 @@ namespace Tiny {
             &str[0], len, nullptr, nullptr);
         return str;
     }
+}
 #endif
 
+namespace Tiny {
     OS::Path::Path(std::string path) : _path(std::move(path)), _type() {
         checkPath();
     }
@@ -179,7 +182,7 @@ namespace Tiny {
 
     void OS::Path::checkPath() {
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        auto my_path = convert2Win(_path);
+        auto my_path = Tiny::Win::convert2Win(_path);
         auto ok = GetFileAttributesA(my_path.c_str());
         if (ok == INVALID_FILE_ATTRIBUTES) return;
         bool is_dir = (ok & FILE_ATTRIBUTE_DIRECTORY);
@@ -721,13 +724,13 @@ namespace Tiny {
         if (current_recursion > recursion_count) return paths;
 #ifdef TINY_CPP_MY_OS_WINDOWS
         WIN32_FIND_DATAW res = {};
-        auto str = string2Wide(path.path());
+        auto str = Tiny::Win::string2Wide(path.path());
         wchar_t find_string[MAX_PATH];
         wsprintfW(find_string, L"%s\\*", str.c_str());
         auto iter = FindFirstFileW(find_string, &res);
         if (iter == INVALID_HANDLE_VALUE) return paths;
         do {
-            auto short_file_name = wide2String(res.cFileName);
+            auto short_file_name = Tiny::Win::wide2String(res.cFileName);
             auto new_found = path.path() + "\\" + short_file_name;
             Path new_path(new_found);
             if (short_file_name == "." || short_file_name == "..") continue;
