@@ -23,12 +23,37 @@
  *                                                                                   *
  *************************************************************************************/
 
-#ifndef TINY_HPP
-#define TINY_HPP
+#ifndef TINY_CPP_TUI_HPP
+#define TINY_CPP_TUI_HPP
+#include <string>
+#include <cstdint>
+#include <cstdio>
 
-#include "OS/File.hpp"
+/*******************************************************************************************
+ * P.S: - To enabled using Windows32 lib, please use the macro below:                      *
+ *      #define TINY_CPP_MY_OS_WINDOWS                                                     *
+ *      - To enabled using Unix lib (for Linux, MacOS, etc.), please use the macro below:  *
+ *      #define TINY_CPP_MY_OS_UNIX                                                        *
+ *******************************************************************************************/
 
-#endif //TINY_HPP
+#if defined(_WIN32) || defined(_WIN64)
+#if not defined(TINY_CPP_MY_OS_WINDOWS) && not defined(TINY_CPP_MY_OS_UNIX)
+#define TINY_CPP_MY_OS_WINDOWS
+#endif
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+#if not defined(TINY_CPP_MY_OS_WINDOWS) && not defined(TINY_CPP_MY_OS_UNIX)
+#define TINY_CPP_MY_OS_UNIX
+#endif
+#endif
+
+namespace Tiny {
+    namespace TUI {
+
+    }
+}
+
+
+#endif //TINY_CPP_TUI_HPP
 
 /*************************************************************************************
  * MIT License                                                                       *

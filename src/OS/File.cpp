@@ -23,7 +23,7 @@
  *                                                                                   *
  *************************************************************************************/
 
-#include "File.h"
+#include "File.hpp"
 
 #ifdef TINY_CPP_MY_OS_WINDOWS
 #include <windows.h>

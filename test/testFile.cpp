@@ -23,7 +23,7 @@
  *                                                                                   *
  *************************************************************************************/
 
-#include "../src/OS/File.h"
+#include "../src/OS/File.hpp"
 #include <gtest/gtest.h>
 #include <string>
 #include <vector>

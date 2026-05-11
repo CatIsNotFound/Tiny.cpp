@@ -23,8 +23,8 @@
  *                                                                                   *
  *************************************************************************************/
 
-#ifndef TINY_CPP_OS_FILE_H
-#define TINY_CPP_OS_FILE_H
+#ifndef TINY_CPP_OS_FILE_HPP
+#define TINY_CPP_OS_FILE_HPP
 #include <cstdint>
 #include <cstring>
 #include <functional>
@@ -163,7 +163,7 @@ namespace Tiny {
     }
 }
 
-#endif //TINY_CPP_OS_FILE_H
+#endif //TINY_CPP_OS_FILE_HPP
 
 /*************************************************************************************
  * MIT License                                                                       *
