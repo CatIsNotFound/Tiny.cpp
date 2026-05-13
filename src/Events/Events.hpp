@@ -43,14 +43,14 @@ namespace Tiny {
     public:
         Event(uint32_t id, const std::string& name,
             const std::function<bool()>& condition,
-            const std::function<void()>& event);
+            const std::function<void(const std::atomic<bool>&)>& event);
         Event(const Event&);
         virtual ~Event();
         Event& operator=(const Event&);
         void setID(uint32_t id);
         void setName(const std::string& name);
         void setCondition(const std::function<bool()>& condition);
-        void setEvent(const std::function<void()>& callback);
+        void setEvent(const std::function<void(const std::atomic<bool>&)>& callback);
         [[nodiscard]] uint32_t eventID() const;
         [[nodiscard]] const std::string& eventName() const;
         [[nodiscard]] bool isRunning() const;
@@ -60,7 +60,7 @@ namespace Tiny {
     private:
         uint32_t _id{};
         std::string _name{};
-        std::function<void()> _event{};
+        std::function<void(const std::atomic<bool>&)> _event{};
         std::function<bool()> _condition{};
         std::atomic<bool> _is_running{false};
         std::thread _thread{};

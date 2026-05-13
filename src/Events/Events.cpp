@@ -27,7 +27,7 @@
 
 namespace Tiny {
     Event::Event(uint32_t id, const std::string &name,
-                 const std::function<bool()> &condition, const std::function<void()> &event)
+                 const std::function<bool()> &condition, const std::function<void(const std::atomic<bool>&)> &event)
                      : _id(id), _name(name), _event(event), _condition(condition) {}
 
     Event::Event(const Event & event)
@@ -38,11 +38,12 @@ namespace Tiny {
         this->_name = event._name;
         this->_is_running = false;
         this->_event = event._event;
+        this->_condition = event._condition;
         return *this;
     }
 
     Event::~Event() {
-        if (_is_running.load() && _thread.joinable()) {
+        if (_thread.joinable()) {
             _thread.join();
         }
     }
@@ -59,7 +60,7 @@ namespace Tiny {
         _condition = condition;
     }
 
-    void Event::setEvent(const std::function<void()> &callback) {
+    void Event::setEvent(const std::function<void(const std::atomic<bool>&)> &callback) {
         _event = callback;
     }
 
@@ -80,18 +81,23 @@ namespace Tiny {
     }
 
     void Event::run() {
-        if (_is_running.load() && _thread.joinable()) {
+        if (_thread.joinable()) {
             _thread.join();
         }
         _thread = std::thread([this]() {
             _is_running.store(true);
-            if (!_condition || !_event) return;
-            if (_condition()) _event();
-            _is_running.store(false);
+            while (_is_running.load()) {
+                if (!_condition || !_event) {
+                    _is_running.store(false);
+                    return;
+                }
+                if (_condition()) _event(_is_running);
+            }
         });
     }
 
     void Event::stop() {
+        _is_running.store(false);
         if (_thread.joinable()) {
             _thread.join();
         }
