@@ -16,6 +16,7 @@ add_library(${PROJECT_NAME} STATIC
         src/TUI/TUI.hpp
         src/TUI/TUI.cpp
         src/Events/Events.hpp
+        src/Events/Events.cpp
 )
 
 if (TINY_BUILD_TEST)

@@ -78,6 +78,7 @@ namespace Tiny {
         DWORD raw_mode = mode;
         raw_mode &= ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_QUICK_EDIT_MODE);
         if (!SetConsoleMode(console, raw_mode)) return false;
+
 #endif
         return true;
     }

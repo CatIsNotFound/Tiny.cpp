@@ -15,7 +15,7 @@ addModule(TestFile MY_MODULE
         testFile.cpp
 )
 
-addModule(TestTUI MY_MODULE
+addModule(TestTUI MY_MODULE_WITHOUT_GTEST
         Test_TUI.cpp
 )
 
@@ -34,4 +34,14 @@ foreach (MODULE IN ITEMS ${MY_MODULE})
     add_test(${MODULE} COMMAND ${MODULE})
 endforeach ()
 
+foreach (MODULE IN ITEMS ${MY_MODULE_WITHOUT_GTEST})
+    set_target_properties(${MODULE} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    )
+
+    target_link_libraries(${MODULE}
+            Tiny.cpp
+    )
+    add_test(${MODULE} COMMAND ${MODULE})
+endforeach ()
 

@@ -23,84 +23,152 @@
  *                                                                                   *
  *************************************************************************************/
 
-#ifndef TINY_CPP_EVENTS_HPP
-#define TINY_CPP_EVENTS_HPP
-
-#include <string>
-#include <functional>
-#include <unordered_map>
-#include <memory>
-#include <mutex>
-#include <thread>
-#include <atomic>
-#include <cstdint>
-#include <csignal>
+#include "Events.hpp"
 
 namespace Tiny {
-    class EventQueue;
-    class Event {
-        friend class EventQueue;
-    public:
-        Event(uint32_t id, const std::string& name,
-            const std::function<bool()>& condition,
-            const std::function<void()>& event);
-        Event(const Event&);
-        virtual ~Event();
-        Event& operator=(const Event&);
-        void setID(uint32_t id);
-        void setName(const std::string& name);
-        void setCondition(const std::function<bool()>& condition);
-        void setEvent(const std::function<void()>& callback);
-        [[nodiscard]] uint32_t eventID() const;
-        [[nodiscard]] const std::string& eventName() const;
-        [[nodiscard]] bool isRunning() const;
-        [[nodiscard]] bool hasEvent() const;
-        void run();
-        void stop();
-    private:
-        uint32_t _id{};
-        std::string _name{};
-        std::function<void()> _event{};
-        std::function<bool()> _condition{};
-        std::atomic<bool> _is_running{false};
-        std::thread _thread{};
-    };
+    Event::Event(uint32_t id, const std::string &name,
+                 const std::function<bool()> &condition, const std::function<void()> &event)
+                     : _id(id), _name(name), _event(event), _condition(condition) {}
 
-    class EventQueue {
-        friend class Event;
-    public:
-        using constEventIter = std::unordered_map<uint32_t, Event>::const_iterator;
-        using eventIter = std::unordered_map<uint32_t, Event>::iterator;
-        static EventQueue& global();
-        virtual ~EventQueue() = default;
+    Event::Event(const Event & event)
+           : _id(event._id), _name(event._name), _event(event._event), _condition(event._condition) {}
 
-        bool pushEvent(const Event& event);
-        bool removeEvent(uint32_t event_id);
-        eventIter begin();
-        [[nodiscard]] constEventIter cbegin() const;
-        eventIter end();
-        [[nodiscard]] constEventIter cend() const;
-        [[nodiscard]] const Event &at(uint32_t event_id) const;
-        [[nodiscard]] size_t size() const;
-        void exec();
-        void stop();
-        [[nodiscard]] bool isRunning() const;
+    Event &Event::operator=(const Event &event) {
+        this->_id = event._id;
+        this->_name = event._name;
+        this->_is_running = false;
+        this->_event = event._event;
+        return *this;
+    }
 
-        EventQueue(const EventQueue&) = delete;
-        EventQueue(EventQueue&&) = delete;
-        EventQueue& operator=(const EventQueue&) = delete;
-        EventQueue& operator=(EventQueue&&) = delete;
-    protected:
-        explicit EventQueue() = default;
-        void run();
-    private:
-        std::unordered_map<uint32_t, Event> _events_bus;
-        std::atomic<bool> _is_running{false};
-    };
+    Event::~Event() {
+        if (_is_running.load() && _thread.joinable()) {
+            _thread.join();
+        }
+    }
+
+    void Event::setID(uint32_t id) {
+        _id = id;
+    }
+
+    void Event::setName(const std::string &name) {
+        _name = name;
+    }
+
+    void Event::setCondition(const std::function<bool()> &condition) {
+        _condition = condition;
+    }
+
+    void Event::setEvent(const std::function<void()> &callback) {
+        _event = callback;
+    }
+
+    uint32_t Event::eventID() const {
+        return _id;
+    }
+
+    const std::string & Event::eventName() const {
+        return _name;
+    }
+
+    bool Event::isRunning() const {
+        return _is_running.load();
+    }
+
+    bool Event::hasEvent() const {
+        return _event != nullptr;
+    }
+
+    void Event::run() {
+        if (_is_running.load() && _thread.joinable()) {
+            _thread.join();
+        }
+        _thread = std::thread([this]() {
+            _is_running.store(true);
+            if (!_condition || !_event) return;
+            if (_condition()) _event();
+            _is_running.store(false);
+        });
+    }
+
+    void Event::stop() {
+        if (_thread.joinable()) {
+            _thread.join();
+        }
+    }
+
+    EventQueue & EventQueue::global() {
+        static EventQueue global;
+        return global;
+    }
+
+    bool EventQueue::pushEvent(const Event &event) {
+        auto key = _events_bus.find(event.eventID());
+        if (key != _events_bus.end()) {
+            if (_events_bus.at(event.eventID()).isRunning()) {
+                return false;
+            }
+            _events_bus.at(event.eventID()) = event;
+        } else {
+            _events_bus.emplace(event.eventID(), event);
+        }
+        return true;
+    }
+
+    bool EventQueue::removeEvent(uint32_t event_id) {
+        auto key = _events_bus.find(event_id);
+        if (key != _events_bus.end()) {
+            if (_events_bus.at(event_id).isRunning()) return false;
+            _events_bus.erase(event_id);
+        }
+        return true;
+    }
+
+    EventQueue::eventIter EventQueue::begin() {
+        return _events_bus.begin();
+    }
+
+    EventQueue::constEventIter EventQueue::cbegin() const {
+        return _events_bus.cbegin();
+    }
+
+    EventQueue::eventIter EventQueue::end() {
+        return _events_bus.end();
+    }
+
+    EventQueue::constEventIter EventQueue::cend() const {
+        return _events_bus.cend();
+    }
+
+    const Event& EventQueue::at(uint32_t event_id) const {
+        return _events_bus.at(event_id);
+    }
+
+    size_t EventQueue::size() const {
+        return _events_bus.size();
+    }
+
+    void EventQueue::exec() {
+        _is_running.store(true);
+
+    }
+
+    void EventQueue::stop() {
+        _is_running.store(false);
+        for (auto& it : _events_bus) {
+            it.second._is_running.store(false);
+        }
+    }
+
+    bool EventQueue::isRunning() const {
+        return _is_running.load();
+    }
+
+    void EventQueue::run() {
+
+    }
 }
 
-
-#endif //TINY_CPP_EVENTS_HPP
 
 /*************************************************************************************
  * MIT License                                                                       *
