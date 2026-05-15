@@ -27,6 +27,8 @@
 #define TINY_HPP
 
 #include "OS/File.hpp"
+#include "Events/Events.hpp"
+#include "TUI/TUI.hpp"
 
 #endif //TINY_HPP
 

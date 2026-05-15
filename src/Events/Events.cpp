@@ -25,27 +25,39 @@
 
 #include "Events.hpp"
 
+#include <utility>
+
 namespace Tiny {
-    Event::Event(uint32_t id, const std::string &name,
+    Event::Event(uint32_t id, std::string name,
                  const std::function<bool()> &condition, const std::function<void(const std::atomic<bool>&)> &event)
-                     : _id(id), _name(name), _event(event), _condition(condition) {}
+                     : _id(id), _name(std::move(name)), _event(event), _condition(condition) {}
+
+    Event::Event(uint32_t id, std::string name)
+                : _id(id), _name(std::move(name)) {}
 
     Event::Event(const Event & event)
-           : _id(event._id), _name(event._name), _event(event._event), _condition(event._condition) {}
+           : _id(event._id), _name(event._name), _event(event._event), _condition(event._condition),
+             _is_running(false), _needs_stop(false), _delay(event._delay.load()),
+             _exec_count(event._exec_count.load()), _now_cnt(0) {}
 
     Event &Event::operator=(const Event &event) {
-        this->_id = event._id;
-        this->_name = event._name;
-        this->_is_running = false;
-        this->_event = event._event;
-        this->_condition = event._condition;
+        if (this != &event) {
+            stop();
+            this->_id = event._id;
+            this->_name = event._name;
+            this->_is_running = false;
+            this->_needs_stop = false;
+            this->_event = event._event;
+            this->_condition = event._condition;
+            this->_delay.store(event._delay.load());
+            this->_exec_count.store(event._exec_count.load());
+            this->_now_cnt.store(0);
+        }
         return *this;
     }
 
     Event::~Event() {
-        if (_thread.joinable()) {
-            _thread.join();
-        }
+        stop();
     }
 
     void Event::setID(uint32_t id) {
@@ -54,6 +66,14 @@ namespace Tiny {
 
     void Event::setName(const std::string &name) {
         _name = name;
+    }
+
+    void Event::setDelayMS(uint32_t delay) {
+        _delay.store(delay);
+    }
+
+    void Event::setRepeatCount(uint32_t count) {
+        _exec_count.store(count);
     }
 
     void Event::setCondition(const std::function<bool()> &condition) {
@@ -72,6 +92,14 @@ namespace Tiny {
         return _name;
     }
 
+    uint32_t Event::eventDelayMS() const {
+        return _delay.load();
+    }
+
+    uint32_t Event::eventRepeatCount() const {
+        return _exec_count.load();
+    }
+
     bool Event::isRunning() const {
         return _is_running.load();
     }
@@ -84,6 +112,11 @@ namespace Tiny {
         if (_thread.joinable()) {
             _thread.join();
         }
+        {
+            std::unique_lock<std::mutex> lock(_mutex);
+            _needs_stop = false;
+            _now_cnt.store(0);
+        }
         _thread = std::thread([this]() {
             _is_running.store(true);
             while (_is_running.load()) {
@@ -91,12 +124,26 @@ namespace Tiny {
                     _is_running.store(false);
                     return;
                 }
+                if (_now_cnt.load() >= _exec_count.load()) {
+                    _is_running.store(false);
+                    return;
+                }
                 if (_condition()) _event(_is_running);
+                _now_cnt.store(_now_cnt.load() + 1);
+
+                std::unique_lock<std::mutex> lock(_mutex);
+                _con_var.wait_for(lock, std::chrono::milliseconds(_delay.load()),
+                    [this] { return _needs_stop; });
             }
         });
     }
 
     void Event::stop() {
+        {
+            std::unique_lock<std::mutex> lock(_mutex);
+            _needs_stop = true;
+        }
+        _con_var.notify_all();
         _is_running.store(false);
         if (_thread.joinable()) {
             _thread.join();

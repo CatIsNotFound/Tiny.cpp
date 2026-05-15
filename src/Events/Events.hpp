@@ -33,6 +33,7 @@
 #include <mutex>
 #include <thread>
 #include <atomic>
+#include <condition_variable>
 #include <cstdint>
 #include <csignal>
 
@@ -41,18 +42,23 @@ namespace Tiny {
     class Event {
         friend class EventQueue;
     public:
-        Event(uint32_t id, const std::string& name,
+        Event(uint32_t id, std::string name,
             const std::function<bool()>& condition,
             const std::function<void(const std::atomic<bool>&)>& event);
+        Event(uint32_t id, std::string name);
         Event(const Event&);
         virtual ~Event();
         Event& operator=(const Event&);
         void setID(uint32_t id);
         void setName(const std::string& name);
+        void setDelayMS(uint32_t delay);
+        void setRepeatCount(uint32_t count);
         void setCondition(const std::function<bool()>& condition);
         void setEvent(const std::function<void(const std::atomic<bool>&)>& callback);
         [[nodiscard]] uint32_t eventID() const;
         [[nodiscard]] const std::string& eventName() const;
+        [[nodiscard]] uint32_t eventDelayMS() const;
+        [[nodiscard]] uint32_t eventRepeatCount() const;
         [[nodiscard]] bool isRunning() const;
         [[nodiscard]] bool hasEvent() const;
         void run();
@@ -63,7 +69,12 @@ namespace Tiny {
         std::function<void(const std::atomic<bool>&)> _event{};
         std::function<bool()> _condition{};
         std::atomic<bool> _is_running{false};
+        bool _needs_stop{false};
         std::thread _thread{};
+        std::atomic<uint32_t> _delay{1000};
+        std::atomic<uint32_t> _exec_count{1}, _now_cnt{0};
+        std::mutex _mutex{};
+        std::condition_variable _con_var{};
     };
 
     class EventQueue {

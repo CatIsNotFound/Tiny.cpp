@@ -15,6 +15,10 @@ addModule(TestFile MY_MODULE
         testFile.cpp
 )
 
+addModule(TestEvent MY_MODULE
+        testEvent.cpp
+)
+
 addModule(TestTUI MY_MODULE_WITHOUT_GTEST
         Test_TUI.cpp
 )
