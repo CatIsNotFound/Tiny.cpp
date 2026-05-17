@@ -38,9 +38,7 @@
 #include <csignal>
 
 namespace Tiny {
-    class EventQueue;
     class Event {
-        friend class EventQueue;
     public:
         Event(uint32_t id, std::string name,
             const std::function<bool()>& condition,
@@ -64,50 +62,20 @@ namespace Tiny {
         void run();
         void stop();
     private:
+        void loop();
         uint32_t _id{};
+        std::atomic<bool> _is_load_event{}, _needs_destroy{};
         std::string _name{};
         std::function<void(const std::atomic<bool>&)> _event{};
         std::function<bool()> _condition{};
         std::atomic<bool> _is_running{false};
-        bool _needs_stop{false};
         std::thread _thread{};
         std::atomic<uint32_t> _delay{1000};
         std::atomic<uint32_t> _exec_count{1}, _now_cnt{0};
         std::mutex _mutex{};
-        std::condition_variable _con_var{};
+        std::condition_variable _con_var{}, _run_var{};
     };
 
-    class EventQueue {
-        friend class Event;
-    public:
-        using constEventIter = std::unordered_map<uint32_t, Event>::const_iterator;
-        using eventIter = std::unordered_map<uint32_t, Event>::iterator;
-        static EventQueue& global();
-        virtual ~EventQueue() = default;
-
-        bool pushEvent(const Event& event);
-        bool removeEvent(uint32_t event_id);
-        eventIter begin();
-        [[nodiscard]] constEventIter cbegin() const;
-        eventIter end();
-        [[nodiscard]] constEventIter cend() const;
-        [[nodiscard]] const Event &at(uint32_t event_id) const;
-        [[nodiscard]] size_t size() const;
-        void exec();
-        void stop();
-        [[nodiscard]] bool isRunning() const;
-
-        EventQueue(const EventQueue&) = delete;
-        EventQueue(EventQueue&&) = delete;
-        EventQueue& operator=(const EventQueue&) = delete;
-        EventQueue& operator=(EventQueue&&) = delete;
-    protected:
-        explicit EventQueue() = default;
-        void run();
-    private:
-        std::unordered_map<uint32_t, Event> _events_bus;
-        std::atomic<bool> _is_running{false};
-    };
 }
 
 

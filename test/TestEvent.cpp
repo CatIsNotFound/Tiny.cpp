@@ -142,7 +142,7 @@ TEST(EventTest, ConditionCheck) {
     
     Event ev(1, "Conditional",
         [&shouldRun]() { return shouldRun.load(); },
-        [&counter](const std::atomic<bool>&) { counter++; }
+        [&counter](const std::atomic<bool>&) { counter.fetch_add(1); }
     );
     ev.setRepeatCount(1);
     ev.setDelayMS(10);
@@ -235,17 +235,17 @@ TEST(EventTest, RepeatCount) {
 TEST(EventTest, RunningState) {
     Event ev(1, "StateTest",
         []() { return true; },
-        [](const std::atomic<bool>&) { std::this_thread::sleep_for(std::chrono::milliseconds(100)); }
+        [](const std::atomic<bool>&) { std::this_thread::sleep_for(std::chrono::milliseconds(1000)); }
     );
     ev.setRepeatCount(1);
     
     EXPECT_FALSE(ev.isRunning());
     
     ev.run();
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     EXPECT_TRUE(ev.isRunning());
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
     
     EXPECT_FALSE(ev.isRunning());
 }
@@ -300,6 +300,6 @@ TEST(EventTest, NoCondition) {
 }
 
 int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
+    testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

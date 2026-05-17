@@ -37,8 +37,7 @@ namespace Tiny {
 
     Event::Event(const Event & event)
            : _id(event._id), _name(event._name), _event(event._event), _condition(event._condition),
-             _is_running(false), _needs_stop(false), _delay(event._delay.load()),
-             _exec_count(event._exec_count.load()), _now_cnt(0) {}
+             _delay(event._delay.load()), _exec_count(event._exec_count.load()) {}
 
     Event &Event::operator=(const Event &event) {
         if (this != &event) {
@@ -46,7 +45,6 @@ namespace Tiny {
             this->_id = event._id;
             this->_name = event._name;
             this->_is_running = false;
-            this->_needs_stop = false;
             this->_event = event._event;
             this->_condition = event._condition;
             this->_delay.store(event._delay.load());
@@ -57,7 +55,11 @@ namespace Tiny {
     }
 
     Event::~Event() {
+        _needs_destroy.store(true);
         stop();
+        if (_thread.joinable()) {
+            _thread.join();
+        }
     }
 
     void Event::setID(uint32_t id) {
@@ -109,116 +111,66 @@ namespace Tiny {
     }
 
     void Event::run() {
-        if (_thread.joinable()) {
-            _thread.join();
-        }
+        if (_is_running.load() || !hasEvent()) return;
         {
             std::unique_lock<std::mutex> lock(_mutex);
-            _needs_stop = false;
             _now_cnt.store(0);
-        }
-        _thread = std::thread([this]() {
             _is_running.store(true);
-            while (_is_running.load()) {
-                if (!_condition || !_event) {
-                    _is_running.store(false);
-                    return;
-                }
-                if (_now_cnt.load() >= _exec_count.load()) {
-                    _is_running.store(false);
-                    return;
-                }
-                if (_condition()) _event(_is_running);
-                _now_cnt.store(_now_cnt.load() + 1);
-
-                std::unique_lock<std::mutex> lock(_mutex);
-                _con_var.wait_for(lock, std::chrono::milliseconds(_delay.load()),
-                    [this] { return _needs_stop; });
-            }
-        });
+            _run_var.notify_all();
+        }
+        if (!_is_load_event.load()) {
+            _thread = std::thread(&Event::loop, this);
+            _is_load_event.store(true);
+        }
     }
 
     void Event::stop() {
+        _con_var.notify_all();
+        _run_var.notify_all();
         {
             std::unique_lock<std::mutex> lock(_mutex);
-            _needs_stop = true;
-        }
-        _con_var.notify_all();
-        _is_running.store(false);
-        if (_thread.joinable()) {
-            _thread.join();
+            _is_running.store(false);
         }
     }
 
-    EventQueue & EventQueue::global() {
-        static EventQueue global;
-        return global;
-    }
-
-    bool EventQueue::pushEvent(const Event &event) {
-        auto key = _events_bus.find(event.eventID());
-        if (key != _events_bus.end()) {
-            if (_events_bus.at(event.eventID()).isRunning()) {
-                return false;
+    void Event::loop() {
+        while (true) {
+            {
+                std::unique_lock<std::mutex> lock(_mutex);
+                _run_var.wait(lock, [this] {
+                    return _is_running.load() || _needs_destroy.load();
+                });
+                if (_needs_destroy.load()) {
+                    _is_load_event.store(false);
+                    break;
+                }
             }
-            _events_bus.at(event.eventID()) = event;
-        } else {
-            _events_bus.emplace(event.eventID(), event);
+
+            while (_is_running.load()) {
+                if (!_condition || !_event) {
+                    _is_running.store(false);
+                    break;
+                }
+                size_t cycle_cnt = _exec_count.load();
+                if (cycle_cnt > 0) {
+                    if (_now_cnt.load() >= cycle_cnt) {
+                        _is_running.store(false);
+                        break;
+                    }
+                }
+                try {
+                    if (_condition()) {
+                        _event(_is_running);
+                        _now_cnt.fetch_add(1);
+                    }
+                } catch (const std::exception &e) {
+                    _is_running.store(false);
+                    printf("Tiny::Event: An error has occurred: %s\n", e.what());
+                }
+                std::unique_lock<std::mutex> lock(_mutex);
+                _con_var.wait_for(lock, std::chrono::milliseconds(_delay.load()));
+            }
         }
-        return true;
-    }
-
-    bool EventQueue::removeEvent(uint32_t event_id) {
-        auto key = _events_bus.find(event_id);
-        if (key != _events_bus.end()) {
-            if (_events_bus.at(event_id).isRunning()) return false;
-            _events_bus.erase(event_id);
-        }
-        return true;
-    }
-
-    EventQueue::eventIter EventQueue::begin() {
-        return _events_bus.begin();
-    }
-
-    EventQueue::constEventIter EventQueue::cbegin() const {
-        return _events_bus.cbegin();
-    }
-
-    EventQueue::eventIter EventQueue::end() {
-        return _events_bus.end();
-    }
-
-    EventQueue::constEventIter EventQueue::cend() const {
-        return _events_bus.cend();
-    }
-
-    const Event& EventQueue::at(uint32_t event_id) const {
-        return _events_bus.at(event_id);
-    }
-
-    size_t EventQueue::size() const {
-        return _events_bus.size();
-    }
-
-    void EventQueue::exec() {
-        _is_running.store(true);
-
-    }
-
-    void EventQueue::stop() {
-        _is_running.store(false);
-        for (auto& it : _events_bus) {
-            it.second._is_running.store(false);
-        }
-    }
-
-    bool EventQueue::isRunning() const {
-        return _is_running.load();
-    }
-
-    void EventQueue::run() {
-
     }
 }
 
