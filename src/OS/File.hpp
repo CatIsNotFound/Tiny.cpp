@@ -60,18 +60,6 @@ namespace Tiny {
 
 namespace Tiny {
     namespace OS {
-#if defined(_WIN32) || defined(_WIN64)
-        constexpr const char* OS_NAME("win");
-#elif defined(__linux__)
-        constexpr const char* OS_NAME("linux");
-#elif defined(__APPLE__)
-        constexpr const char* OS_NAME("apple");
-#elif defined(__unix__)
-        constexpr const char* OS_NAME("unix");
-#else
-        constexpr const char* OS_NAME("unknown");
-#endif
-
         enum class FileType : uint8_t {
             Unknown,
             Directory,
@@ -102,8 +90,8 @@ namespace Tiny {
         public:
             Path(std::string  path);
             Path(const Path& path);
-            Path(Path&& path) noexcept;
-            Path& operator=(const Path& path) noexcept;
+            [[nodiscard]] Path(Path&& path) noexcept;
+            Path& operator=(const Path& path);
             [[nodiscard]] Path& operator=(Path&& path) noexcept;
             ~Path();
 
@@ -123,8 +111,17 @@ namespace Tiny {
             [[nodiscard]] size_t fileSize() const;
 
             Path& operator/(const std::string& path);
+            Path& join(const std::string& path);
+            Path& parent();
+            Path& upper();
+
+            static bool exist(const std::string& path);
+            static bool isDirectory(const std::string& path);
+            static bool isFile(const std::string& path);
+            static bool isSymbolLink(const std::string& path);
         private:
             void checkPath();
+            static FileType checkPath(const std::string &path);
 
             std::string _path;
             std::string _short_file_name{};
@@ -138,13 +135,14 @@ namespace Tiny {
             Binary    = 2,
             ReadOnly  = 4,
             WriteOnly = 8,
-            ReadWrite = 16
+            ReadWrite = 16,
+            Append    = 32
         };
         class File {
         public:
             File(const std::string& path, OpenMode io = Unknown);
             File(Path  path, OpenMode io = Unknown);
-            File(File&& file) noexcept ;
+            File(File&& file) noexcept;
             [[nodiscard]] File& operator=(File&& file) noexcept;
 
             void setPath(const std::string& path);
@@ -154,6 +152,8 @@ namespace Tiny {
             bool open(OpenMode io);
             FileData read(size_t length);
             FileData readAll();
+            std::string readText(size_t length);
+            std::string readAllText();
             bool write(const FileData& data, size_t length);
             bool write(const char* data, size_t length);
             bool write(const FileData& data);
@@ -169,45 +169,8 @@ namespace Tiny {
             OpenMode _open_mode{};
             size_t _position{};
         };
-
-        class FileSystem {
-        public:
-            static bool chDir(const Path& path);
-            static bool chDir(const std::string& path);
-            static bool mkDir(const Path& path);
-            static bool mkDir(const std::string& path);
-            static bool mkFile(const Path& path, const std::vector<uint8_t>& data = {});
-            static bool mkFile(const std::string& path, const std::vector<uint8_t>& data = {});
-            static bool mkFile(const Path& path, const std::string& data);
-            static bool mkFile(const std::string& path, const std::string& data);
-            static bool mkLink(const std::string& path, const std::string& link_dest);
-            static bool mkLink(const std::string& path, const Path& link_dest);
-            static bool cpFile(const Path& src, const Path& dest);
-            static bool cpFile(const Path& src, const std::string& dest);
-            static bool cpDir(const Path& src, const Path& dest);
-            static bool cpDir(const Path& src, const std::string& dest);
-            static bool mvFile(const Path& src, const Path& dest);
-            static bool mvFile(const Path& src, const std::string& dest);
-            static bool mvDir(const Path& src, const Path& dest);
-            static bool mvDir(const Path& src, const std::string& dest);
-            static bool rmFile(const Path& path);
-            static bool rmFile(const std::string& path);
-            static bool rmDir(const Path& path, bool recursion = false);
-            static bool rmDir(const std::string& path, bool recursion = false);
-            static Path currentPath();
-            static Path homePath();
-
-            static std::vector<Path> listPath(const Path& path, uint8_t recursion_count = 1, const std::function<bool(const Path&)>& filter = {});
-            static std::vector<Path> listPath(const std::string& path, uint8_t recursion_count = 1, const std::function<bool(const Path&)>& filter = {});
-            static std::vector<Path> listPath(uint8_t recursion_count = 1, const std::function<bool(const Path&)>& filter = {});
-        private:
-            static bool rmDirCompletely(const Path& path);
-            static std::vector<Path> listAllPath(const Path& path, uint8_t current_recursion, uint8_t recursion_count, const std::function<bool(const Path&)>& filter = {});
-        };
     }
 }
-
-
 
 #endif //TINY_CPP_OS_FILE_HPP
 

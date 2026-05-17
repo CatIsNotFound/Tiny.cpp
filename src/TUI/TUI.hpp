@@ -78,14 +78,16 @@ namespace Tiny {
             static Position cursorPosition();
             static bool print(const std::string &text);
             static bool printLine(const std::string &text);
+            template<typename ... Args>
+            static bool printFormat(const char* format, Args... args);
             static bool clearScreen();
             static bool clearInRow(uint8_t row);
             static bool moveCursor(Position position);
             static bool moveCursor(uint32_t row, uint32_t column);
             
-            static void setBackgroundColor(Color color);
+            static void setBackgroundColor(Color color, bool intensity = true);
             static void setBackgroundColor(uint8_t r, uint8_t g, uint8_t b);
-            static void setForegroundColor(Color color);
+            static void setForegroundColor(Color color, bool intensity = false);
             static void setForegroundColor(uint8_t r, uint8_t g, uint8_t b);
             static void setBolder(bool enable);
             static void setDark(bool enable);
@@ -96,8 +98,13 @@ namespace Tiny {
             static void setCursorVisible(bool enable);
             static void setStrikethrough(bool enable);
             static void reset();
-
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        private:
+            static void* _old_console;
         };
+#else
+        };
+#endif
     }
 }
 

@@ -12,7 +12,11 @@ function(addModule NAME MODULE_LIST)
 endfunction()
 
 addModule(TestFile MY_MODULE
-        testFile.cpp
+        TestFile.cpp
+)
+
+addModule(TestSystem MY_MODULE
+        TestSystem.cpp
 )
 
 addModule(TestEvent MY_MODULE
@@ -30,7 +34,7 @@ foreach (MODULE IN ITEMS ${MY_MODULE})
     )
 
     target_link_libraries(${MODULE}
-            Tiny.cpp
+            Tiny
             GTest::gtest_main
     )
     include(GoogleTest)
@@ -44,7 +48,7 @@ foreach (MODULE IN ITEMS ${MY_MODULE_WITHOUT_GTEST})
     )
 
     target_link_libraries(${MODULE}
-            Tiny.cpp
+            Tiny
     )
     add_test(${MODULE} COMMAND ${MODULE})
 endforeach ()

@@ -26,6 +26,7 @@
 #include "TUI.hpp"
 #if defined(TINY_CPP_MY_OS_WINDOWS)
 #include <windows.h>
+void* Tiny::TUI::Terminal::_old_console{};
 #elif defined(TINY_CPP_MY_OS_UNIX)
 #include <unistd.h>
 #include <sys/ioctl.h>
@@ -74,12 +75,22 @@ namespace Tiny {
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return false;
+        _old_console = console;
+        auto new_console = CreateConsoleScreenBuffer(
+            GENERIC_READ | GENERIC_WRITE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            nullptr,
+            CONSOLE_TEXTMODE_BUFFER,
+            nullptr
+        );
+        if (new_console == INVALID_HANDLE_VALUE || !SetConsoleActiveScreenBuffer(new_console)) return false;
         DWORD mode;
         if (!GetConsoleMode(console, &mode)) return false;
-        DWORD raw_mode = mode;
-        raw_mode &= ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_QUICK_EDIT_MODE);
-        if (!SetConsoleMode(console, raw_mode)) return false;
-
+        mode &= ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_QUICK_EDIT_MODE);
+        mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+        if (!SetConsoleMode(console, mode)) return false;
+        SetStdHandle(STD_OUTPUT_HANDLE, new_console);
+        SetStdHandle(STD_ERROR_HANDLE, new_console);
 #endif
         return true;
     }
@@ -92,13 +103,18 @@ namespace Tiny {
         tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
         setCursorVisible(true);
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
-        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
-        if (console == INVALID_HANDLE_VALUE) return false;
-        DWORD mode;
-        if (!GetConsoleMode(console, &mode)) return false;
-        DWORD raw_mode = mode;
-        raw_mode |= (ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_QUICK_EDIT_MODE);
-        if (!SetConsoleMode(console, raw_mode)) return false;
+        if (_old_console != nullptr) {
+            auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+            if (console == INVALID_HANDLE_VALUE) return false;
+            if (!SetConsoleActiveScreenBuffer(_old_console)) return false;
+            SetStdHandle(STD_OUTPUT_HANDLE, _old_console);
+            SetStdHandle(STD_ERROR_HANDLE, _old_console);
+            CloseHandle(console);
+            DWORD mode = (ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT |
+                          ENABLE_QUICK_EDIT_MODE | ENABLE_PROCESSED_OUTPUT | ENABLE_WRAP_AT_EOL_OUTPUT);
+            SetConsoleMode(_old_console, mode);
+            _old_console = nullptr;
+        }
 #endif
         return true;
     }
@@ -113,10 +129,10 @@ namespace Tiny {
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return size;
-        PCONSOLE_SCREEN_BUFFER_INFO info{};
-        if (!GetConsoleScreenBufferInfo(console, info)) return size;
-        size.width = info->dwSize.X;
-        size.height = info->dwSize.Y;
+        CONSOLE_SCREEN_BUFFER_INFO info;
+        if (!GetConsoleScreenBufferInfo(console, &info)) return size;
+        size.width = info.dwSize.X;
+        size.height = info.dwSize.Y;
 #endif
         return size;
     }
@@ -156,12 +172,20 @@ namespace Tiny {
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return false;
-        auto w_str = Win::string2Wide(text + "\n");
+        auto w_str = Win::string2Wide(text);
         if (!WriteConsoleW(console, w_str.c_str(), w_str.size(), nullptr, nullptr)) {
             return false;
         }
+        auto pos = cursorPosition();
+        moveCursor(pos.row + 1, 0);
 #endif
         return true;
+    }
+
+    template<typename... Args>
+    bool TUI::Terminal::printFormat(const char *format, Args... args) {
+
+
     }
 
     bool TUI::Terminal::clearScreen() {
@@ -222,35 +246,125 @@ namespace Tiny {
         return true;
     }
 
-    void TUI::Terminal::setBackgroundColor(Color color) {
+    void TUI::Terminal::setBackgroundColor(Color color, bool intensity) {
 #ifdef TINY_CPP_MY_OS_UNIX
         std::string cmd = "\x1b[4" + std::to_string(static_cast<uint8_t>(color)) + "m";
         write(STDOUT_FILENO, cmd.c_str(), cmd.length());     
-
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return;
+        CONSOLE_SCREEN_BUFFER_INFO info{};
+        if (!GetConsoleScreenBufferInfo(console, &info)) return;
+        auto real_color = info.wAttributes;
+        real_color &= ~(BACKGROUND_RED | BACKGROUND_GREEN | BACKGROUND_BLUE | BACKGROUND_INTENSITY);
+        switch (color) {
+            case Color::Black:
+                real_color |= 0;
+                break;
+            case Color::Red:
+                real_color |= BACKGROUND_RED;
+                break;
+            case Color::Green:
+                real_color |= BACKGROUND_GREEN;
+                break;
+            case Color::Yellow:
+                real_color |= BACKGROUND_RED | BACKGROUND_GREEN;
+                break;
+            case Color::Blue:
+                real_color |= BACKGROUND_BLUE;
+                break;
+            case Color::Magenta:
+                real_color |= BACKGROUND_RED | BACKGROUND_BLUE;
+                break;
+            case Color::Cyan:
+                real_color |= BACKGROUND_RED | BACKGROUND_GREEN;
+                break;
+            case Color::White:
+                real_color |= BACKGROUND_RED | BACKGROUND_GREEN | BACKGROUND_BLUE;
+                break;
+            default:
+                real_color |= 0;
+                break;
+        }
+        if (intensity) real_color |= BACKGROUND_INTENSITY;
+        SetConsoleTextAttribute(console, real_color);
 #endif
 
     }
 
         void TUI::Terminal::setBackgroundColor(uint8_t r, uint8_t g, uint8_t b) {
-#ifdef TINY_CPP_MY_OS_UNIX
         std::string cmd = "\x1b[48;2;" + std::to_string(r) + ";" + std::to_string(g) + ";" + std::to_string(b) + "m";
-        write(STDOUT_FILENO, cmd.c_str(), cmd.length());     
+#ifdef TINY_CPP_MY_OS_UNIX
+        write(STDOUT_FILENO, cmd.c_str(), cmd.length());
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return;
+        DWORD mode;
+        if (!GetConsoleMode(console, &mode)) return;
+        if (mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING) {
+            WriteConsole(console, cmd.c_str(), cmd.length(), nullptr, nullptr);
+        }
 #endif
 
     }
 
-    void TUI::Terminal::setForegroundColor(Color color) {
+    void TUI::Terminal::setForegroundColor(Color color, bool intensity) {
 #ifdef TINY_CPP_MY_OS_UNIX
         std::string cmd = "\x1b[3" + std::to_string(static_cast<uint8_t>(color)) + "m";
-        write(STDOUT_FILENO, cmd.c_str(), cmd.length());     
+        write(STDOUT_FILENO, cmd.c_str(), cmd.length());
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return;
+        CONSOLE_SCREEN_BUFFER_INFO info{};
+        if (!GetConsoleScreenBufferInfo(console, &info)) return;
+        auto real_color = info.wAttributes;
+        real_color &= ~(FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY);
+        switch (color) {
+            case Color::Black:
+                real_color |= 0;
+                break;
+            case Color::Red:
+                real_color |= FOREGROUND_RED;
+                break;
+            case Color::Green:
+                real_color |= FOREGROUND_GREEN;
+                break;
+            case Color::Yellow:
+                real_color |= FOREGROUND_RED | FOREGROUND_GREEN;
+                break;
+            case Color::Blue:
+                real_color |= FOREGROUND_BLUE;
+                break;
+            case Color::Magenta:
+                real_color |= FOREGROUND_RED | FOREGROUND_BLUE;
+                break;
+            case Color::Cyan:
+                real_color |= FOREGROUND_RED | FOREGROUND_GREEN;
+                break;
+            case Color::White:
+                real_color |= FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE;
+                break;
+            default:
+                real_color |= 0;
+                break;
+        }
+        if (intensity) real_color |= FOREGROUND_INTENSITY;
+        SetConsoleTextAttribute(console, real_color);
 #endif
-
     }
 
     void TUI::Terminal::setForegroundColor(uint8_t r, uint8_t g, uint8_t b) {
-#ifdef TINY_CPP_MY_OS_UNIX
         std::string cmd = "\x1b[38;2;" + std::to_string(r) + ";" + std::to_string(g) + ";" + std::to_string(b) + "m";
-        write(STDOUT_FILENO, cmd.c_str(), cmd.length());     
+#ifdef TINY_CPP_MY_OS_UNIX
+        write(STDOUT_FILENO, cmd.c_str(), cmd.length());
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return;
+        DWORD mode;
+        if (!GetConsoleMode(console, &mode)) return;
+        if (mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING) {
+            WriteConsole(console, cmd.c_str(), cmd.length(), nullptr, nullptr);
+        }
 #endif
 
     }
@@ -281,6 +395,14 @@ namespace Tiny {
     }
 
     void TUI::Terminal::reset() {
+#ifdef TINY_CPP_MY_OS_UNIX
+        std::string cmd = "\x1b[0m";
+        write(STDOUT_FILENO, cmd.c_str(), cmd.length());
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return;
+        SetConsoleTextAttribute(console, FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN);
+#endif
     }
 }
 

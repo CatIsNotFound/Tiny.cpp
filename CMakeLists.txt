@@ -18,6 +18,8 @@ add_library(${PROJECT_NAME} STATIC
         src/Tiny.cpp
         src/OS/File.hpp
         src/OS/File.cpp
+        src/OS/System.cpp
+        src/OS/System.hpp
         src/TUI/TUI.hpp
         src/TUI/TUI.cpp
         src/Events/Events.hpp
