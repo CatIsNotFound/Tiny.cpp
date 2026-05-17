@@ -1,0 +1,11 @@
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/TinyTargets.cmake")
+
+get_filename_component(Tiny_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
+get_filename_component(Tiny_INCLUDE_DIR "${Tiny_CMAKE_DIR}/../../../include" ABSOLUTE)
+
+set(Tiny_INCLUDE_DIRS "${Tiny_INCLUDE_DIR}")
+
+set_target_properties(Tiny::Tiny PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "${Tiny_INCLUDE_DIR}")
