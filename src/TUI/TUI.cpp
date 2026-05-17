@@ -31,6 +31,8 @@ void* Tiny::TUI::Terminal::_old_console{};
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <termios.h>
+struct termios Tiny::TUI::Terminal::_old_terminal;
+bool Tiny::TUI::Terminal::_is_in_raw_mode{};
 #endif
 
 #if defined(TINY_CPP_MY_OS_WINDOWS) && !defined(TINY_CPP_DEFINED_WIN)
@@ -69,9 +71,18 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_UNIX
         struct termios raw;
         tcgetattr(STDIN_FILENO, &raw);
-        raw.c_lflag &= ~(ECHO | ICANON | ISIG);
-        tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
-        setCursorVisible(false);
+        struct termios new_raw = raw;
+        _old_terminal = raw;
+        new_raw.c_lflag &= ~(ICANON | ECHO | ISIG | IEXTEN);
+        new_raw.c_iflag &= ~(IXON | ICRNL | BRKINT | INPCK | PARMRK);
+        new_raw.c_oflag &= ~(OPOST);
+        new_raw.c_cflag |= CS8;
+        new_raw.c_cc[VMIN] = 1;
+        new_raw.c_cc[VTIME] = 0;
+        tcsetattr(STDIN_FILENO, TCIFLUSH, &new_raw);
+        auto cmd = "\x1b[?1049h\x1b[2J\x1b[H";
+        write(STDIN_FILENO, cmd, strlen(cmd));
+        _is_in_raw_mode = true;
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return false;
@@ -97,11 +108,13 @@ namespace Tiny {
 
     bool TUI::Terminal::leaveRawMode() {
 #ifdef TINY_CPP_MY_OS_UNIX
-        struct termios raw;
-        tcgetattr(STDIN_FILENO, &raw);
-        raw.c_lflag |= (ECHO | ICANON | ISIG);
-        tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
-        setCursorVisible(true);
+        if (_is_in_raw_mode && tcsetattr(STDIN_FILENO, TCSAFLUSH, &_old_terminal) == -1) {
+            return false;
+        }
+        _is_in_raw_mode = false;
+        auto cmd = "\x1b[?1049l";
+        write(STDIN_FILENO, cmd, strlen(cmd));
+        
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         if (_old_console != nullptr) {
             auto console = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -168,7 +181,8 @@ namespace Tiny {
 
     bool TUI::Terminal::printLine(const std::string &text) {
 #ifdef TINY_CPP_MY_OS_UNIX
-        write(STDOUT_FILENO, (text + "\n").c_str(), text.length() + 1);
+        auto cmd = text + "\x1b[1E";
+        write(STDOUT_FILENO, cmd.c_str(), cmd.length());
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return false;
@@ -184,8 +198,17 @@ namespace Tiny {
 
     template<typename... Args>
     bool TUI::Terminal::printFormat(const char *format, Args... args) {
+        auto length = snprintf(nullptr, 0, format, std::forward<Args>(args)...);
+        if (length <= 0) return false;
+        std::string formatted_text(length + 1, 0);
+        snprintf(&formatted_text[0], length + 1, format, std::forward<Args>(args)...);
+        
+#ifdef TINY_CPP_MY_OS_UNIX
+        write(STDIN_FILENO, formatted_text.data(), formatted_text.size());
+        return true;
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
 
-
+#endif
     }
 
     bool TUI::Terminal::clearScreen() {
@@ -207,7 +230,9 @@ namespace Tiny {
 
     bool TUI::Terminal::clearInRow(uint8_t row) {
 #ifdef TINY_CPP_MY_OS_UNIX
-        write(STDOUT_FILENO, "\x1b[2J\x1b[6n", 4);
+        auto old_row = cursorPosition().row;
+        auto cmd = "\x1b[2K\x1b[" + std::to_string(row) + ";0H\x1b[" + std::to_string(old_row) + ";0H";
+        write(STDOUT_FILENO, cmd.data(), cmd.size());
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return false;
@@ -248,7 +273,12 @@ namespace Tiny {
 
     void TUI::Terminal::setBackgroundColor(Color color, bool intensity) {
 #ifdef TINY_CPP_MY_OS_UNIX
-        std::string cmd = "\x1b[4" + std::to_string(static_cast<uint8_t>(color)) + "m";
+        std::string cmd;
+        if (intensity) {
+            cmd = "\x1b[10" + std::to_string(static_cast<uint8_t>(color)) + "m";
+        } else {
+            cmd = "\x1b[22m\x1b[4" + std::to_string(static_cast<uint8_t>(color)) + "m";
+        }
         write(STDOUT_FILENO, cmd.c_str(), cmd.length());     
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -310,7 +340,12 @@ namespace Tiny {
 
     void TUI::Terminal::setForegroundColor(Color color, bool intensity) {
 #ifdef TINY_CPP_MY_OS_UNIX
-        std::string cmd = "\x1b[3" + std::to_string(static_cast<uint8_t>(color)) + "m";
+        std::string cmd;
+        if (intensity) {
+            cmd = "\x1b[9" + std::to_string(static_cast<uint8_t>(color)) + "m";
+        } else {
+            cmd = "\x1b[3" + std::to_string(static_cast<uint8_t>(color)) + "m";
+        }
         write(STDOUT_FILENO, cmd.c_str(), cmd.length());
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -370,28 +405,75 @@ namespace Tiny {
     }
 
     void TUI::Terminal::setBolder(bool enable) {
-        
+#ifdef TINY_CPP_MY_OS_UNIX
+        const char* cmd = enable ? "\x1b[1m" : "\x1b[22m";
+        write(STDIN_FILENO, cmd, strlen(cmd));
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+
+#endif
     }
 
     void TUI::Terminal::setDark(bool enable) {
+#ifdef TINY_CPP_MY_OS_UNIX
+        const char* cmd = enable ? "\x1b[2m" : "\x1b[1m";
+        write(STDIN_FILENO, cmd, strlen(cmd));
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+
+#endif
     }
 
     void TUI::Terminal::setItalic(bool enable) {
+#ifdef TINY_CPP_MY_OS_UNIX
+        const char* cmd = enable ? "\x1b[3m" : "\x1b[23m";
+        write(STDIN_FILENO, cmd, strlen(cmd));
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+
+#endif
     }
 
     void TUI::Terminal::setUnderline(bool enable) {
+#ifdef TINY_CPP_MY_OS_UNIX
+        const char* cmd = enable ? "\x1b[4m" : "\x1b[24m";
+        write(STDIN_FILENO, cmd, strlen(cmd));
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+
+#endif
     }
 
     void TUI::Terminal::setBlinking(bool enable) {
+#ifdef TINY_CPP_MY_OS_UNIX
+        const char* cmd = enable ? "\x1b[5m" : "\x1b[25m";
+        write(STDIN_FILENO, cmd, strlen(cmd));
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+
+#endif
     }
 
     void TUI::Terminal::reverseColor(bool enable) {
+#ifdef TINY_CPP_MY_OS_UNIX
+        const char* cmd = enable ? "\x1b[7m" : "\x1b[27m";
+        write(STDIN_FILENO, cmd, strlen(cmd));
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+
+#endif
     }
 
     void TUI::Terminal::setCursorVisible(bool enable) {
+#ifdef TINY_CPP_MY_OS_UNIX
+        const char* cmd = enable ? "\x1b[?25h" : "\x1b[?25l";
+        write(STDIN_FILENO, cmd, strlen(cmd));
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+
+#endif
     }
 
     void TUI::Terminal::setStrikethrough(bool enable) {
+#ifdef TINY_CPP_MY_OS_UNIX
+        const char* cmd = enable ? "\x1b[9m" : "\x1b[29m";
+        write(STDIN_FILENO, cmd, strlen(cmd));
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+
+#endif
     }
 
     void TUI::Terminal::reset() {

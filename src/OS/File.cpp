@@ -176,12 +176,20 @@ namespace Tiny {
     }
 
     OS::Path &OS::Path::operator/(const std::string &path) {
-        setPath(_path + "/" + path);
+        if (path.front() != '/') {
+            setPath(_path + "/" + path);
+        } else {
+            setPath(_path + path);
+        }
         return *this;
     }
 
     OS::Path &OS::Path::join(const std::string &path) {
-        setPath(_path + "/" + path);
+        if (path.front() != '/') {
+            setPath(_path + "/" + path);
+        } else {
+            setPath(_path + path);
+        }
         return *this;
     }
 
@@ -295,9 +303,9 @@ namespace Tiny {
         char* new_path = realpath(path.c_str(), nullptr);
         if (new_path) {
             free(new_path);
-        } else return false;
+        } else return type;
         struct stat file_stat;
-        if (stat(_path.c_str(), &file_stat) == -1) return;
+        if (stat(path.c_str(), &file_stat) == -1) return type;
         if (S_ISDIR(file_stat.st_mode)) {
             type = FileType::Directory;
         } else if (S_ISREG(file_stat.st_mode)) {
@@ -373,7 +381,7 @@ namespace Tiny {
         auto ok = ReadFile(reinterpret_cast<HANDLE>(_handler), out.data(), length, &bytes_read, nullptr);
         if (ok) _position += bytes_read;
 #elif defined(TINY_CPP_MY_OS_UNIX)
-        lseek64(_handler, _position, SEEK_SET);
+        lseek(_handler, _position, SEEK_SET);
         auto read_length = ::read(_handler, out.data(), length * sizeof(uint8_t));
         _position += read_length;
 #endif
@@ -389,7 +397,7 @@ namespace Tiny {
         SetFilePointer(reinterpret_cast<HANDLE>(_handler), 0, nullptr, FILE_BEGIN);
         ReadFile(reinterpret_cast<HANDLE>(_handler), out.data(), file_size, nullptr, nullptr);
 #elif defined(TINY_CPP_MY_OS_UNIX)
-        lseek64(_handler, 0, SEEK_SET);
+        lseek(_handler, 0, SEEK_SET);
         ::read(_handler, out.data(), file_size * sizeof(uint8_t));
 #endif
         return out;
@@ -404,7 +412,7 @@ namespace Tiny {
         auto ok = ReadFile(reinterpret_cast<HANDLE>(_handler), &out[0], length, &bytes_read, nullptr);
         if (ok) _position += bytes_read;
 #elif defined(TINY_CPP_MY_OS_UNIX)
-        lseek64(_handler, _position, SEEK_SET);
+        lseek(_handler, _position, SEEK_SET);
         auto read_length = ::read(_handler, &out[0], length * sizeof(uint8_t));
         _position += read_length;
 #endif
@@ -420,7 +428,7 @@ namespace Tiny {
         SetFilePointer(reinterpret_cast<HANDLE>(_handler), 0, nullptr, FILE_BEGIN);
         ReadFile(reinterpret_cast<HANDLE>(_handler), &out[0], file_size, nullptr, nullptr);
 #elif defined(TINY_CPP_MY_OS_UNIX)
-        lseek64(_handler, 0, SEEK_SET);
+        lseek(_handler, 0, SEEK_SET);
         ::read(_handler, &out[0], file_size * sizeof(uint8_t));
 #endif
         return out;

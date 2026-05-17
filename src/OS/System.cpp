@@ -533,7 +533,7 @@ namespace Tiny {
 #elif defined(TINY_CPP_MY_OS_UNIX)
         auto home_path = std::getenv("HOME");
         local_data = home_path;
-        local_data += ".local/share";
+        local_data += "/.local/share";
 #endif
         return Path(local_data);
     }

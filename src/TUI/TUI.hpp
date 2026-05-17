@@ -54,6 +54,10 @@ namespace Tiny {
 }
 #endif
 
+#ifdef TINY_CPP_MY_OS_UNIX
+struct termios;
+#endif
+
 namespace Tiny {
     namespace TUI {
         struct Size { uint32_t width{}, height{}; };
@@ -102,7 +106,10 @@ namespace Tiny {
         private:
             static void* _old_console;
         };
-#else
+#elif defined(TINY_CPP_MY_OS_UNIX)
+        private:
+            static struct termios _old_terminal;
+            static bool _is_in_raw_mode;
         };
 #endif
     }
