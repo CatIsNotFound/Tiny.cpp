@@ -28,6 +28,7 @@
 #include <windows.h>
 #elif defined(TINY_CPP_MY_OS_UNIX)
 #include <unistd.h>
+#include <sys/ioctl.h>
 #include <termios.h>
 #endif
 
@@ -105,7 +106,10 @@ namespace Tiny {
     TUI::Size TUI::Terminal::screenSize() {
         Size size;
 #ifdef TINY_CPP_MY_OS_UNIX
-
+        struct winsize w;
+        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == -1) return size;
+        size.width = w.ws_col;
+        size.height = w.ws_row;
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return size;
@@ -252,6 +256,7 @@ namespace Tiny {
     }
 
     void TUI::Terminal::setBolder(bool enable) {
+        
     }
 
     void TUI::Terminal::setDark(bool enable) {

@@ -181,6 +181,11 @@ namespace Tiny {
     }
 
     void OS::Path::checkPath() {
+        _type = FileType::Unknown;
+        if (_path.empty()) {
+            _short_file_name.clear();
+            return;
+        }
 #ifdef TINY_CPP_MY_OS_WINDOWS
         auto my_path = Tiny::Win::convert2Win(_path);
         auto ok = GetFileAttributesA(my_path.c_str());
@@ -227,6 +232,175 @@ namespace Tiny {
         }
         _short_file_name = _path.substr(_path.find_last_of('/') + 1);
 #endif
+    }
+
+    OS::File::File(const std::string &path, OpenMode io) : _path(path), _open_mode(io) {
+        setup(io);
+    }
+
+    OS::File::File(Path path, OpenMode io) : _path(std::move(path)), _open_mode(io) {
+        setup(io);
+    }
+
+    OS::File::File(File &&file) noexcept : _path(std::move(file._path)),
+                                           _open_mode(std::move(file._open_mode)),
+                                           _handler(std::move(file._handler)) {
+        if (this != &file) file.reset();
+    }
+
+    OS::File &OS::File::operator=(File &&file) noexcept {
+        if (this == &file) return *this;
+        _path = std::move(file._path);
+        _open_mode = std::move(file._open_mode);
+        _handler = std::move(file._handler);
+        file.reset();
+        return *this;
+    }
+
+    void OS::File::setPath(const std::string &path) {
+        if (isOpen()) close();
+        _path.setPath(path);
+    }
+
+    void OS::File::setPath(const Path &path) {
+        if (isOpen()) close();
+        _path.setPath(path);
+    }
+
+    bool OS::File::isValid() const {
+        return _path.isFile();
+    }
+
+    bool OS::File::isOpen() const {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        return _handler != HFILE_ERROR;
+#else
+        return _handler != -1;
+#endif
+    }
+
+    bool OS::File::open(OpenMode io) {
+        return setup(io);
+    }
+
+    OS::FileData OS::File::read(size_t length) {
+        FileData out;
+        if (!isValid() || !isOpen()) return out;
+        out.resize(length + 1);
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        DWORD bytes_read;
+        SetFilePointer(reinterpret_cast<HANDLE>(_handler), _position, nullptr, FILE_BEGIN);
+        auto ok = ReadFile(reinterpret_cast<HANDLE>(_handler), out.data(), length, &bytes_read, nullptr);
+        if (ok) _position += bytes_read;
+#elif defined(TINY_CPP_MY_OS_UNIX)
+        lseek64(_handler, _position, SEEK_SET);
+        auto read_length = ::read(_handler, out.data(), length * sizeof(uint8_t));
+        _position += read_length;
+#endif
+        return out;
+    }
+
+    OS::FileData OS::File::readAll() {
+        if (!isValid() || !isOpen()) return {};
+        auto file_size = _path.fileSize();
+        FileData out(file_size + 1);
+        _position = 0;
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        SetFilePointer(reinterpret_cast<HANDLE>(_handler), 0, nullptr, FILE_BEGIN);
+        ReadFile(reinterpret_cast<HANDLE>(_handler), out.data(), file_size, nullptr, nullptr);
+#elif defined(TINY_CPP_MY_OS_UNIX)
+        lseek64(_handler, 0, SEEK_SET);
+        ::read(_handler, out.data(), file_size * sizeof(uint8_t));
+#endif
+        return out;
+    }
+
+    bool OS::File::write(const FileData &data, size_t length) {
+        if (!isValid() || !isOpen()) return false;
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        auto ok = WriteFile(reinterpret_cast<HANDLE>(_handler), data.data(), length, nullptr, nullptr);
+        return ok == TRUE;
+#elif defined(TINY_CPP_MY_OS_UNIX)
+        auto ok = ::write(_handler, data.data(), length * sizeof(uint8_t));
+        return ok != -1;
+#endif
+        return false;
+    }
+
+    bool OS::File::write(const char *data, size_t length) {
+        if (!isValid() || !isOpen()) return false;
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        auto ok = WriteFile(reinterpret_cast<HANDLE>(_handler), data, length, nullptr, nullptr);
+        return ok == TRUE;
+#elif defined(TINY_CPP_MY_OS_UNIX)
+        auto ok = ::write(_handler, data, length * sizeof(char));
+        return ok != -1;
+#endif
+        return false;
+    }
+
+    bool OS::File::write(const FileData &data) {
+        if (!isValid() || !isOpen()) return false;
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        auto ok = WriteFile(reinterpret_cast<HANDLE>(_handler), data.data(), data.size(), nullptr, nullptr);
+        return ok == TRUE;
+#elif defined(TINY_CPP_MY_OS_UNIX)
+        auto ok = ::write(_handler, data.data(), data.size() * sizeof(uint8_t));
+        return ok != -1;
+#endif
+        return false;
+    }
+
+    void OS::File::close() {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        CloseHandle(reinterpret_cast<HANDLE>(_handler));
+#elif defined(TINY_CPP_MY_OS_UNIX)
+        ::close(_handler);
+#endif
+        reset();
+    }
+
+    void OS::File::reset() {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        _handler = HFILE_ERROR;
+#elif defined(TINY_CPP_MY_OS_UNIX)
+        _handler = -1;
+#endif
+        _position = 0;
+        _open_mode = Unknown;
+        _path.setPath("");
+    }
+
+    bool OS::File::setup(const OpenMode IO) {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        if (IO == Unknown || !_path.isFile()) {
+            _handler = HFILE_ERROR;
+            return false;
+        }
+        DWORD open_mode = 0;
+        if (IO & ReadOnly)  open_mode |= OF_READ;
+        if (IO & WriteOnly) open_mode |= OF_WRITE | OF_CREATE;
+        if (IO & ReadWrite) open_mode |= OF_READWRITE | OF_CREATE;
+        OFSTRUCT ofs;
+        auto handler = OpenFile(_path.path().c_str(), &ofs, open_mode);
+        if (handler == HFILE_ERROR) return false;
+        _handler = handler;
+        _position = 0;
+#elif defined(TINY_CPP_MY_OS_UNIX)
+        if (IO == Unknown || !_path.isFile()) {
+            _handler = -1;
+            return false;
+        }
+        int flags = 0;
+        if (IO & ReadOnly)  flags |= O_RDONLY;
+        if (IO & WriteOnly) flags |= O_WRONLY | O_CREAT;
+        if (IO & ReadWrite) flags |= O_RDWR | O_CREAT;
+        auto handler = ::open(_path.path().c_str(), flags, 0777 - umask(0000));
+        if (handler == -1) return false;
+        _handler = handler;
+        _position = 0;
+#endif
+        return true;
     }
 
     bool OS::FileSystem::chDir(const Path &path) {

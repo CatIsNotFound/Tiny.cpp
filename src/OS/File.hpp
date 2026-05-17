@@ -29,6 +29,7 @@
 #include <cstring>
 #include <functional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 /*******************************************************************************************
@@ -128,6 +129,45 @@ namespace Tiny {
             std::string _path;
             std::string _short_file_name{};
             FileType    _type;
+        };
+
+        using FileData = std::vector<uint8_t>;
+        enum OpenMode : uint8_t {
+            Unknown   = 0,
+            Text      = 1,
+            Binary    = 2,
+            ReadOnly  = 4,
+            WriteOnly = 8,
+            ReadWrite = 16
+        };
+        class File {
+        public:
+            File(const std::string& path, OpenMode io = Unknown);
+            File(Path  path, OpenMode io = Unknown);
+            File(File&& file) noexcept ;
+            [[nodiscard]] File& operator=(File&& file) noexcept;
+
+            void setPath(const std::string& path);
+            void setPath(const Path& path);
+            bool isValid() const;
+            bool isOpen() const;
+            bool open(OpenMode io);
+            FileData read(size_t length);
+            FileData readAll();
+            bool write(const FileData& data, size_t length);
+            bool write(const char* data, size_t length);
+            bool write(const FileData& data);
+            void close();
+
+            File(const File&) = delete;
+            File& operator=(const File&) = delete;
+        private:
+            void reset();
+            bool setup(OpenMode IO);
+            Path _path;
+            int _handler{};
+            OpenMode _open_mode{};
+            size_t _position{};
         };
 
         class FileSystem {

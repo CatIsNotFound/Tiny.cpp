@@ -27,6 +27,7 @@
 #include <gtest/gtest.h>
 #include <string>
 #include <vector>
+#include <type_traits>
 
 using namespace Tiny::OS;
 
@@ -727,6 +728,888 @@ TEST(FileSystemTest, ListPath_WithFilter) {
 TEST(FileSystemTest, ListPath_Recursion) {
     std::vector<Path> paths = FileSystem::listPath(".", 2);
     EXPECT_FALSE(paths.empty());
+}
+
+// ==================== File 类测试 ====================
+
+// File 类是 move-only 类型，不能拷贝，只能移动
+// 移动后源对象会被重置为未打开状态
+
+// 测试 File 类型特性 - 拷贝构造/赋值被删除
+TEST(FileTest, TypeTrait_NoCopy) {
+    EXPECT_FALSE(std::is_copy_constructible_v<File>);
+    EXPECT_FALSE(std::is_copy_assignable_v<File>);
+}
+
+// 测试 File 类型特性 - 移动构造/赋值可用
+TEST(FileTest, TypeTrait_MoveOnly) {
+    EXPECT_TRUE(std::is_move_constructible_v<File>);
+    EXPECT_TRUE(std::is_move_assignable_v<File>);
+}
+
+// 测试 File 构造函数 - 字符串路径 + ReadOnly
+TEST(FileTest, Constructor_String_ReadOnly) {
+    std::string testFile = "./test_file_ctor_str_r.txt";
+    std::string content = "Test content";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file(testFile, ReadOnly);
+    EXPECT_TRUE(file.isValid());
+    EXPECT_TRUE(file.isOpen());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 File 构造函数 - 字符串路径 + WriteOnly
+TEST(FileTest, Constructor_String_WriteOnly) {
+    std::string testFile = "./test_file_ctor_str_w.txt";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile);
+    
+    File file(testFile, WriteOnly);
+    EXPECT_TRUE(file.isValid());
+    EXPECT_TRUE(file.isOpen());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 File 构造函数 - 字符串路径 + ReadWrite
+TEST(FileTest, Constructor_String_ReadWrite) {
+    std::string testFile = "./test_file_ctor_str_rw.txt";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile);
+    
+    File file(testFile, ReadWrite);
+    EXPECT_TRUE(file.isValid());
+    EXPECT_TRUE(file.isOpen());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 File 构造函数 - 字符串路径 + Unknown（不打开）
+TEST(FileTest, Constructor_String_Unknown) {
+    std::string testFile = "./test_file_ctor_str_u.txt";
+    std::string content = "Test content";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file(testFile, Unknown);
+    EXPECT_TRUE(file.isValid());
+    EXPECT_FALSE(file.isOpen());
+    
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 File 构造函数 - Path对象 + ReadOnly
+TEST(FileTest, Constructor_Path_ReadOnly) {
+    std::string testFile = "./test_file_ctor_path_r.txt";
+    std::string content = "Test content";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    Path filePath(testFile);
+    File file(filePath, ReadOnly);
+    EXPECT_TRUE(file.isValid());
+    EXPECT_TRUE(file.isOpen());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 File 构造函数 - Path对象 + WriteOnly
+TEST(FileTest, Constructor_Path_WriteOnly) {
+    std::string testFile = "./test_file_ctor_path_w.txt";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile);
+    
+    Path filePath(testFile);
+    File file(filePath, WriteOnly);
+    EXPECT_TRUE(file.isValid());
+    EXPECT_TRUE(file.isOpen());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 File 构造函数 - Path对象 + Unknown
+TEST(FileTest, Constructor_Path_Unknown) {
+    std::string testFile = "./test_file_ctor_path_u.txt";
+    std::string content = "Test content";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    Path filePath(testFile);
+    File file(filePath, Unknown);
+    EXPECT_TRUE(file.isValid());
+    EXPECT_FALSE(file.isOpen());
+    
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 File 构造函数 - 无效文件路径
+TEST(FileTest, Constructor_InvalidPath) {
+    File file("/this/path/does/not/exist.txt", ReadOnly);
+    EXPECT_FALSE(file.isValid());
+    EXPECT_FALSE(file.isOpen());
+}
+
+// 测试 File 构造函数 - 目录路径（不是文件）
+TEST(FileTest, Constructor_DirectoryPath) {
+    File file(".", ReadOnly);
+    EXPECT_FALSE(file.isValid());
+}
+
+// 测试移动构造函数 - 资源转移
+TEST(FileTest, MoveConstructor_Transfer) {
+    std::string testFile = "./test_file_move_ctor.txt";
+    std::string content = "Move constructor test";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file1(testFile, ReadOnly);
+    EXPECT_TRUE(file1.isOpen());
+    
+    File file2(std::move(file1));
+    
+    // 源对象被重置
+    EXPECT_FALSE(file1.isOpen());
+    EXPECT_FALSE(file1.isValid());
+    
+    // 目标对象获得资源
+    EXPECT_TRUE(file2.isOpen());
+    EXPECT_TRUE(file2.isValid());
+    
+    file2.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试移动构造函数 - 可以正常读取
+TEST(FileTest, MoveConstructor_CanRead) {
+    std::string testFile = "./test_file_move_ctor_read.txt";
+    std::string content = "Hello, Move!";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file1(testFile, ReadOnly);
+    File file2(std::move(file1));
+    
+    FileData data = file2.readAll();
+    EXPECT_FALSE(data.empty());
+    
+    file2.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试移动赋值运算符 - 资源转移
+TEST(FileTest, MoveAssignment_Transfer) {
+    std::string testFile1 = "./test_file_move_asgn1.txt";
+    std::string testFile2 = "./test_file_move_asgn2.txt";
+    
+    Path checkPath1(testFile1);
+    if (checkPath1.isValid()) FileSystem::rmFile(testFile1);
+    Path checkPath2(testFile2);
+    if (checkPath2.isValid()) FileSystem::rmFile(testFile2);
+    
+    FileSystem::mkFile(testFile1, "content1");
+    FileSystem::mkFile(testFile2, "content2");
+    
+    File file1(testFile1, ReadOnly);
+    File file2(testFile2, ReadOnly);
+    
+    EXPECT_TRUE(file1.isOpen());
+    EXPECT_TRUE(file2.isOpen());
+    
+    file2 = std::move(file1);
+    
+    // 源对象被重置
+    EXPECT_FALSE(file1.isOpen());
+    EXPECT_FALSE(file1.isValid());
+    
+    // 目标对象获得资源
+    EXPECT_TRUE(file2.isOpen());
+    EXPECT_TRUE(file2.isValid());
+    
+    file2.close();
+    FileSystem::rmFile(testFile1);
+    FileSystem::rmFile(testFile2);
+}
+
+// 测试移动赋值运算符 - 自赋值安全
+TEST(FileTest, MoveAssignment_Self) {
+    std::string testFile = "./test_file_move_self.txt";
+    std::string content = "Self assignment test";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file(testFile, ReadOnly);
+    EXPECT_TRUE(file.isOpen());
+    
+    File* ptr = &file;
+    *ptr = std::move(file);
+    
+    // 自赋值后仍保持有效
+    EXPECT_TRUE(file.isOpen());
+    EXPECT_TRUE(file.isValid());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 isValid() - 有效文件返回 true
+TEST(FileTest, IsValid_True) {
+    std::string testFile = "./test_file_valid_true.txt";
+    std::string content = "Valid file";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file(testFile, ReadOnly);
+    EXPECT_TRUE(file.isValid());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 isValid() - 无效文件返回 false（目录）
+TEST(FileTest, IsValid_False_Directory) {
+    File file(".", ReadOnly);
+    EXPECT_FALSE(file.isValid());
+}
+
+// 测试 isValid() - 无效文件返回 false（不存在）
+TEST(FileTest, IsValid_False_NotExist) {
+    File file("/nonexistent/path/file.txt", ReadOnly);
+    EXPECT_FALSE(file.isValid());
+}
+
+// 测试 isOpen() - 打开的文件返回 true
+TEST(FileTest, IsOpen_True) {
+    std::string testFile = "./test_file_open_true.txt";
+    std::string content = "Open test";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file(testFile, ReadOnly);
+    EXPECT_TRUE(file.isOpen());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 isOpen() - 未打开的文件返回 false
+TEST(FileTest, IsOpen_False) {
+    std::string testFile = "./test_file_open_false.txt";
+    std::string content = "Not open test";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file(testFile, Unknown);
+    EXPECT_FALSE(file.isOpen());
+    
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 open() - 成功打开文件
+TEST(FileTest, Open_Success) {
+    std::string testFile = "./test_file_open_success.txt";
+    std::string content = "Open success";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file(testFile, Unknown);
+    EXPECT_FALSE(file.isOpen());
+    
+    EXPECT_TRUE(file.open(ReadOnly));
+    EXPECT_TRUE(file.isOpen());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 open() - 打开无效文件失败
+TEST(FileTest, Open_Fail_Invalid) {
+    File file("/nonexistent/path/file.txt", Unknown);
+    EXPECT_FALSE(file.open(ReadOnly));
+    EXPECT_FALSE(file.isOpen());
+}
+
+// 测试 open() - 打开目录失败
+TEST(FileTest, Open_Fail_Directory) {
+    File file(".", Unknown);
+    EXPECT_FALSE(file.open(ReadOnly));
+}
+
+// 测试 close() - 正常关闭
+TEST(FileTest, Close_Normal) {
+    std::string testFile = "./test_file_close.txt";
+    std::string content = "Close test";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file(testFile, ReadOnly);
+    EXPECT_TRUE(file.isOpen());
+    
+    file.close();
+    EXPECT_FALSE(file.isOpen());
+    
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 close() - 多次关闭安全
+TEST(FileTest, Close_Multiple) {
+    std::string testFile = "./test_file_close_multi.txt";
+    std::string content = "Multiple close test";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file(testFile, ReadOnly);
+    file.close();
+    file.close();
+    file.close();
+    
+    EXPECT_FALSE(file.isOpen());
+    
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 setPath() - 字符串参数，关闭已打开文件
+TEST(FileTest, SetPath_String_ClosesFile) {
+    std::string testFile1 = "./test_file_setpath_s1.txt";
+    std::string testFile2 = "./test_file_setpath_s2.txt";
+    
+    Path checkPath1(testFile1);
+    if (checkPath1.isValid()) FileSystem::rmFile(testFile1);
+    Path checkPath2(testFile2);
+    if (checkPath2.isValid()) FileSystem::rmFile(testFile2);
+    
+    FileSystem::mkFile(testFile1, "content1");
+    FileSystem::mkFile(testFile2, "content2");
+    
+    File file(testFile1, ReadOnly);
+    EXPECT_TRUE(file.isOpen());
+    
+    file.setPath(testFile2);
+    // setPath 应该关闭原文件
+    EXPECT_FALSE(file.isOpen());
+    EXPECT_TRUE(file.isValid());
+    
+    FileSystem::rmFile(testFile1);
+    FileSystem::rmFile(testFile2);
+}
+
+// 测试 setPath() - Path参数，关闭已打开文件
+TEST(FileTest, SetPath_Path_ClosesFile) {
+    std::string testFile1 = "./test_file_setpath_p1.txt";
+    std::string testFile2 = "./test_file_setpath_p2.txt";
+    
+    Path checkPath1(testFile1);
+    if (checkPath1.isValid()) FileSystem::rmFile(testFile1);
+    Path checkPath2(testFile2);
+    if (checkPath2.isValid()) FileSystem::rmFile(testFile2);
+    
+    FileSystem::mkFile(testFile1, "content1");
+    FileSystem::mkFile(testFile2, "content2");
+    
+    File file(testFile1, ReadOnly);
+    EXPECT_TRUE(file.isOpen());
+    
+    Path newPath(testFile2);
+    file.setPath(newPath);
+    // setPath 应该关闭原文件
+    EXPECT_FALSE(file.isOpen());
+    EXPECT_TRUE(file.isValid());
+    
+    FileSystem::rmFile(testFile1);
+    FileSystem::rmFile(testFile2);
+}
+
+// 测试 setPath() - 设置到无效路径
+TEST(FileTest, SetPath_Invalid) {
+    std::string testFile = "./test_file_setpath_inv.txt";
+    std::string content = "Valid content";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file(testFile, ReadOnly);
+    EXPECT_TRUE(file.isValid());
+    
+    file.setPath("/nonexistent/path/file.txt");
+    EXPECT_FALSE(file.isValid());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 readAll() - 读取整个文件
+TEST(FileTest, ReadAll_Success) {
+    std::string testFile = "./test_file_readall.txt";
+    std::string content = "Hello, World!";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file(testFile, ReadOnly);
+    FileData data = file.readAll();
+    
+    EXPECT_FALSE(data.empty());
+    EXPECT_GE(data.size(), content.size());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 readAll() - 未打开文件返回空
+TEST(FileTest, ReadAll_NotOpen) {
+    std::string testFile = "./test_file_readall_no.txt";
+    std::string content = "Content";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file(testFile, Unknown);
+    FileData data = file.readAll();
+    
+    EXPECT_TRUE(data.empty());
+    
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 readAll() - 无效文件返回空
+TEST(FileTest, ReadAll_Invalid) {
+    File file("/nonexistent/path/file.txt", ReadOnly);
+    FileData data = file.readAll();
+    EXPECT_TRUE(data.empty());
+}
+
+// 测试 read() - 读取指定长度
+TEST(FileTest, Read_Length) {
+    std::string testFile = "./test_file_read_len.txt";
+    std::string content = "Hello, World!";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file(testFile, ReadOnly);
+    FileData data = file.read(5);
+    
+    EXPECT_FALSE(data.empty());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 read() - 读取长度超过文件大小
+TEST(FileTest, Read_ExceedFileSize) {
+    std::string testFile = "./test_file_read_exceed.txt";
+    std::string content = "Hi";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file(testFile, ReadOnly);
+    FileData data = file.read(1000);
+    
+    EXPECT_FALSE(data.empty());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 read() - 读取0字节
+TEST(FileTest, Read_Zero) {
+    std::string testFile = "./test_file_read_zero.txt";
+    std::string content = "Some content";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file(testFile, ReadOnly);
+    FileData data = file.read(0);
+    
+    EXPECT_FALSE(data.empty());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 write() - 写入完整数据
+TEST(FileTest, Write_Full) {
+    std::string testFile = "./test_file_write_full.txt";
+    FileData data = {0x48, 0x65, 0x6C, 0x6C, 0x6F};
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile);
+    
+    File file(testFile, WriteOnly);
+    EXPECT_TRUE(file.write(data));
+    
+    file.close();
+    
+    Path verifyPath(testFile);
+    EXPECT_EQ(verifyPath.fileSize(), data.size());
+    
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 write() - 写入指定长度
+TEST(FileTest, Write_Length) {
+    std::string testFile = "./test_file_write_len.txt";
+    FileData data = {0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x20, 0x57, 0x6F, 0x72, 0x6C, 0x64};
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile);
+    
+    File file(testFile, WriteOnly);
+    EXPECT_TRUE(file.write(data, 5));
+    
+    file.close();
+    
+    Path verifyPath(testFile);
+    EXPECT_EQ(verifyPath.fileSize(), 5);
+    
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 write() - 写入长度超过数据大小仍能成功
+TEST(FileTest, Write_LengthExceedsData) {
+    std::string testFile = "./test_file_write_exceed.txt";
+    FileData data = {0x01, 0x02, 0x03};
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile);
+    
+    File file(testFile, WriteOnly);
+    EXPECT_TRUE(file.write(data, 100));
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 write() - 写入0字节
+TEST(FileTest, Write_ZeroLength) {
+    std::string testFile = "./test_file_write_zero.txt";
+    FileData data = {0x01, 0x02, 0x03};
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile);
+    
+    File file(testFile, WriteOnly);
+    EXPECT_TRUE(file.write(data, 0));
+    
+    file.close();
+    
+    Path verifyPath(testFile);
+    EXPECT_EQ(verifyPath.fileSize(), 0);
+    
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 write() - 未打开文件失败
+TEST(FileTest, Write_NotOpen) {
+    std::string testFile = "./test_file_write_no.txt";
+    FileData data = {0x01, 0x02};
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile);
+    
+    File file(testFile, Unknown);
+    EXPECT_FALSE(file.write(data));
+    
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 write() - 无效文件失败
+TEST(FileTest, Write_Invalid) {
+    FileData data = {0x01, 0x02};
+    File file("/nonexistent/path/file.txt", WriteOnly);
+    EXPECT_FALSE(file.write(data));
+}
+
+// 测试 write() - 空数据
+TEST(FileTest, Write_EmptyData) {
+    std::string testFile = "./test_file_write_empty.txt";
+    FileData data;
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile);
+    
+    File file(testFile, WriteOnly);
+    EXPECT_TRUE(file.write(data));
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试多次写入 - 数据追加
+TEST(FileTest, Write_Multiple) {
+    std::string testFile = "./test_file_write_multi.txt";
+    FileData data1 = {0x01, 0x02, 0x03};
+    FileData data2 = {0x04, 0x05, 0x06};
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile);
+    
+    File file(testFile, WriteOnly);
+    EXPECT_TRUE(file.write(data1));
+    EXPECT_TRUE(file.write(data2));
+    file.close();
+    
+    Path verifyPath(testFile);
+    EXPECT_EQ(verifyPath.fileSize(), data1.size() + data2.size());
+    
+    FileSystem::rmFile(testFile);
+}
+
+// 测试读写完整流程 - 写入后读取验证内容
+TEST(FileTest, WriteThenRead) {
+    std::string testFile = "./test_file_wr.txt";
+    FileData writeData = {0x48, 0x65, 0x6C, 0x6C, 0x6F};
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile);
+    
+    // 写入
+    {
+        File file(testFile, WriteOnly);
+        EXPECT_TRUE(file.write(writeData));
+        file.close();
+    }
+    
+    // 读取并验证
+    {
+        File file(testFile, ReadOnly);
+        FileData readData = file.readAll();
+        
+        EXPECT_GE(readData.size(), writeData.size());
+        
+        bool match = true;
+        for (size_t i = 0; i < writeData.size(); ++i) {
+            if (readData[i] != writeData[i]) {
+                match = false;
+                break;
+            }
+        }
+        EXPECT_TRUE(match);
+        
+        file.close();
+    }
+    
+    FileSystem::rmFile(testFile);
+}
+
+// 测试析构函数 - 自动关闭文件
+TEST(FileTest, Destructor_AutoClose) {
+    std::string testFile = "./test_file_dtor.txt";
+    std::string content = "Destructor test";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    {
+        File file(testFile, ReadOnly);
+        EXPECT_TRUE(file.isOpen());
+        // 离开作用域，析构函数自动关闭
+    }
+    
+    // 文件应该可以被正常删除（已关闭）
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 OpenMode 组合 - Binary | ReadOnly
+TEST(FileTest, OpenMode_BinaryRead) {
+    std::string testFile = "./test_file_mode_br.txt";
+    std::vector<uint8_t> data = {0x00, 0x01, 0x02, 0xFF};
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, data);
+    
+    File file(testFile, static_cast<OpenMode>(Binary | ReadOnly));
+    EXPECT_TRUE(file.isOpen());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 OpenMode 组合 - Text | ReadOnly
+TEST(FileTest, OpenMode_TextRead) {
+    std::string testFile = "./test_file_mode_tr.txt";
+    std::string content = "Line 1\nLine 2";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file(testFile, static_cast<OpenMode>(Text | ReadOnly));
+    EXPECT_TRUE(file.isOpen());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 OpenMode 组合 - Binary | WriteOnly
+TEST(FileTest, OpenMode_BinaryWrite) {
+    std::string testFile = "./test_file_mode_bw.txt";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile);
+    
+    File file(testFile, static_cast<OpenMode>(Binary | WriteOnly));
+    EXPECT_TRUE(file.isOpen());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 OpenMode 组合 - Text | WriteOnly
+TEST(FileTest, OpenMode_TextWrite) {
+    std::string testFile = "./test_file_mode_tw.txt";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile);
+    
+    File file(testFile, static_cast<OpenMode>(Text | WriteOnly));
+    EXPECT_TRUE(file.isOpen());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 OpenMode 组合 - Binary | ReadWrite
+TEST(FileTest, OpenMode_BinaryReadWrite) {
+    std::string testFile = "./test_file_mode_brw.txt";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile);
+    
+    File file(testFile, static_cast<OpenMode>(Binary | ReadWrite));
+    EXPECT_TRUE(file.isOpen());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 OpenMode 组合 - Text | ReadWrite
+TEST(FileTest, OpenMode_TextReadWrite) {
+    std::string testFile = "./test_file_mode_trw.txt";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile);
+    
+    File file(testFile, static_cast<OpenMode>(Text | ReadWrite));
+    EXPECT_TRUE(file.isOpen());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 OpenMode 组合 - 复杂组合
+TEST(FileTest, OpenMode_Complex) {
+    std::string testFile = "./test_file_mode_complex.txt";
+    std::string content = "Complex mode";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file(testFile, static_cast<OpenMode>(Binary | Text | ReadWrite));
+    EXPECT_TRUE(file.isOpen());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
 }
 
 // ==================== 主函数 ====================
