@@ -26,10 +26,7 @@
 #ifndef TINY_CPP_OS_FILE_HPP
 #define TINY_CPP_OS_FILE_HPP
 #include <cstdint>
-#include <cstring>
-#include <functional>
 #include <string>
-#include <string_view>
 #include <vector>
 
 /*******************************************************************************************

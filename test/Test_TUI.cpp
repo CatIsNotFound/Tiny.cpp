@@ -4,33 +4,59 @@
 using namespace Tiny;
 using ter = TUI::Terminal;
 
+static void updateInfo(const std::atomic<bool>&) {
+    OS::HostInfo host_info = OS::hostInfo();
+    ter::moveCursor(1, 1);
+    ter::printFormat("{:12s} {}", "Host:", host_info.host_name);
+    ter::moveCursor(2, 1);
+    ter::printFormat("{:12s} {}", "User:", host_info.user_name);
+    ter::moveCursor(3, 1);
+    ter::printFormat("{:12s} {}", "OS:", OS::Name);
+    ter::moveCursor(4, 1);
+    ter::printFormat("{:12s} {}", "Machine:", host_info.machine);
+    ter::moveCursor(5, 1);
+    ter::printFormat("{:12s} {}", "Version:", host_info.version);
+    ter::moveCursor(6, 1);
+    ter::printFormat("{:12s} {}", "CPU Core(s):", host_info.cpu_cores);
+    ter::moveCursor(7, 1);
+    ter::printFormat("{:12s} {}", "Page size:", host_info.page_size);
+    ter::moveCursor(8, 1);
+    ter::printFormat("{:12s} {:.2f}GB / {:.2f}GB", "Memory:",
+        host_info.used_ram / 1024.f / 1024.f / 1024.f,
+        host_info.total_ram / 1024.f / 1024.f / 1024.f);
+    ter::moveCursor(9, 1);
+    ter::printFormat("{:12s} {:.1f}GB / {:.1f}GB", "Swap:",
+        (host_info.total_swap - host_info.free_swap) / 1024.f / 1024.f / 1024.f,
+        host_info.total_swap / 1024.f / 1024.f / 1024.f);
+    ter::moveCursor(10, 1);
+    ter::printFormat("{:12s} {:<4.2f}GB / {:<4.2f}GB ({:4.2f}GB Free)", "Disk:",
+        (host_info.total_disk_space - host_info.free_disk_space) / 1024.f / 1024.f / 1024.f,
+        host_info.total_disk_space / 1024.f / 1024.f / 1024.f,
+        host_info.free_disk_space / 1024.f / 1024.f / 1024.f);
+    ter::moveCursor(13, 0);
+}
+
 int main() {
-    auto ok = TUI::Terminal::enterRawMode();
-    TUI::Terminal::setCursorVisible(false);
-    auto scr_size = TUI::Terminal::screenSize();
-    ter::setBackgroundColor(0, 32, 192);
-    ter::setForegroundColor(192, 32, 64);
-    ter::printLine("Screen size: " + std::to_string(scr_size.width) + "x" + std::to_string(scr_size.height));
-    ter::setBackgroundColor(TUI::Color::Blue, false);
-    ter::setForegroundColor(TUI::Color::White, false);
-    ter::printLine("The screen will be restored in 3s...");
-    ter::print("Local Data file: ");
-    auto pos = ter::cursorPosition();
-    ter::printFormat("before pos: (%d, %d)\n", pos.row, pos.column);
-    ter::clearInRow(1);
-    pos = ter::cursorPosition();
-    ter::print("later pos: ");
-    ter::printLine(pos.row + "," + pos.column);
-    ter::printLine(OS::FileSystem::localDataPath().path());
-    std::this_thread::sleep_for(std::chrono::milliseconds(3000));
-    ter::reset();
-    bool ok2 = ter::leaveRawMode();
-    if (ok) {
-        ter::printLine("OK 1!\t123123\r\n");
-    }
-    if (ok2) {
-        ter::printLine("OK 2!\t123\r\n");
-    }
-    TUI::Terminal::setCursorVisible(true);
+    ter::clearScreen();
+    ter::setCursorVisible(false);
+    ter::printFormat("+{:48c}+\n", '-');
+    ter::printFormat("|{:48c}|\n", ' ');
+    ter::printFormat("|{:48c}|\n", ' ');
+    ter::printFormat("|{:48c}|\n", ' ');
+    ter::printFormat("|{:48c}|\n", ' ');
+    ter::printFormat("|{:48c}|\n", ' ');
+    ter::printFormat("|{:48c}|\n", ' ');
+    ter::printFormat("|{:48c}|\n", ' ');
+    ter::printFormat("|{:48c}|\n", ' ');
+    ter::printFormat("|{:48c}|\n", ' ');
+    ter::printFormat("|{:48c}|\n", ' ');
+    ter::printFormat("|{:48c}|\n", ' ');
+    ter::printFormat("+{:48c}+\n", '-');
+    Event ev(1, "Update", []{ return true; }, &updateInfo);
+    ev.setDelayMS(1000);
+    ev.setRepeatCount(10);
+    ev.run();
+    while (ev.isRunning()) {}
+    ter::setCursorVisible(true);
     return 0;
 }

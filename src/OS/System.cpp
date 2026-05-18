@@ -34,6 +34,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/utsname.h>
+
 #endif
 
 #if defined(TINY_CPP_MY_OS_WINDOWS) && !defined(TINY_CPP_DEFINED_WIN)
@@ -70,6 +72,95 @@ namespace Tiny {
 #include "System.hpp"
 
 namespace Tiny {
+    OS::HostInfo OS::hostInfo() {
+        HostInfo host_info;
+        getHostInfo(host_info);
+        return host_info;
+    }
+
+    bool OS::getHostInfo(HostInfo &info) {
+        bool ret = true;
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        /// Host name
+        info.host_name.resize(MAX_COMPUTERNAME_LENGTH + 1);
+        DWORD size = info.host_name.size();
+        if (!GetComputerNameA(&info.host_name[0], &size)) ret = false;
+        /// User name
+        info.user_name.resize(256);
+        if (!GetUserNameA(&info.user_name[0], &size)) ret = false;
+        info.user_name.resize(size);
+        /// System Version
+        HKEY hKey;
+        DWORD major = 0, minor = 0, build = 0;
+        DWORD d_size = sizeof(DWORD);
+        if (RegOpenKeyExA(HKEY_LOCAL_MACHINE,
+            "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",
+            0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+            RegQueryValueExA(hKey, "CurrentMajorVersionNumber", nullptr, nullptr, (LPBYTE)&major, &d_size);
+            RegQueryValueExA(hKey, "CurrentMinorVersionNumber", nullptr, nullptr, (LPBYTE)&minor, &d_size);
+            RegQueryValueExA(hKey, "CurrentBuildNumber", nullptr, nullptr, (LPBYTE)&build, &d_size);
+            RegCloseKey(hKey);
+            std::ostringstream oss;
+            oss << major << "." << minor << "." << build;
+            info.version = oss.str();
+        }
+        /// Machine
+        SYSTEM_INFO sys_info;
+        GetNativeSystemInfo(&sys_info);
+        switch (sys_info.wProcessorArchitecture) {
+        case PROCESSOR_ARCHITECTURE_INTEL:
+            info.machine = "x86";
+            break;
+        case PROCESSOR_ARCHITECTURE_AMD64:
+            info.machine = "amd64";
+            break;
+        case PROCESSOR_ARCHITECTURE_ARM:
+            info.machine = "arm";
+            break;
+        case PROCESSOR_ARCHITECTURE_ARM64:
+            info.machine = "arm64";
+            break;
+        case PROCESSOR_ARCHITECTURE_IA64:
+            info.machine = "ia64";
+            break;
+        default:
+            info.machine = "unknown";
+        }
+        /// CPU Cores
+        info.cpu_cores = sys_info.dwNumberOfProcessors;
+        info.page_size = sys_info.dwPageSize;
+        /// Memory RAM
+        MEMORYSTATUSEX mem_info_ex{};
+        mem_info_ex.dwLength = sizeof(mem_info_ex);
+        GlobalMemoryStatusEx(&mem_info_ex);
+        info.total_ram = mem_info_ex.ullTotalPhys;
+        info.free_ram = mem_info_ex.ullAvailPhys;
+        info.used_ram = info.total_ram - info.free_ram;
+        info.total_swap = mem_info_ex.ullTotalPageFile;
+        info.free_swap = mem_info_ex.ullAvailPageFile;
+        /// Disk Space
+        char buf[1024] = {};
+        GetLogicalDriveStringsA(1024, buf);
+        info.total_disk_space = 0;
+        info.free_disk_space = 0;
+        info.used_disk_space = 0;
+        char* drive = buf;
+        for (; *drive ; drive += strlen(drive) + 1) {
+            ULARGE_INTEGER total{}, free{}, used{};
+            auto ok = GetDiskFreeSpaceEx(buf, &free, &total, &used);
+            if (ok == TRUE) {
+                info.total_disk_space += total.QuadPart;
+                info.free_disk_space += free.QuadPart;
+                info.used_disk_space += used.QuadPart;
+            }
+        }
+
+#elif defined(TINY_CPP_MY_OS_UNIX)
+
+#endif
+        return ret;
+    }
+
     bool OS::FileSystem::chDir(const Path &path) {
 #ifdef TINY_CPP_MY_OS_WINDOWS
         if (!path.isValid()) return false;

@@ -22,19 +22,33 @@
 
 ## 安装
 
+### 下载预编译项目
+
 你可以直接在 [Github Release](https://github.com/CatIsNotFound/Tiny.cpp/releases/latest) 下载最新发布的预编译版本项目。
 
-或者直接通过 Github 下载项目源代码：
+### 编译源代码项目
 
-```bash
-git clone https://github.com/CatIsNotFound/Tiny.cpp.git
-```
+1. 通过 Github 下载项目源代码：
+    ```bash
+    git clone https://github.com/CatIsNotFound/Tiny.cpp.git
+    ```
+    如要使用非稳定版本，请执行如下命令：
+    ```bash
+    git clone https://github.com/CatIsNotFound/Tiny.cpp.git -b beta
+    ```
+   
+2. 通过 CMake 配置项目
+    ```bash
+    cd Tiny.cpp
+    mkdir build ; cd build
+    cmake .. -DCMAKE_INSTALL_PREFIX=/path/to/Tiny.cpp -DCMAKE_BUILD_TYPE=Release -DTINY_BUILD_TEST=OFF 
+    ```
+    **p.s: 请将 `/path/to/Tiny.cpp` 替换为实际安装的路径。**
 
-如要使用非稳定版本，请执行如下命令：
-
-```bash
-git clone https://github.com/CatIsNotFound/Tiny.cpp.git -b beta
-```
+3. 编译并安装本项目到本地
+    ```bash
+    cmake --build . --target install
+    ```
 
 ## 快速开始
 
@@ -48,7 +62,9 @@ git clone https://github.com/CatIsNotFound/Tiny.cpp.git -b beta
 
 **p.s: CMake 下使用 `Tiny` 作为项目库名称，而不是 `Tiny.cpp`！**
 
-具体参照如下示例：
+1. 通过[下载预编译二进制库](https://github.com/CatIsNotFound/Tiny.cpp/releases/latest)或[手动编译源代码](#编译源代码项目)到你的本地。
+
+2. 具体参照如下示例：
 
 ```cmake
 cmake_minimum_required(VERSION 3.24)
@@ -58,12 +74,14 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_PREFIX_PATH "/path/to/Tiny.cpp")
 find_package(Tiny REQUIRED)
 
-add_executable(HelloWorld main.cpp)
-
-target_link_libraries(HelloWorld PRIVATE
-    Tiny::Tiny
+add_executable(${CMAKE_PROJECT_NAME} 
+        main.cpp
+        # ....
 )
 
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
+    Tiny::Tiny
+)
 ```
 
 ## 许可证说明

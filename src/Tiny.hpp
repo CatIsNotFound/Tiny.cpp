@@ -29,6 +29,7 @@
 #include "OS/File.hpp"
 #include "OS/System.hpp"
 #include "Events/Events.hpp"
+#include "TUI/Terminal.hpp"
 #include "TUI/TUI.hpp"
 
 #endif //TINY_HPP
