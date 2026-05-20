@@ -29,6 +29,11 @@ add_library(${PROJECT_NAME} STATIC
         src/TUI/TUI.cpp
 )
 
+# Link Windows libraries
+if(WIN32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE pdh)
+endif()
+
 install(TARGETS ${PROJECT_NAME}
         EXPORT ${PROJECT_NAME}Targets
         ARCHIVE DESTINATION lib

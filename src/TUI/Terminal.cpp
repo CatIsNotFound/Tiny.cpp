@@ -70,6 +70,7 @@ namespace Tiny {
     bool TUI::Terminal::_is_in_raw_mode{};
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
     void* TUI::Terminal::_old_console{};
+    unsigned long TUI::Terminal::_old_console_handle{0};
 #endif
 
     bool TUI::Terminal::enterRawMode() {
@@ -102,6 +103,7 @@ namespace Tiny {
         if (new_console == INVALID_HANDLE_VALUE || !SetConsoleActiveScreenBuffer(new_console)) return false;
         DWORD mode;
         if (!GetConsoleMode(console, &mode)) return false;
+        _old_console_handle = mode;
         mode &= ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_QUICK_EDIT_MODE);
         mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
         if (!SetConsoleMode(console, mode)) return false;
@@ -128,9 +130,7 @@ namespace Tiny {
             SetStdHandle(STD_OUTPUT_HANDLE, _old_console);
             SetStdHandle(STD_ERROR_HANDLE, _old_console);
             CloseHandle(console);
-            DWORD mode = (ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT |
-                          ENABLE_QUICK_EDIT_MODE | ENABLE_PROCESSED_OUTPUT | ENABLE_WRAP_AT_EOL_OUTPUT);
-            SetConsoleMode(_old_console, mode);
+            SetConsoleMode(_old_console, _old_console_handle);
             _old_console = nullptr;
         }
 #endif

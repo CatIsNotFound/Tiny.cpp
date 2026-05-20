@@ -43,6 +43,8 @@ namespace Tiny {
         Event(uint32_t id, std::string name,
             const std::function<bool()>& condition,
             const std::function<void(const std::atomic<bool>&)>& event);
+        Event(uint32_t id, std::string name,
+            const std::function<void(const std::atomic<bool>&)>& event);
         Event(uint32_t id, std::string name);
         Event(const Event&);
         virtual ~Event();
@@ -67,7 +69,7 @@ namespace Tiny {
         std::atomic<bool> _is_load_event{}, _needs_destroy{};
         std::string _name{};
         std::function<void(const std::atomic<bool>&)> _event{};
-        std::function<bool()> _condition{};
+        std::function<bool()> _condition{[] { return true; }};
         std::atomic<bool> _is_running{false};
         std::thread _thread{};
         std::atomic<uint32_t> _delay{1000};

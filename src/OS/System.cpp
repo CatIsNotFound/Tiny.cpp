@@ -23,12 +23,18 @@
  *                                                                                   *
  *************************************************************************************/
 
-#include "File.hpp"
+#include "System.hpp"
+
+#include <thread>
+
+#include "../../../../JetBrains/CLion/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/bits/this_thread_sleep.h"
 
 #ifdef TINY_CPP_MY_OS_WINDOWS
 #include <windows.h>
 #include <fileapi.h>
 #include <shlobj.h>
+#include <pdh.h>
+#pragma comment(lib, "pdh.lib")
 #elif defined(TINY_CPP_MY_OS_UNIX)
 #include <dirent.h>
 #include <unistd.h>
@@ -69,13 +75,54 @@ namespace Tiny {
 }
 #endif
 
-#include "System.hpp"
-
 namespace Tiny {
-    OS::HostInfo OS::hostInfo() {
+    const char *OS::getCPUArchName(CPU_Arch cpu_arch) {
+        switch (cpu_arch) {
+            case CPU_Arch::X86:
+                return "x86";
+            case CPU_Arch::X86_64:
+                return "x86_64";
+            case CPU_Arch::ARM32:
+                return "arm32";
+            case CPU_Arch::ARM64:
+                return "arm64";
+            case CPU_Arch::LoongArch:
+                return "loongArch";
+            case CPU_Arch::MIPS:
+                return "mips";
+            case CPU_Arch::RISCV:
+                return "risc-v";
+            case CPU_Arch::IA32:
+                return "ia32";
+            case CPU_Arch::IA64:
+                return "ia64";
+            default:
+                return "Unknown";
+        }
+    }
+
+    OS::HostInfo OS::currentHostInfo() {
         HostInfo host_info;
         getHostInfo(host_info);
         return host_info;
+    }
+
+    OS::CPU OS::currentCPUInfo() {
+        CPU cpu_info;
+        getCPUInfo(cpu_info);
+        return cpu_info;
+    }
+
+    OS::Memory OS::currentMemory() {
+        Memory memory;
+        getMemory(memory);
+        return memory;
+    }
+
+    OS::DiskSpace OS::currentDiskSpace() {
+        DiskSpace disk_space;
+        getDiskSpace(disk_space);
+        return disk_space;
     }
 
     bool OS::getHostInfo(HostInfo &info) {
@@ -103,62 +150,147 @@ namespace Tiny {
             std::ostringstream oss;
             oss << major << "." << minor << "." << build;
             info.version = oss.str();
-        }
-        /// Machine
+        } else ret = false;
+#elif defined(TINY_CPP_MY_OS_UNIX)
+
+#endif
+        return ret;
+    }
+
+    bool OS::getCPUInfo(CPU &info) {
+        bool ret = true;
+#ifdef TINY_CPP_MY_OS_WINDOWS
         SYSTEM_INFO sys_info;
         GetNativeSystemInfo(&sys_info);
         switch (sys_info.wProcessorArchitecture) {
-        case PROCESSOR_ARCHITECTURE_INTEL:
-            info.machine = "x86";
-            break;
-        case PROCESSOR_ARCHITECTURE_AMD64:
-            info.machine = "amd64";
-            break;
-        case PROCESSOR_ARCHITECTURE_ARM:
-            info.machine = "arm";
-            break;
-        case PROCESSOR_ARCHITECTURE_ARM64:
-            info.machine = "arm64";
-            break;
-        case PROCESSOR_ARCHITECTURE_IA64:
-            info.machine = "ia64";
-            break;
-        default:
-            info.machine = "unknown";
+            case PROCESSOR_ARCHITECTURE_INTEL:
+                info.machine = CPU_Arch::X86;
+                break;
+            case PROCESSOR_ARCHITECTURE_AMD64:
+                info.machine = CPU_Arch::X86_64;
+                break;
+            case PROCESSOR_ARCHITECTURE_ARM:
+            case PROCESSOR_ARCHITECTURE_ARM32_ON_WIN64:
+                info.machine = CPU_Arch::ARM32;
+                break;
+            case PROCESSOR_ARCHITECTURE_ARM64:
+                info.machine = CPU_Arch::ARM64;
+                break;
+            case PROCESSOR_ARCHITECTURE_IA32_ON_ARM64:
+            case PROCESSOR_ARCHITECTURE_IA32_ON_WIN64:
+                info.machine = CPU_Arch::IA32;
+                break;
+            case PROCESSOR_ARCHITECTURE_IA64:
+                info.machine = CPU_Arch::IA64;
+                break;
+            default:
+                info.machine = CPU_Arch::Unknown;
         }
         /// CPU Cores
-        info.cpu_cores = sys_info.dwNumberOfProcessors;
+        info.cores = sys_info.dwNumberOfProcessors;
         info.page_size = sys_info.dwPageSize;
-        /// Memory RAM
-        MEMORYSTATUSEX mem_info_ex{};
-        mem_info_ex.dwLength = sizeof(mem_info_ex);
-        GlobalMemoryStatusEx(&mem_info_ex);
-        info.total_ram = mem_info_ex.ullTotalPhys;
-        info.free_ram = mem_info_ex.ullAvailPhys;
-        info.used_ram = info.total_ram - info.free_ram;
-        info.total_swap = mem_info_ex.ullTotalPageFile;
-        info.free_swap = mem_info_ex.ullAvailPageFile;
-        /// Disk Space
-        char buf[1024] = {};
-        GetLogicalDriveStringsA(1024, buf);
-        info.total_disk_space = 0;
-        info.free_disk_space = 0;
-        info.used_disk_space = 0;
-        char* drive = buf;
-        for (; *drive ; drive += strlen(drive) + 1) {
-            ULARGE_INTEGER total{}, free{}, used{};
-            auto ok = GetDiskFreeSpaceEx(buf, &free, &total, &used);
-            if (ok == TRUE) {
-                info.total_disk_space += total.QuadPart;
-                info.free_disk_space += free.QuadPart;
-                info.used_disk_space += used.QuadPart;
+
+        /// CPU Usage
+        static PDH_HQUERY query{};
+        static std::vector<PDH_HCOUNTER> counter(info.cores, nullptr);
+
+        // Init counter
+        if (!query) {
+            if (PdhOpenQueryA(nullptr, 0, &query) == ERROR_SUCCESS) {
+                info.usages.resize(info.cores);
+                for (size_t i = 0; i < info.cores; i++) {
+                    wchar_t path[MAX_PATH];
+                    swprintf(path, L"\\Processor(%llu)\\%% Processor Time", i);
+                    if (PdhAddCounterW(query, path, 0, &counter[i]) != ERROR_SUCCESS) ret = false;
+                }
+            } else ret = false;
+        }
+        // Get per core usage
+        // info.usages.resize(info.cores);
+        PdhCollectQueryData(query);
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        PdhCollectQueryData(query);
+        for (size_t i = 0; i < info.cores; i++) {
+            PDH_FMT_COUNTERVALUE value;
+            auto err_code = PdhGetFormattedCounterValue(counter[i], PDH_FMT_DOUBLE,
+                                           nullptr, &value);
+            if (err_code == ERROR_SUCCESS) {
+                info.usages[i] = static_cast<float>(value.doubleValue);
+                info.total_usage += info.usages[i];
+            } else {
+                ret = false;
             }
         }
+        if (info.cores > 0) info.total_usage /= info.cores;
 
 #elif defined(TINY_CPP_MY_OS_UNIX)
 
 #endif
         return ret;
+    }
+
+    bool OS::getMemory(Memory &memory) {
+        bool ret = true;
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        /// Memory RAM
+        MEMORYSTATUSEX mem_info_ex{};
+        mem_info_ex.dwLength = sizeof(mem_info_ex);
+        if (!GlobalMemoryStatusEx(&mem_info_ex)) ret = false;
+        memory.total_ram = mem_info_ex.ullTotalPhys;
+        memory.free_ram = mem_info_ex.ullAvailPhys;
+        memory.used_ram = memory.total_ram - memory.free_ram;
+        memory.total_swap = mem_info_ex.ullTotalPageFile;
+        memory.free_swap = mem_info_ex.ullAvailPageFile;
+#elif defined(TINY_CPP_MY_OS_UNIX)
+
+#endif
+        return ret;
+    }
+
+    bool OS::getDiskSpace(DiskSpace &disk_space) {
+        bool ret = true;
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        char buf[1024] = {};
+        if (GetLogicalDriveStringsA(1024, buf) == 0) ret = false;
+        disk_space.total_disk_space = 0;
+        disk_space.free_disk_space = 0;
+        disk_space.used_disk_space = 0;
+        char* drive = buf;
+        for (; *drive ; drive += strlen(drive) + 1) {
+            ULARGE_INTEGER total{}, free{};
+            auto ok = GetDiskFreeSpaceEx(buf, nullptr, &total, &free);
+            if (ok == TRUE) {
+                disk_space.total_disk_space += total.QuadPart;
+                disk_space.free_disk_space += free.QuadPart;
+                disk_space.used_disk_space += total.QuadPart - free.QuadPart;
+            }
+        }
+#elif defined(TINY_CPP_MY_OS_UNIX)
+
+#endif
+        return ret;
+    }
+
+    OS::CPU_Arch OS::getCurrentCPUArch() {
+#if defined(__x86_64__) || defined(_M_X64)
+        return CPU_Arch::X86_64;
+#elif defined(__i386__) || defined(_M_IX86)
+        return CPU_Arch::X86;
+#elif defined(__aarch64__) || defined(_M_ARM64)
+        return CPU_Arch::ARM64;
+#elif defined(__arm__) || defined(_M_ARM)
+        return CPU_Arch::ARM;
+#elif defined(__loongarch__)
+        return CPU_Arch::LOONGARCH;
+#elif defined(__mips__)
+        return CPU_Arch::MIPS;
+#elif defined(__riscv)
+        return CPU_Arch::RISCV;
+#elif defined(__ia64__)
+        return CPU_Arch::IA64;
+#else
+        return CPU_Arch::Unknown;
+#endif
     }
 
     bool OS::FileSystem::chDir(const Path &path) {

@@ -53,20 +53,53 @@ namespace Tiny {
             std::string user_name{};
             std::string machine{};
             std::string version{};
-            int cpu_cores{};
-            int page_size{};
+        };
+
+        enum class CPU_Arch {
+            Unknown     = 0,
+            X86         = 1,
+            X86_64      = 2,
+            ARM32       = 3,
+            ARM64       = 4,
+            LoongArch   = 5,  /* Loong Arch, including LA32R, LA32S, LA64 */
+            MIPS        = 6,
+            RISCV       = 7,
+            IA32        = 8,
+            IA64        = 9
+        };
+
+        struct CPU {
+            CPU_Arch machine;
+            uint32_t cores{};
+            uint32_t page_size{};
+            float total_usage{};
+            std::vector<float> usages{};
+        };
+
+        struct Memory {
             size_t total_ram{};
             size_t free_ram{};
             size_t used_ram{};
             size_t total_swap{};
             size_t free_swap{};
+        };
+
+        struct DiskSpace {
             size_t total_disk_space{};
             size_t free_disk_space{};
             size_t used_disk_space{};
         };
 
-        HostInfo hostInfo();
+        const char* getCPUArchName(CPU_Arch cpu_arch);
+        HostInfo currentHostInfo();
+        CPU currentCPUInfo();
+        Memory currentMemory();
+        DiskSpace currentDiskSpace();
         bool getHostInfo(HostInfo& info);
+        bool getCPUInfo(CPU& info);
+        bool getMemory(Memory& memory);
+        bool getDiskSpace(DiskSpace& disk_space);
+        CPU_Arch getCurrentCPUArch();
 
         class FileSystem {
         public:

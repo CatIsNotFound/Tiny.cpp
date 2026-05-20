@@ -106,20 +106,25 @@ namespace Tiny {
             template<typename T, typename... Args>
             static void formatImpl(std::ostringstream &ostream, const char* format, T arg, Args... args);
             static void formatImpl(std::ostringstream &ostream, const char* format);
+            template<typename T, typename... Args>
+            static void parseFormatSpec(std::ostringstream &ostream, const char*& format, T arg, Args... args);
+            template<typename T, typename... Args>
+            static void handleAlternateForm(std::ostringstream &ostream, const char*& format,
+                                            std::string& spec, T arg, Args... args);
             template<typename T>
             static void appendArgs(std::ostringstream& ostream, T&& t);
             static void appendFormatText(std::ostringstream& ostream, const char* format);
             static bool printFormattedText(const std::string& str);
 #ifdef TINY_CPP_MY_OS_WINDOWS
-
             static void* _old_console;
+            static unsigned long _old_console_handle;
         };
 #elif defined(TINY_CPP_MY_OS_UNIX)
-
             static struct termios _old_terminal;
             static bool _is_in_raw_mode;
         };
 #endif
+
     }
 }
 

@@ -32,6 +32,9 @@ namespace Tiny {
                  const std::function<bool()> &condition, const std::function<void(const std::atomic<bool>&)> &event)
                      : _id(id), _name(std::move(name)), _event(event), _condition(condition) {}
 
+    Event::Event(uint32_t id, std::string name, const std::function<void(const std::atomic<bool> &)> &event)
+                : _id(id), _name(std::move(name)), _event(event) {}
+
     Event::Event(uint32_t id, std::string name)
                 : _id(id), _name(std::move(name)) {}
 
