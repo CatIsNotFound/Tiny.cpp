@@ -400,7 +400,18 @@ namespace Tiny {
         const char* cmd = enable ? "\x1b[1m" : "\x1b[22m";
         write(STDIN_FILENO, cmd, strlen(cmd));
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
-
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return;
+        DWORD mode;
+        if (!GetConsoleMode(console, &mode)) return;
+        if (!(mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING)) {
+            mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            SetConsoleMode(console, mode);
+        }
+        CONSOLE_SCREEN_BUFFER_INFO info{};
+        if (!GetConsoleScreenBufferInfo(console, &info)) return;
+        std::wstring cmd = enable ? L"\x1b[1m" : L"\x1b[22m";
+        WriteConsoleW(console, cmd.c_str(), cmd.size(), nullptr, nullptr);
 #endif
     }
 
@@ -409,7 +420,18 @@ namespace Tiny {
         const char* cmd = enable ? "\x1b[2m" : "\x1b[22m";
         write(STDIN_FILENO, cmd, strlen(cmd));
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
-
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return;
+        DWORD mode;
+        if (!GetConsoleMode(console, &mode)) return;
+        if (!(mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING)) {
+            mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            SetConsoleMode(console, mode);
+        }
+        CONSOLE_SCREEN_BUFFER_INFO info{};
+        if (!GetConsoleScreenBufferInfo(console, &info)) return;
+        std::wstring cmd = enable ? L"\x1b[2m" : L"\x1b[22m";
+        WriteConsoleW(console, cmd.c_str(), cmd.size(), nullptr, nullptr);
 #endif
     }
 
@@ -418,7 +440,18 @@ namespace Tiny {
         const char* cmd = enable ? "\x1b[3m" : "\x1b[23m";
         write(STDIN_FILENO, cmd, strlen(cmd));
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
-
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return;
+        DWORD mode;
+        if (!GetConsoleMode(console, &mode)) return;
+        if (!(mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING)) {
+            mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            SetConsoleMode(console, mode);
+        }
+        CONSOLE_SCREEN_BUFFER_INFO info{};
+        if (!GetConsoleScreenBufferInfo(console, &info)) return;
+        std::wstring cmd = enable ? L"\x1b[3m" : L"\x1b[23m";
+        WriteConsoleW(console, cmd.c_str(), cmd.size(), nullptr, nullptr);
 #endif
     }
 
@@ -427,7 +460,18 @@ namespace Tiny {
         const char* cmd = enable ? "\x1b[4m" : "\x1b[24m";
         write(STDIN_FILENO, cmd, strlen(cmd));
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
-
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return;
+        DWORD mode;
+        if (!GetConsoleMode(console, &mode)) return;
+        if (!(mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING)) {
+            mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            SetConsoleMode(console, mode);
+        }
+        CONSOLE_SCREEN_BUFFER_INFO info{};
+        if (!GetConsoleScreenBufferInfo(console, &info)) return;
+        std::wstring cmd = enable ? L"\x1b[4m" : L"\x1b[24m";
+        WriteConsoleW(console, cmd.c_str(), cmd.size(), nullptr, nullptr);
 #endif
     }
 
@@ -436,7 +480,18 @@ namespace Tiny {
         const char* cmd = enable ? "\x1b[5m" : "\x1b[25m";
         write(STDIN_FILENO, cmd, strlen(cmd));
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
-
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return;
+        DWORD mode;
+        if (!GetConsoleMode(console, &mode)) return;
+        if (!(mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING)) {
+            mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            SetConsoleMode(console, mode);
+        }
+        CONSOLE_SCREEN_BUFFER_INFO info{};
+        if (!GetConsoleScreenBufferInfo(console, &info)) return;
+        std::wstring cmd = enable ? L"\x1b[5m" : L"\x1b[25m";
+        WriteConsoleW(console, cmd.c_str(), cmd.size(), nullptr, nullptr);
 #endif
     }
 
@@ -445,7 +500,18 @@ namespace Tiny {
         const char* cmd = enable ? "\x1b[7m" : "\x1b[27m";
         write(STDIN_FILENO, cmd, strlen(cmd));
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
-
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return;
+        DWORD mode;
+        if (!GetConsoleMode(console, &mode)) return;
+        if (!(mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING)) {
+            mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            SetConsoleMode(console, mode);
+        }
+        CONSOLE_SCREEN_BUFFER_INFO info{};
+        if (!GetConsoleScreenBufferInfo(console, &info)) return;
+        std::wstring cmd = enable ? L"\x1b[7m" : L"\x1b[27m";
+        WriteConsoleW(console, cmd.c_str(), cmd.size(), nullptr, nullptr);
 #endif
     }
 
@@ -468,7 +534,18 @@ namespace Tiny {
         const char* cmd = enable ? "\x1b[9m" : "\x1b[29m";
         write(STDIN_FILENO, cmd, strlen(cmd));
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
-
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return;
+        DWORD mode;
+        if (!GetConsoleMode(console, &mode)) return;
+        if (!(mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING)) {
+            mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            SetConsoleMode(console, mode);
+        }
+        CONSOLE_SCREEN_BUFFER_INFO info{};
+        if (!GetConsoleScreenBufferInfo(console, &info)) return;
+        std::wstring cmd = enable ? L"\x1b[9m" : L"\x1b[29m";
+        WriteConsoleW(console, cmd.c_str(), cmd.size(), nullptr, nullptr);
 #endif
     }
 

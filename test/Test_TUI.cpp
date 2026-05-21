@@ -60,7 +60,7 @@ static void updateInfo(const std::atomic<bool>& running) {
     ter::printFormat("{:>16s}: {:.2f}GB\r\n", "compress", memory.app_compress_mem  / 1024.f / 1024.f / 1024.f);
     ter::printFormat("{:>16s}: {:.2f}GB\r\n", "speculative", memory.app_speculative_mem  / 1024.f / 1024.f / 1024.f);
 #endif
-    ter::printLine("Please press any key to exit...");
+    ter::printLine("Please press 'Enter' key to exit...");
 }
 
 int main() {
