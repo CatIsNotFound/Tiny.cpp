@@ -83,6 +83,14 @@ namespace Tiny {
             size_t used_ram{};
             size_t total_swap{};
             size_t free_swap{};
+#ifdef __APPLE__
+            size_t app_free_mem{};
+            size_t app_active_mem{};
+            size_t app_inactive_mem{};
+            size_t app_wired_mem{};
+            size_t app_compress_mem{};
+            size_t app_speculative_mem{};
+#endif
         };
 
         struct DiskSpace {

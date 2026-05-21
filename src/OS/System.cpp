@@ -39,7 +39,6 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/utsname.h>
-#include <sys/sysinfo.h>
 #include <sys/statvfs.h>
 #include <pwd.h>
 #include <cstring>
@@ -48,6 +47,9 @@
 #include <mach/mach.h>
 #include <mach/host_info.h>
 #include <mach/mach_host.h>
+#include <mach/processor_info.h>
+#else
+#include <sys/sysinfo.h>
 #endif
 #endif
 
@@ -83,6 +85,40 @@ namespace Tiny {
 #endif
 
 #ifdef TINY_CPP_MY_OS_UNIX
+#ifdef __APPLE__
+struct TickStat {
+    uint64_t total, idle;
+};
+
+static std::vector<TickStat> calcTickStat() {
+    std::vector<TickStat> out;
+    natural_t cpu_count = 0;
+    processor_cpu_load_info_t cpu_load = nullptr;
+    mach_msg_type_number_t count = 0;
+
+    kern_return_t kr = host_processor_info(
+        mach_host_self(),
+        PROCESSOR_CPU_LOAD_INFO,
+        &cpu_count,
+        (processor_info_array_t*)&cpu_load,
+        &count
+    );
+
+    if (kr != KERN_SUCCESS) return out;
+
+    for (natural_t i = 0; i < cpu_count; ++i) {
+        uint64_t total = 0, idle = 0;
+        for (int j = 0; j < CPU_STATE_MAX; j++) {
+            total += cpu_load[i].cpu_ticks[j];
+        }
+        idle = cpu_load[i].cpu_ticks[CPU_STATE_IDLE];
+        out.push_back({total, idle});
+    }
+
+    vm_deallocate(mach_task_self(), (vm_address_t)cpu_load, count * sizeof(natural_t));
+    return out;
+}
+#else
 struct CPU_Stat {
     size_t user, nice, system, idle, iowait, irq, softirq;
 
@@ -94,6 +130,7 @@ struct CPU_Stat {
         return total() - idle;
     }
 };
+#endif
 #endif
 
 namespace Tiny {
@@ -180,7 +217,11 @@ namespace Tiny {
         info.version = uts_name.release;
         // Get OS Name
 #ifdef __APPLE__
-        info.os_name = "MacOS";
+        info.os_name = "macOS";
+        char new_version[128] = {};
+        size_t len = sizeof(new_version);
+        sysctlbyname("kern.osproductversion", new_version, &len, nullptr, 0);
+        info.version = new_version;
 #else
         File file("/etc/os-release", OpenMode::ReadOnly);
         if (file.isOpen()) {
@@ -273,7 +314,7 @@ namespace Tiny {
         uname(&uts_name);
         std::string machine = uts_name.machine;
         if (machine == "x86_64") info.machine = CPU_Arch::X86_64;
-        else if (machine == "arm64" || uts_name.machine == "aarch64") info.machine = CPU_Arch::ARM64;
+        else if (machine == "arm64" || machine == "aarch64") info.machine = CPU_Arch::ARM64;
         else if (machine.find_first_of("armv") != std::string::npos) info.machine = CPU_Arch::ARM32;
         else if (machine == "i386" || machine == "i686") info.machine = CPU_Arch::X86;
         else if (machine.find_first_of("loongarch") != std::string::npos) info.machine = CPU_Arch::LoongArch;
@@ -283,8 +324,25 @@ namespace Tiny {
 
         // CPU info
 #ifdef __APPLE__
-        info.cores = get_cpu_total_cores();
-        /// TODO: 
+        size_t length = sizeof(info.cores);
+        if (sysctlbyname("hw.ncpu", &info.cores, &length, nullptr, 0) == -1) info.cores = 1;
+        info.usages.resize(info.cores);
+
+        auto prev = calcTickStat();
+        std::this_thread::sleep_for(std::chrono::milliseconds(internal));
+        auto next = calcTickStat();
+
+        // Calc the CPU usage
+        float total_usage = 0;
+        for (size_t i = 0; i < info.cores; ++i) {
+            auto d_total = (next[i].total - prev[i].total);
+            auto d_idle = (next[i].idle - prev[i].idle);
+            if (d_total != 0) {
+                info.usages[i] = 100.f - (100.f * static_cast<double>(d_idle) / static_cast<double>(d_total));
+            }
+            total_usage += info.usages[i];
+        }
+        info.total_usage = total_usage / static_cast<float>(info.cores);
 #else
         info.cores = get_nprocs();
         info.usages.resize(info.cores);
@@ -353,6 +411,46 @@ namespace Tiny {
 #elif defined(TINY_CPP_MY_OS_UNIX)
 #ifdef __APPLE__
         // TODO: 
+        vm_size_t page_size = 0;
+        host_page_size(mach_host_self(), &page_size);
+        memory.total_ram = page_size * sysconf(_SC_PHYS_PAGES);
+        vm_statistics64 vm_stat;
+        mach_msg_type_number_t count = HOST_VM_INFO64_COUNT;
+        kern_return_t kr = host_statistics64(
+            mach_host_self(),
+            HOST_VM_INFO64,
+            (host_info64_t)&vm_stat,
+            &count
+        );
+        if (kr == KERN_SUCCESS) {
+            uint64_t free_count = vm_stat.free_count * page_size;
+            uint64_t active_count = vm_stat.active_count * page_size;
+            uint64_t inactive_count = vm_stat.inactive_count * page_size;
+            uint64_t wired_count = vm_stat.wire_count * page_size;
+            uint64_t compress_count = vm_stat.compressor_page_count * page_size;
+            uint64_t speculative_count = vm_stat.speculative_count * page_size;
+            uint64_t used_count = active_count + wired_count + compress_count;
+            uint64_t avail_count = inactive_count + free_count + speculative_count;
+            // Only for Apple
+            memory.app_free_mem = free_count;
+            memory.app_active_mem = active_count;
+            memory.app_inactive_mem = inactive_count;
+            memory.app_wired_mem = wired_count;
+            memory.app_compress_mem = compress_count;
+            memory.app_speculative_mem = speculative_count;
+            memory.free_ram = free_count;
+            memory.used_ram = used_count;
+            memory.available_ram = avail_count;
+        } else {
+            ret = false;
+
+        }
+
+        struct xsw_usage xsw{};
+        size_t len = sizeof(xsw);
+        sysctlbyname("vm.swapusage", &xsw, &len, nullptr, 0);
+        memory.total_swap = xsw.xsu_total; 
+        memory.free_swap = xsw.xsu_avail;  
 
 #else
         File mem_info("/proc/meminfo", OpenMode::ReadOnly);

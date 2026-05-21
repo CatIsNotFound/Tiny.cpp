@@ -11,7 +11,7 @@ static void updateInfo(const std::atomic<bool>& running) {
     static OS::DiskSpace disk_space{};
     OS::getDiskSpace(disk_space);
     static OS::CPU cpu_info{};
-    OS::getCPUInfo(cpu_info, 100);
+    OS::getCPUInfo(cpu_info, 1000);
     if (!running) return;
     ter::moveCursor(1, 1);
     ter::printFormat("{:12s} {}", "Host:", host_info.host_name);
@@ -32,8 +32,9 @@ static void updateInfo(const std::atomic<bool>& running) {
     ter::moveCursor(9, 1);
     double used = memory.used_ram / 1024.f / 1024.f / 1024.f;
     double total = memory.total_ram / 1024.f / 1024.f / 1024.f;
-    ter::printFormat("{:12s} {:.2f}GB / {:.2f}GB ({:>6.2f}%)", "Memory:",
-        used, total, (used / total) * 100.f);
+    double avail = memory.available_ram / 1024.f / 1024.f / 1024.f;
+    ter::printFormat("{:12s} {:.2f}GB / {:.2f}GB ({:.2f}GB Available)", "Memory:",
+        used, total, avail);
     ter::moveCursor(10, 1);
     ter::printFormat("{:12s} {:.2f}GB / {:.2f}GB", "Swap:",
         (memory.total_swap - memory.free_swap) / 1024.f / 1024.f / 1024.f,
@@ -50,6 +51,15 @@ static void updateInfo(const std::atomic<bool>& running) {
     }
     if (cpu_info.cores == 0) ter::printFormat("|{:24c}|\r\n", ' ');
     ter::printFormat("+{:24c}+\r\n", '-');
+#ifdef __APPLE__
+    ter::printFormat("[Only Apple can view memory!!]\r\n");
+    ter::printFormat("{:>16s}: {:.2f}GB\r\n", "active", memory.app_active_mem  / 1024.f / 1024.f / 1024.f);
+    ter::printFormat("{:>16s}: {:.2f}GB\r\n", "inactive", memory.app_inactive_mem  / 1024.f / 1024.f / 1024.f);
+    ter::printFormat("{:>16s}: {:.2f}GB\r\n", "free", memory.app_free_mem  / 1024.f / 1024.f / 1024.f);
+    ter::printFormat("{:>16s}: {:.2f}GB\r\n", "wired", memory.app_wired_mem  / 1024.f / 1024.f / 1024.f);
+    ter::printFormat("{:>16s}: {:.2f}GB\r\n", "compress", memory.app_compress_mem  / 1024.f / 1024.f / 1024.f);
+    ter::printFormat("{:>16s}: {:.2f}GB\r\n", "speculative", memory.app_speculative_mem  / 1024.f / 1024.f / 1024.f);
+#endif
     ter::printLine("Please press any key to exit...");
 }
 
@@ -71,7 +81,7 @@ int main() {
     ter::printFormat("|{:54c}|\r\n", ' ');
     ter::printFormat("+{:54c}+\r\n", '-');
     Event ev(1, "Update", &updateInfo);
-    ev.setDelayMS(1000);
+    ev.setDelayMS(0);
     ev.setRepeatCount(0);
     ev.run();
     int c;
