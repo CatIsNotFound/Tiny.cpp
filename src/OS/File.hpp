@@ -150,12 +150,12 @@ namespace Tiny {
             FileData read(size_t length);
             FileData readAll();
             std::string readText(size_t length);
+            std::string readLine();
             std::string readAllText();
             bool write(const FileData& data, size_t length);
             bool write(const char* data, size_t length);
             bool write(const FileData& data);
             void close();
-
             File(const File&) = delete;
             File& operator=(const File&) = delete;
         private:

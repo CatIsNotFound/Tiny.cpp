@@ -51,6 +51,7 @@ namespace Tiny {
         struct HostInfo {
             std::string host_name{};
             std::string user_name{};
+            std::string os_name{};
             std::string machine{};
             std::string version{};
         };
@@ -62,10 +63,9 @@ namespace Tiny {
             ARM32       = 3,
             ARM64       = 4,
             LoongArch   = 5,  /* Loong Arch, including LA32R, LA32S, LA64 */
-            MIPS        = 6,
-            RISCV       = 7,
-            IA32        = 8,
-            IA64        = 9
+            MIPS        = 6,  /* MIPS, including MIPS32, MIPS64 */
+            RISCV       = 7,  /* RISC-V, including riscv32, riscv64 */
+            IA64        = 8
         };
 
         struct CPU {
@@ -79,15 +79,17 @@ namespace Tiny {
         struct Memory {
             size_t total_ram{};
             size_t free_ram{};
+            size_t available_ram{};
             size_t used_ram{};
             size_t total_swap{};
             size_t free_swap{};
         };
 
         struct DiskSpace {
-            size_t total_disk_space{};
-            size_t free_disk_space{};
-            size_t used_disk_space{};
+            size_t total_bytes{};
+            size_t free_bytes{};
+            size_t used_bytes{};
+            size_t available_bytes{};
         };
 
         const char* getCPUArchName(CPU_Arch cpu_arch);
@@ -96,7 +98,7 @@ namespace Tiny {
         Memory currentMemory();
         DiskSpace currentDiskSpace();
         bool getHostInfo(HostInfo& info);
-        bool getCPUInfo(CPU& info);
+        bool getCPUInfo(CPU& info, size_t internal = 50);
         bool getMemory(Memory& memory);
         bool getDiskSpace(DiskSpace& disk_space);
         CPU_Arch getCurrentCPUArch();

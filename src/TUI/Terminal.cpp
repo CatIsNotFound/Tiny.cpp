@@ -27,6 +27,7 @@
 #if defined(TINY_CPP_MY_OS_WINDOWS)
 #include <windows.h>
 #elif defined(TINY_CPP_MY_OS_UNIX)
+#include <cstring>
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <termios.h>
@@ -80,14 +81,14 @@ namespace Tiny {
         struct termios new_raw = raw;
         _old_terminal = raw;
         new_raw.c_lflag &= ~(ICANON | ECHO | ISIG | IEXTEN);
-        new_raw.c_iflag &= ~(IXON | ICRNL | BRKINT | INPCK | PARMRK);
+        new_raw.c_iflag &= ~(IXON | BRKINT | INPCK | PARMRK);
         new_raw.c_oflag &= ~(OPOST);
         new_raw.c_cflag |= CS8;
         new_raw.c_cc[VMIN] = 1;
         new_raw.c_cc[VTIME] = 0;
         tcsetattr(STDIN_FILENO, TCIFLUSH, &new_raw);
         auto cmd = "\x1b[?1049h\x1b[2J\x1b[H";
-        write(STDIN_FILENO, cmd, strlen(cmd));
+        write(STDOUT_FILENO, cmd, strlen(cmd));
         _is_in_raw_mode = true;
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -120,7 +121,7 @@ namespace Tiny {
         }
         _is_in_raw_mode = false;
         auto cmd = "\x1b[?1049l";
-        write(STDIN_FILENO, cmd, strlen(cmd));
+        write(STDOUT_FILENO, cmd, strlen(cmd));
         
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         if (_old_console != nullptr) {
@@ -186,7 +187,7 @@ namespace Tiny {
 
     bool TUI::Terminal::printLine(const std::string &text) {
 #ifdef TINY_CPP_MY_OS_UNIX
-        auto cmd = text + "\x1b[1E";
+        auto cmd = text + "\x1b[E";
         write(STDOUT_FILENO, cmd.c_str(), cmd.length());
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -203,7 +204,7 @@ namespace Tiny {
 
     bool TUI::Terminal::clearScreen() {
 #ifdef TINY_CPP_MY_OS_UNIX
-        write(STDOUT_FILENO, "\x1b[2J\x1b[6n", 4);
+        write(STDOUT_FILENO, "\x1b[2J\x1b[H", 8);
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return false;
@@ -239,7 +240,7 @@ namespace Tiny {
 
     bool TUI::Terminal::moveCursor(Position position) {
 #ifdef TINY_CPP_MY_OS_UNIX
-        std::string cmd = "\x1b[" + std::to_string(position.row) + ";" + std::to_string(position.column) + "H";
+        std::string cmd = "\x1b[" + std::to_string(position.row + 1) + ";" + std::to_string(position.column + 1) + "H";
         write(STDOUT_FILENO, cmd.c_str(), cmd.length());
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -251,7 +252,7 @@ namespace Tiny {
 
     bool TUI::Terminal::moveCursor(uint32_t row, uint32_t column) {
 #ifdef TINY_CPP_MY_OS_UNIX
-        std::string cmd = "\x1b[" + std::to_string(row) + ";" + std::to_string(column) + "H";
+        std::string cmd = "\x1b[" + std::to_string(row + 1) + ";" + std::to_string(column + 1) + "H";
         write(STDOUT_FILENO, cmd.c_str(), cmd.length());
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);

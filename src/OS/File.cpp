@@ -419,6 +419,34 @@ namespace Tiny {
         return out;
     }
 
+    std::string OS::File::readLine() {
+        if (!isValid() || !isOpen()) return {};
+        std::string out;
+        char ch = '\0';
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        DWORD bytes_read;
+        SetFilePointer(reinterpret_cast<HANDLE>(_handler), _position, nullptr, FILE_BEGIN);
+        do {
+            auto ok = ReadFile(reinterpret_cast<HANDLE>(_handler), &ch, 1, &bytes_read, nullptr);
+            if (ok) {
+                _position += bytes_read;
+                out += ch;
+            }
+        } while (ch != '\n' && ch != '\r' && ch != '\0');
+#elif defined(TINY_CPP_MY_OS_UNIX)
+        lseek(_handler, _position, SEEK_SET);
+        ssize_t read_length = 0;
+        do {
+            read_length = ::read(_handler, &ch, sizeof(uint8_t));
+            if (read_length > 0) {
+                _position += read_length;
+                out += ch;
+            }
+        } while (ch != '\n' && ch != '\r' && ch != '\0');
+#endif
+        return out;
+    }
+
     std::string OS::File::readAllText() {
         if (!isValid() || !isOpen()) return {};
         auto file_size = _path.fileSize();

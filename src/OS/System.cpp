@@ -27,8 +27,6 @@
 
 #include <thread>
 
-#include "../../../../JetBrains/CLion/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/bits/this_thread_sleep.h"
-
 #ifdef TINY_CPP_MY_OS_WINDOWS
 #include <windows.h>
 #include <fileapi.h>
@@ -41,7 +39,16 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/utsname.h>
-
+#include <sys/sysinfo.h>
+#include <sys/statvfs.h>
+#include <pwd.h>
+#include <cstring>
+#ifdef __APPLE__
+#include <sys/sysctl.h>
+#include <mach/mach.h>
+#include <mach/host_info.h>
+#include <mach/mach_host.h>
+#endif
 #endif
 
 #if defined(TINY_CPP_MY_OS_WINDOWS) && !defined(TINY_CPP_DEFINED_WIN)
@@ -75,6 +82,20 @@ namespace Tiny {
 }
 #endif
 
+#ifdef TINY_CPP_MY_OS_UNIX
+struct CPU_Stat {
+    size_t user, nice, system, idle, iowait, irq, softirq;
+
+    size_t total() {
+        return user + nice + system + idle + iowait + irq + softirq;
+    }
+
+    size_t busy() {
+        return total() - idle;
+    }
+};
+#endif
+
 namespace Tiny {
     const char *OS::getCPUArchName(CPU_Arch cpu_arch) {
         switch (cpu_arch) {
@@ -92,8 +113,6 @@ namespace Tiny {
                 return "mips";
             case CPU_Arch::RISCV:
                 return "risc-v";
-            case CPU_Arch::IA32:
-                return "ia32";
             case CPU_Arch::IA64:
                 return "ia64";
             default:
@@ -150,14 +169,41 @@ namespace Tiny {
             std::ostringstream oss;
             oss << major << "." << minor << "." << build;
             info.version = oss.str();
+            info.os_name = "Windows " + std::to_string(major);
         } else ret = false;
 #elif defined(TINY_CPP_MY_OS_UNIX)
-
+        struct utsname uts_name;
+        uname(&uts_name);
+        info.host_name = uts_name.nodename;
+        info.user_name = getpwuid(getuid())->pw_name;
+        info.machine = uts_name.machine;
+        info.version = uts_name.release;
+        // Get OS Name
+#ifdef __APPLE__
+        info.os_name = "MacOS";
+#else
+        File file("/etc/os-release", OpenMode::ReadOnly);
+        if (file.isOpen()) {
+            while (true) {
+                auto buf = file.readLine();
+                if (buf.find("PRETTY_NAME=") != std::string::npos) {
+                    info.os_name = buf.substr(13);
+                    info.os_name.pop_back();
+                    info.os_name.pop_back();
+                    break;
+                }
+                if (buf.empty()) break;
+            }
+            file.close();
+        } else {
+            ret = false;
+        }
+#endif
 #endif
         return ret;
     }
 
-    bool OS::getCPUInfo(CPU &info) {
+    bool OS::getCPUInfo(CPU &info, size_t internal) {
         bool ret = true;
 #ifdef TINY_CPP_MY_OS_WINDOWS
         SYSTEM_INFO sys_info;
@@ -178,8 +224,6 @@ namespace Tiny {
                 break;
             case PROCESSOR_ARCHITECTURE_IA32_ON_ARM64:
             case PROCESSOR_ARCHITECTURE_IA32_ON_WIN64:
-                info.machine = CPU_Arch::IA32;
-                break;
             case PROCESSOR_ARCHITECTURE_IA64:
                 info.machine = CPU_Arch::IA64;
                 break;
@@ -208,7 +252,7 @@ namespace Tiny {
         // Get per core usage
         // info.usages.resize(info.cores);
         PdhCollectQueryData(query);
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        std::this_thread::sleep_for(std::chrono::milliseconds(internal));
         PdhCollectQueryData(query);
         for (size_t i = 0; i < info.cores; i++) {
             PDH_FMT_COUNTERVALUE value;
@@ -224,7 +268,71 @@ namespace Tiny {
         if (info.cores > 0) info.total_usage /= info.cores;
 
 #elif defined(TINY_CPP_MY_OS_UNIX)
+        // CPU machine
+        struct utsname uts_name;
+        uname(&uts_name);
+        std::string machine = uts_name.machine;
+        if (machine == "x86_64") info.machine = CPU_Arch::X86_64;
+        else if (machine == "arm64" || uts_name.machine == "aarch64") info.machine = CPU_Arch::ARM64;
+        else if (machine.find_first_of("armv") != std::string::npos) info.machine = CPU_Arch::ARM32;
+        else if (machine == "i386" || machine == "i686") info.machine = CPU_Arch::X86;
+        else if (machine.find_first_of("loongarch") != std::string::npos) info.machine = CPU_Arch::LoongArch;
+        else if (machine.find_first_of("mips") != std::string::npos) info.machine = CPU_Arch::MIPS;
+        else if (machine.find_first_of("riscv") != std::string::npos) info.machine = CPU_Arch::RISCV;
+        else if (machine == "ia64") info.machine = CPU_Arch::IA64;
 
+        // CPU info
+#ifdef __APPLE__
+        info.cores = get_cpu_total_cores();
+        /// TODO: 
+#else
+        info.cores = get_nprocs();
+        info.usages.resize(info.cores);
+        std::function<std::vector<CPU_Stat>()> getCPUStat = [&info, &ret] {
+            std::vector<CPU_Stat> output_list;
+            File cpu_stat("/proc/stat");
+            if (cpu_stat.open(OpenMode::ReadOnly)) {
+                std::string line;
+                size_t i = 0;
+                do {
+                    line = cpu_stat.readLine();
+                    auto pos = line.find_first_of("cpu"); 
+                    if (pos != std::string::npos) {
+                        std::istringstream iss(line);
+                        std::string cpu_name;
+                        CPU_Stat stat;
+                        iss >> cpu_name >> stat.user >> stat.nice >> stat.system 
+                            >> stat.idle >> stat.iowait >> stat.irq >> stat.softirq;
+                        if (i <= info.cores) {
+                            output_list.push_back(stat);    
+                        } else {
+                            break;
+                        }
+                        i += 1;
+                    } else {
+                        break;
+                    }
+                } while (true);
+                cpu_stat.close();
+            } else {
+                ret = false;
+            }
+            return output_list;
+        };
+        auto prev = getCPUStat();
+        std::this_thread::sleep_for(std::chrono::milliseconds(internal));
+        auto next = getCPUStat();
+        for (size_t i = 0; i < info.cores + 1; ++i) {
+            auto d_total = next[i].total() - prev[i].total();
+            auto d_busy = next[i].busy() - prev[i].busy();
+            if (i == 0) {
+                info.total_usage = static_cast<double>(d_busy) / static_cast<double>(d_total) * 100.f; 
+            } else {
+                info.usages[i - 1] = static_cast<double>(d_busy) / static_cast<double>(d_total) * 100.f; 
+            }
+        }
+#endif
+        info.page_size = sysconf(_SC_PAGE_SIZE);
 #endif
         return ret;
     }
@@ -238,11 +346,51 @@ namespace Tiny {
         if (!GlobalMemoryStatusEx(&mem_info_ex)) ret = false;
         memory.total_ram = mem_info_ex.ullTotalPhys;
         memory.free_ram = mem_info_ex.ullAvailPhys;
+        memory.available_ram = memory.free_ram;
         memory.used_ram = memory.total_ram - memory.free_ram;
         memory.total_swap = mem_info_ex.ullTotalPageFile;
         memory.free_swap = mem_info_ex.ullAvailPageFile;
 #elif defined(TINY_CPP_MY_OS_UNIX)
+#ifdef __APPLE__
+        // TODO: 
 
+#else
+        File mem_info("/proc/meminfo", OpenMode::ReadOnly);
+        if (mem_info.isOpen()) {
+            size_t cnt = 0;
+            while (true) {
+                auto line = mem_info.readLine();
+                bool is_valid = false;
+                is_valid = (line.find("MemTotal") != std::string::npos) || 
+                            (line.find("MemFree") != std::string::npos) ||
+                            (line.find("MemAvailable") != std::string::npos) ||
+                            (line.find("SwapTotal") != std::string::npos) ||
+                            (line.find("SwapFree") != std::string::npos);
+                if (!is_valid) continue;
+                cnt += 1;
+                std::istringstream iss(line);
+                std::string temp;
+                size_t kb = 0;
+                iss >> temp >> kb;
+                if (temp.find("MemTotal") != std::string::npos) {
+                    memory.total_ram = kb * 1024;
+                } else if (temp.find("MemFree") != std::string::npos) {
+                    memory.free_ram = kb * 1024;
+                } else if (temp.find("MemAvailable") != std::string::npos) {
+                    memory.available_ram = kb * 1024;
+                } else if (temp.find("SwapTotal") != std::string::npos) {
+                    memory.total_swap = kb * 1024;
+                } else if (temp.find("SwapFree") != std::string::npos) {
+                    memory.free_swap = kb * 1024;
+                }
+                if (cnt >= 5 || line.empty()) break;
+            }
+            memory.used_ram = memory.total_ram - memory.available_ram;
+            mem_info.close();
+        } else {
+            ret = false;
+        }
+#endif
 #endif
         return ret;
     }
@@ -252,21 +400,36 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_WINDOWS
         char buf[1024] = {};
         if (GetLogicalDriveStringsA(1024, buf) == 0) ret = false;
-        disk_space.total_disk_space = 0;
-        disk_space.free_disk_space = 0;
-        disk_space.used_disk_space = 0;
+        disk_space.total_bytes = 0;
+        disk_space.free_bytes = 0;
+        disk_space.used_bytes = 0;
         char* drive = buf;
         for (; *drive ; drive += strlen(drive) + 1) {
             ULARGE_INTEGER total{}, free{};
             auto ok = GetDiskFreeSpaceEx(buf, nullptr, &total, &free);
             if (ok == TRUE) {
-                disk_space.total_disk_space += total.QuadPart;
-                disk_space.free_disk_space += free.QuadPart;
-                disk_space.used_disk_space += total.QuadPart - free.QuadPart;
+                disk_space.total_bytes += total.QuadPart;
+                disk_space.free_bytes += free.QuadPart;
+                disk_space.used_bytes += total.QuadPart - free.QuadPart;
             }
         }
+        disk_space.available_bytes = disk_space.free_bytes;
 #elif defined(TINY_CPP_MY_OS_UNIX)
-
+#ifdef __android__
+        const char* root = "/data";
+#else
+        const char* root = "/";
+#endif
+        struct statvfs st{};
+        if (statvfs(root, &st) == -1) {
+            ret = false;
+        } else {
+            auto block_size = st.f_frsize;
+            disk_space.total_bytes = st.f_blocks * block_size;
+            disk_space.free_bytes = st.f_bfree * block_size;
+            disk_space.available_bytes = st.f_bavail * block_size;
+            disk_space.used_bytes = disk_space.total_bytes - disk_space.free_bytes;
+        }
 #endif
         return ret;
     }
