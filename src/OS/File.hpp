@@ -84,6 +84,7 @@ namespace Tiny {
         }
 
         class Path {
+            friend class File;
         public:
             Path(std::string  path);
             Path(const Path& path);
@@ -128,17 +129,15 @@ namespace Tiny {
         using FileData = std::vector<uint8_t>;
         enum OpenMode : uint8_t {
             Unknown   = 0,
-            Text      = 1,
-            Binary    = 2,
-            ReadOnly  = 4,
-            WriteOnly = 8,
-            ReadWrite = 16,
-            Append    = 32
+            ReadOnly  = 1,
+            WriteOnly = 2,
+            ReadWrite = 4,
+            Append    = 8
         };
         class File {
         public:
-            File(const std::string& path, OpenMode io = Unknown);
-            File(Path  path, OpenMode io = Unknown);
+            File(const std::string& path, uint8_t open_mode = Unknown);
+            File(Path  path, uint8_t open_mode = Unknown);
             File(File&& file) noexcept;
             [[nodiscard]] File& operator=(File&& file) noexcept;
 
@@ -146,7 +145,7 @@ namespace Tiny {
             void setPath(const Path& path);
             bool isValid() const;
             bool isOpen() const;
-            bool open(OpenMode io);
+            bool open(uint8_t open_mode);
             FileData read(size_t length);
             FileData readAll();
             std::string readText(size_t length);
@@ -154,17 +153,30 @@ namespace Tiny {
             std::string readAllText();
             bool write(const FileData& data, size_t length);
             bool write(const char* data, size_t length);
+            bool write(const std::string& string);
             bool write(const FileData& data);
+            bool writeLine(const std::string& string);
             void close();
+            bool isEOF() const;
+            void moveToStart();
+            void moveToEnd();
+            [[nodiscard]] size_t fileSize() const;
+            [[nodiscard]] std::string path() const;
+            [[nodiscard]] std::string fileName() const;
+
             File(const File&) = delete;
             File& operator=(const File&) = delete;
         private:
             void reset();
-            bool setup(OpenMode IO);
+            bool setup(uint8_t IO);
             Path _path;
-            int _handler{};
-            OpenMode _open_mode{};
-            size_t _position{};
+            size_t _position{}, _file_size{};
+            uint8_t _open_mode{};
+#ifdef TINY_CPP_MY_OS_WINDOWS
+            void* _handler{};
+#else
+            int _handler{-1};
+#endif
         };
     }
 }

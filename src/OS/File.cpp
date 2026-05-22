@@ -323,12 +323,12 @@ namespace Tiny {
         return type;
     }
 
-    OS::File::File(const std::string &path, OpenMode io) : _path(path), _open_mode(io) {
-        setup(io);
+    OS::File::File(const std::string &path, uint8_t open_mode) : _path(path), _open_mode(open_mode) {
+        setup(open_mode);
     }
 
-    OS::File::File(Path path, OpenMode io) : _path(std::move(path)), _open_mode(io) {
-        setup(io);
+    OS::File::File(Path path, uint8_t open_mode) : _path(std::move(path)), _open_mode(open_mode) {
+        setup(open_mode);
     }
 
     OS::File::File(File &&file) noexcept : _path(std::move(file._path)),
@@ -357,19 +357,19 @@ namespace Tiny {
     }
 
     bool OS::File::isValid() const {
-        return _path.isFile();
+        return _path.isValid() && _path.isFile();
     }
 
     bool OS::File::isOpen() const {
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        return _handler != HFILE_ERROR;
+        return _handler != INVALID_HANDLE_VALUE && _handler != nullptr;
 #else
         return _handler != -1;
 #endif
     }
 
-    bool OS::File::open(OpenMode io) {
-        return setup(io);
+    bool OS::File::open(uint8_t open_mode) {
+        return setup(open_mode);
     }
 
     OS::FileData OS::File::read(size_t length) {
@@ -377,8 +377,8 @@ namespace Tiny {
         FileData out(length + 1);
 #ifdef TINY_CPP_MY_OS_WINDOWS
         DWORD bytes_read;
-        SetFilePointer(reinterpret_cast<HANDLE>(_handler), _position, nullptr, FILE_BEGIN);
-        auto ok = ReadFile(reinterpret_cast<HANDLE>(_handler), out.data(), length, &bytes_read, nullptr);
+        SetFilePointer(_handler, _position, nullptr, FILE_BEGIN);
+        auto ok = ReadFile(_handler, out.data(), length, &bytes_read, nullptr);
         if (ok) _position += bytes_read;
 #elif defined(TINY_CPP_MY_OS_UNIX)
         lseek(_handler, _position, SEEK_SET);
@@ -390,15 +390,17 @@ namespace Tiny {
 
     OS::FileData OS::File::readAll() {
         if (!isValid() || !isOpen()) return {};
-        auto file_size = _path.fileSize();
-        FileData out(file_size + 1);
+        FileData out(_file_size + 1);
         _position = 0;
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        SetFilePointer(reinterpret_cast<HANDLE>(_handler), 0, nullptr, FILE_BEGIN);
-        ReadFile(reinterpret_cast<HANDLE>(_handler), out.data(), file_size, nullptr, nullptr);
+        SetFilePointer(_handler, 0, nullptr, FILE_BEGIN);
+        DWORD read_bytes = 0;
+        ReadFile(_handler, out.data(), out.size(), &read_bytes, nullptr);
+        _position += read_bytes;
 #elif defined(TINY_CPP_MY_OS_UNIX)
         lseek(_handler, 0, SEEK_SET);
-        ::read(_handler, out.data(), file_size * sizeof(uint8_t));
+        auto read_bytes = ::read(_handler, out.data(), out.size() * sizeof(uint8_t));
+        _position += read_bytes;
 #endif
         return out;
     }
@@ -408,8 +410,8 @@ namespace Tiny {
         std::string out(length, 0);
 #ifdef TINY_CPP_MY_OS_WINDOWS
         DWORD bytes_read;
-        SetFilePointer(reinterpret_cast<HANDLE>(_handler), _position, nullptr, FILE_BEGIN);
-        auto ok = ReadFile(reinterpret_cast<HANDLE>(_handler), &out[0], length, &bytes_read, nullptr);
+        SetFilePointer(_handler, _position, nullptr, FILE_BEGIN);
+        auto ok = ReadFile(_handler, &out[0], length, &bytes_read, nullptr);
         if (ok) _position += bytes_read;
 #elif defined(TINY_CPP_MY_OS_UNIX)
         lseek(_handler, _position, SEEK_SET);
@@ -425,13 +427,13 @@ namespace Tiny {
         char ch = '\0';
 #ifdef TINY_CPP_MY_OS_WINDOWS
         DWORD bytes_read;
-        SetFilePointer(reinterpret_cast<HANDLE>(_handler), _position, nullptr, FILE_BEGIN);
+        SetFilePointer(_handler, _position, nullptr, FILE_BEGIN);
         do {
-            auto ok = ReadFile(reinterpret_cast<HANDLE>(_handler), &ch, 1, &bytes_read, nullptr);
-            if (ok) {
+            auto ok = ReadFile(_handler, &ch, 1, &bytes_read, nullptr);
+            if (ok && bytes_read > 0) {
                 _position += bytes_read;
                 out += ch;
-            }
+            } else break;
         } while (ch != '\n' && ch != '\r' && ch != '\0');
 #elif defined(TINY_CPP_MY_OS_UNIX)
         lseek(_handler, _position, SEEK_SET);
@@ -441,7 +443,7 @@ namespace Tiny {
             if (read_length > 0) {
                 _position += read_length;
                 out += ch;
-            }
+            } else break;
         } while (ch != '\n' && ch != '\r' && ch != '\0');
 #endif
         return out;
@@ -453,11 +455,14 @@ namespace Tiny {
         std::string out(file_size, 0);
         _position = 0;
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        SetFilePointer(reinterpret_cast<HANDLE>(_handler), 0, nullptr, FILE_BEGIN);
-        ReadFile(reinterpret_cast<HANDLE>(_handler), &out[0], file_size, nullptr, nullptr);
+        SetFilePointer(_handler, 0, nullptr, FILE_BEGIN);
+        DWORD read_bytes = 0;
+        ReadFile(_handler, &out[0], file_size, &read_bytes, nullptr);
+        _position += read_bytes;
 #elif defined(TINY_CPP_MY_OS_UNIX)
         lseek(_handler, 0, SEEK_SET);
-        ::read(_handler, &out[0], file_size * sizeof(uint8_t));
+        auto read_bytes = ::read(_handler, &out[0], file_size * sizeof(uint8_t));
+        _position += read_bytes;
 #endif
         return out;
     }
@@ -465,63 +470,126 @@ namespace Tiny {
     bool OS::File::write(const FileData &data, size_t length) {
         if (!isValid() || !isOpen()) return false;
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        if (_open_mode & Append) {
-            auto ok = SetFilePointer(reinterpret_cast<HANDLE>(_handler), 0, nullptr, FILE_END);
-            if (ok == INVALID_SET_FILE_POINTER) return false;
-        }
-        auto ok = WriteFile(reinterpret_cast<HANDLE>(_handler), data.data(), length, nullptr, nullptr);
+        DWORD written_bytes = 0;
+        auto ok = WriteFile(_handler, data.data(), length, &written_bytes, nullptr);
+        _position += written_bytes;
         return ok == TRUE;
 #elif defined(TINY_CPP_MY_OS_UNIX)
         auto ok = ::write(_handler, data.data(), length * sizeof(uint8_t));
-        return ok != -1;
+        if (ok >= 0) {
+            _position += ok;
+            return true;
+        } else {
+            return false;
+        }
 #endif
-        return false;
     }
 
     bool OS::File::write(const char *data, size_t length) {
         if (!isValid() || !isOpen()) return false;
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        if (_open_mode & Append) {
-            auto ok = SetFilePointer(reinterpret_cast<HANDLE>(_handler), 0, nullptr, FILE_END);
-            if (ok == INVALID_SET_FILE_POINTER) return false;
-        }
-        auto ok = WriteFile(reinterpret_cast<HANDLE>(_handler), data, length, nullptr, nullptr);
+        DWORD written_bytes = 0;
+        auto ok = WriteFile(_handler, data, length, &written_bytes, nullptr);
+        _position += written_bytes;
         return ok == TRUE;
 #elif defined(TINY_CPP_MY_OS_UNIX)
         auto ok = ::write(_handler, data, length * sizeof(char));
-        return ok != -1;
+        if (ok >= 0) {
+            _position += ok;
+            return true;
+        } else {
+            return false;
+        }
 #endif
-        return false;
+    }
+
+    bool OS::File::write(const std::string &string) {
+        if (!isValid() || !isOpen()) return false;
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        DWORD written_bytes = 0;
+        auto ok = WriteFile(_handler, string.data(), string.size(), &written_bytes, nullptr);
+        _position += written_bytes;
+        return ok == TRUE;
+#elif defined(TINY_CPP_MY_OS_UNIX)
+        auto ok = ::write(_handler, string.data(), string.size() * sizeof(char));
+        if (ok >= 0) {
+            _position += ok;
+            return true;
+        } else {
+            return false;
+        }
+#endif
     }
 
     bool OS::File::write(const FileData &data) {
         if (!isValid() || !isOpen()) return false;
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        if (_open_mode & Append) {
-            auto ok = SetFilePointer(reinterpret_cast<HANDLE>(_handler), 0, nullptr, FILE_END);
-            if (ok == INVALID_SET_FILE_POINTER) return false;
-        }
-        auto ok = WriteFile(reinterpret_cast<HANDLE>(_handler), data.data(), data.size(), nullptr, nullptr);
+        auto ok = WriteFile(_handler, data.data(), data.size(), nullptr, nullptr);
         return ok == TRUE;
 #elif defined(TINY_CPP_MY_OS_UNIX)
         auto ok = ::write(_handler, data.data(), data.size() * sizeof(uint8_t));
-        return ok != -1;
+        if (ok >= 0) {
+            _position += ok;
+            return true;
+        } else {
+            return false;
+        }
 #endif
-        return false;
+    }
+
+    bool OS::File::writeLine(const std::string &string) {
+        if (!isValid() || !isOpen()) return false;
+        std::string out = string + "\r\n";
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        auto ok = WriteFile(_handler, out.data(), out.size(), nullptr, nullptr);
+        return ok == TRUE;
+#elif defined(TINY_CPP_MY_OS_UNIX)
+        auto ok = ::write(_handler, out.data(), out.size() * sizeof(char));
+        if (ok >= 0) {
+            _position += ok;
+            return true;
+        } else {
+            return false;
+        }
+#endif
     }
 
     void OS::File::close() {
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        CloseHandle(reinterpret_cast<HANDLE>(_handler));
+        CloseHandle(_handler);
 #elif defined(TINY_CPP_MY_OS_UNIX)
         ::close(_handler);
 #endif
         reset();
     }
 
+    bool OS::File::isEOF() const {
+        return _position >= _file_size;
+    }
+
+    void OS::File::moveToStart() {
+        _position = 0;
+    }
+
+    void OS::File::moveToEnd() {
+        _position = _file_size;
+    }
+
+    size_t OS::File::fileSize() const {
+        return _file_size;
+    }
+
+    std::string OS::File::path() const {
+        return _path.path();
+    }
+
+    std::string OS::File::fileName() const {
+        return _path.shortFileName();
+    }
+
     void OS::File::reset() {
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        _handler = HFILE_ERROR;
+        _handler = INVALID_HANDLE_VALUE;
 #elif defined(TINY_CPP_MY_OS_UNIX)
         _handler = -1;
 #endif
@@ -530,23 +598,37 @@ namespace Tiny {
         _path.setPath("");
     }
 
-    bool OS::File::setup(const OpenMode IO) {
+    bool OS::File::setup(const uint8_t IO) {
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        if (IO == Unknown || !_path.isFile()) {
-            _handler = HFILE_ERROR;
+        if (IO == Unknown || IO == Append || _path.isDirectory()) {
+            _handler = INVALID_HANDLE_VALUE;
             return false;
         }
         DWORD open_mode = 0;
-        if (IO & ReadOnly)  open_mode |= OF_READ;
-        if (IO & WriteOnly) open_mode |= OF_WRITE | OF_CREATE;
-        if (IO & ReadWrite) open_mode |= OF_READWRITE | OF_CREATE;
-        OFSTRUCT ofs;
-        auto handler = OpenFile(_path.path().c_str(), &ofs, open_mode);
-        if (handler == HFILE_ERROR) return false;
+        DWORD need_create = 0;
+        if (IO & ReadOnly) {
+            open_mode |= GENERIC_READ;
+            need_create = OPEN_EXISTING;
+        }
+        if (IO & WriteOnly) {
+            open_mode |= GENERIC_WRITE;
+            need_create = OPEN_ALWAYS;
+        }
+        if (IO & ReadWrite) {
+            open_mode |= GENERIC_READ | GENERIC_WRITE;
+            need_create = OPEN_ALWAYS;
+        }
+        if (IO & Append) {
+            open_mode |= FILE_APPEND_DATA;
+            if (open_mode & GENERIC_WRITE) open_mode &= ~GENERIC_WRITE;
+        }
+
+        auto str = Win::string2Wide(_path.path());
+        auto handler = CreateFileW(str.c_str(), open_mode, FILE_SHARE_READ, nullptr, need_create, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (handler == INVALID_HANDLE_VALUE) return false;
         _handler = handler;
-        _position = 0;
 #elif defined(TINY_CPP_MY_OS_UNIX)
-        if (IO == Unknown || !_path.isFile()) {
+        if (IO == Unknown || IO == Append || _path.isDirectory()) {
             _handler = -1;
             return false;
         }
@@ -558,8 +640,10 @@ namespace Tiny {
         auto handler = ::open(_path.path().c_str(), flags, 0777 - umask(0000));
         if (handler == -1) return false;
         _handler = handler;
-        _position = 0;
 #endif
+        _path.checkPath();
+        _file_size = _path.fileSize();
+        _position = (IO & Append) ? _file_size : 0;
         return true;
     }
 }

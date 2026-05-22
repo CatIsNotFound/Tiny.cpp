@@ -1151,119 +1151,157 @@ TEST(FileTest, Destructor_AutoClose) {
     FileSystem::rmFile(testFile);
 }
 
-// 测试 OpenMode 组合 - Binary | ReadOnly
-TEST(FileTest, OpenMode_BinaryRead) {
-    std::string testFile = "./test_file_mode_br.txt";
-    std::vector<uint8_t> data = {0x00, 0x01, 0x02, 0xFF};
+// 测试 OpenMode 组合 - Append | WriteOnly
+TEST(FileTest, OpenMode_AppendWrite) {
+    std::string testFile = "./test_file_mode_aw.txt";
     
     Path checkPath(testFile);
     if (checkPath.isValid()) FileSystem::rmFile(testFile);
     
-    FileSystem::mkFile(testFile, data);
+    FileSystem::mkFile(testFile);
     
-    File file(testFile, static_cast<OpenMode>(Binary | ReadOnly));
+    File file(testFile, static_cast<OpenMode>(Append | WriteOnly));
     EXPECT_TRUE(file.isOpen());
     
     file.close();
     FileSystem::rmFile(testFile);
 }
 
-// 测试 OpenMode 组合 - Text | ReadOnly
-TEST(FileTest, OpenMode_TextRead) {
-    std::string testFile = "./test_file_mode_tr.txt";
-    std::string content = "Line 1\nLine 2";
+// 测试 OpenMode 组合 - Append | ReadWrite
+TEST(FileTest, OpenMode_AppendReadWrite) {
+    std::string testFile = "./test_file_mode_arw.txt";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile);
+    
+    File file(testFile, static_cast<OpenMode>(Append | ReadWrite));
+    EXPECT_TRUE(file.isOpen());
+    
+    file.close();
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 writeLine() - 正常写入行
+TEST(FileTest, WriteLine_Success) {
+    std::string testFile = "./test_file_writeline.txt";
+    std::string line1 = "Hello, World!";
+    std::string line2 = "Second line";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile);
+    
+    File file(testFile, WriteOnly);
+    EXPECT_TRUE(file.writeLine(line1));
+    EXPECT_TRUE(file.writeLine(line2));
+    file.close();
+    
+    // 读取并验证
+    File readFile(testFile, ReadOnly);
+    std::string content = readFile.readAllText();
+    readFile.close();
+    
+    EXPECT_NE(content.find(line1), std::string::npos);
+    EXPECT_NE(content.find(line2), std::string::npos);
+    
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 writeLine() - 未打开文件返回 false
+TEST(FileTest, WriteLine_NotOpen) {
+    std::string testFile = "./test_file_writeline_no.txt";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile);
+    
+    File file(testFile, Unknown);
+    EXPECT_FALSE(file.writeLine("test"));
+    
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 writeLine() - 无效文件返回 false
+TEST(FileTest, WriteLine_Invalid) {
+    File file("/nonexistent/path/file.txt", WriteOnly);
+    EXPECT_FALSE(file.writeLine("test"));
+}
+
+// 测试 isEOF() - 读取到文件末尾
+TEST(FileTest, IsEOF_AtEnd) {
+    std::string testFile = "./test_file_eof.txt";
+    std::string content = "EOF test";
     
     Path checkPath(testFile);
     if (checkPath.isValid()) FileSystem::rmFile(testFile);
     
     FileSystem::mkFile(testFile, content);
     
-    File file(testFile, static_cast<OpenMode>(Text | ReadOnly));
-    EXPECT_TRUE(file.isOpen());
+    File file(testFile, ReadOnly);
+    file.readAll();
+    EXPECT_TRUE(file.isEOF());
     
     file.close();
     FileSystem::rmFile(testFile);
 }
 
-// 测试 OpenMode 组合 - Binary | WriteOnly
-TEST(FileTest, OpenMode_BinaryWrite) {
-    std::string testFile = "./test_file_mode_bw.txt";
-    
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-    
-    FileSystem::mkFile(testFile);
-    
-    File file(testFile, static_cast<OpenMode>(Binary | WriteOnly));
-    EXPECT_TRUE(file.isOpen());
-    
-    file.close();
-    FileSystem::rmFile(testFile);
-}
-
-// 测试 OpenMode 组合 - Text | WriteOnly
-TEST(FileTest, OpenMode_TextWrite) {
-    std::string testFile = "./test_file_mode_tw.txt";
-    
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-    
-    FileSystem::mkFile(testFile);
-    
-    File file(testFile, static_cast<OpenMode>(Text | WriteOnly));
-    EXPECT_TRUE(file.isOpen());
-    
-    file.close();
-    FileSystem::rmFile(testFile);
-}
-
-// 测试 OpenMode 组合 - Binary | ReadWrite
-TEST(FileTest, OpenMode_BinaryReadWrite) {
-    std::string testFile = "./test_file_mode_brw.txt";
-    
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-    
-    FileSystem::mkFile(testFile);
-    
-    File file(testFile, static_cast<OpenMode>(Binary | ReadWrite));
-    EXPECT_TRUE(file.isOpen());
-    
-    file.close();
-    FileSystem::rmFile(testFile);
-}
-
-// 测试 OpenMode 组合 - Text | ReadWrite
-TEST(FileTest, OpenMode_TextReadWrite) {
-    std::string testFile = "./test_file_mode_trw.txt";
-    
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-    
-    FileSystem::mkFile(testFile);
-    
-    File file(testFile, static_cast<OpenMode>(Text | ReadWrite));
-    EXPECT_TRUE(file.isOpen());
-    
-    file.close();
-    FileSystem::rmFile(testFile);
-}
-
-// 测试 OpenMode 组合 - 复杂组合
-TEST(FileTest, OpenMode_Complex) {
-    std::string testFile = "./test_file_mode_complex.txt";
-    std::string content = "Complex mode";
+// 测试 isEOF() - 未打开文件返回 true
+TEST(FileTest, IsEOF_NotOpen) {
+    std::string testFile = "./test_file_eof_no.txt";
+    std::string content = "Content";
     
     Path checkPath(testFile);
     if (checkPath.isValid()) FileSystem::rmFile(testFile);
     
     FileSystem::mkFile(testFile, content);
     
-    File file(testFile, static_cast<OpenMode>(Binary | Text | ReadWrite));
-    EXPECT_TRUE(file.isOpen());
+    File file(testFile, Unknown);
+    EXPECT_TRUE(file.isEOF());
+    
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 fileSize() - 获取文件大小
+TEST(FileTest, FileSize_Success) {
+    std::string testFile = "./test_file_size.txt";
+    std::string content = "File size test content";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file(testFile, ReadOnly);
+    EXPECT_EQ(file.fileSize(), content.size());
     
     file.close();
     FileSystem::rmFile(testFile);
+}
+
+// 测试 fileSize() - 未打开文件返回 0
+TEST(FileTest, FileSize_NotOpen) {
+    std::string testFile = "./test_file_size_no.txt";
+    std::string content = "Content";
+    
+    Path checkPath(testFile);
+    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    
+    FileSystem::mkFile(testFile, content);
+    
+    File file(testFile, Unknown);
+    EXPECT_EQ(file.fileSize(), 0);
+    
+    FileSystem::rmFile(testFile);
+}
+
+// 测试 fileSize() - 无效文件返回 0
+TEST(FileTest, FileSize_Invalid) {
+    File file("/nonexistent/path/file.txt", ReadOnly);
+    EXPECT_EQ(file.fileSize(), 0);
 }
 
 // ==================== 主函数 ====================

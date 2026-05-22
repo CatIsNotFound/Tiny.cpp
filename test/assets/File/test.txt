@@ -1,1 +1,11 @@
 Here is a sample text.
+这是一段示例文本。
+これはサンプル文です。
+여기는 샘플 텍스트입니다.
+Voici un texte exemple.
+Hier ist ein Beispieltext.
+Aquí hay un texto de muestra.
+Вот пример текста.
+Berikut adalah teks sampel.
+Aqui está um texto de amostra.
+Ecco un testo di esempio.
