@@ -84,6 +84,26 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
 )
 ```
 
+## 如何使用
+
+以导入 TUI 模块为例，假设要使用 Terminal 模块以简单输出 `Hello, Tiny.cpp!`，请执行如下代码：
+
+```cpp
+// 若使用 CMake 方式导入，请用以下方式导入：
+#include <Tiny/TUI/Terminal.hpp>
+// 若直接将 TUI 目录复制到你的项目里，大致可能以这种形式导入：
+#include "TUI/Terminal.hpp"
+
+using ter = Tiny::TUI::Terminal;
+
+int main() {
+   ter::printLine("Hello, Tiny.cpp!");   
+   return 0;
+}
+```
+
+> P.S: 由于此项目还在开发阶段，目前暂时没有相关的 API 文档，后续可能会计划更新。
+
 ## 许可证说明
 
 `Tiny.cpp` 采用 [MIT 许可证](LICENSE) 许可协议，您可以在 `LICENSE` 文件或其它任一头文件或源文件中查看详细信息。

@@ -595,7 +595,6 @@ namespace Tiny {
 #endif
         _position = 0;
         _open_mode = Unknown;
-        _path.setPath("");
     }
 
     bool OS::File::setup(const uint8_t IO) {
