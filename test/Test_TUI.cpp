@@ -80,11 +80,12 @@ int main() {
     ter::printFormat("|{:54c}|\r\n", ' ');
     ter::printFormat("|{:54c}|\r\n", ' ');
     ter::printFormat("+{:54c}+\r\n", '-');
+    auto start = std::chrono::system_clock::now().time_since_epoch().count();
     Event ev(1, "Update", &updateInfo);
     ev.setDelayMS(0);
     ev.setRepeatCount(0);
     ev.run();
-    int c;
+    char c;
     while (ev.isRunning()) {
         c = getchar();
         if (c == '\n' || c == '\r') {
@@ -93,5 +94,10 @@ int main() {
     }
     ter::setCursorVisible(true);
     ter::leaveRawMode();
+    auto end = std::chrono::system_clock::now().time_since_epoch().count();
+    ter::printFormat("Running at {} secs.", end - start);
+    auto cur_pos = ter::cursorPosition();
+    ter::printFormat("\r\nP({}, {})\r\n", cur_pos.row, cur_pos.column);
+    getchar();
     return 0;
 }

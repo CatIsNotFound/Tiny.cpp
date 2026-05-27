@@ -228,7 +228,7 @@ namespace Tiny {
             return;
         }
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        auto my_path = Win::convert2Win(_path);
+        auto my_path = Win::convertPath(_path);
         auto ok = GetFileAttributesA(my_path.c_str());
         if (ok == INVALID_FILE_ATTRIBUTES) return;
         bool is_dir = (ok & FILE_ATTRIBUTE_DIRECTORY);
@@ -280,7 +280,7 @@ namespace Tiny {
             return type;
         }
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        auto my_path = Win::convert2Win(path);
+        auto my_path = Win::convertPath(path);
         auto ok = GetFullPathNameA(my_path.c_str(), 0, nullptr, nullptr);
         if (ok == 0) return type;
         std::string new_full_path(ok, 0);

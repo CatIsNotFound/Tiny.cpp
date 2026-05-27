@@ -246,7 +246,7 @@ namespace Tiny {
     bool TUI::Terminal::printFormat(const char *format, Args... args) {
         std::ostringstream oss;
         formatImpl(oss, format, std::forward<Args>(args)...);
-        return printFormattedText(oss.str());;
+        return printFormattedText(oss.str());
     }
 
     template<typename T, typename ... Args>
