@@ -27,6 +27,12 @@
 
 namespace Tiny {
 
+    TUI::SafeTerminal::SafeTerminal() {
+
+    }
+
+    TUI::SafeTerminal::~SafeTerminal() {
+    }
 }
 
 /*************************************************************************************

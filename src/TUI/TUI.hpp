@@ -25,10 +25,25 @@
 
 #ifndef TINY_CPP_TUI_HPP
 #define TINY_CPP_TUI_HPP
+
 #include "Terminal.hpp"
 
 namespace Tiny {
     namespace TUI {
+        class SafeTerminal {
+        public:
+            SafeTerminal();
+            ~SafeTerminal();
+        };
+
+        class Screen {
+        public:
+            Screen(Position position, Size size);
+            Screen(uint32_t x, uint32_t y, uint32_t width, uint32_t height);
+        private:
+            Position _pos;
+            Size _size;
+        };
 
     }
 }

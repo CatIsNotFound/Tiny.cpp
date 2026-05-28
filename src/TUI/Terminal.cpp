@@ -25,16 +25,16 @@
 
 #include "Terminal.hpp"
 
-#include <io.h>
 #if defined(TINY_CPP_MY_OS_WINDOWS)
 #include <windows.h>
 #elif defined(TINY_CPP_MY_OS_UNIX)
 #include <cstring>
+#include <cwchar>
+#include <clocale>
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 #endif
-
 
 #if defined(TINY_CPP_MY_OS_WINDOWS) && !defined(TINY_CPP_DEFINED_WIN)
 #define TINY_CPP_DEFINED_WIN
@@ -62,6 +62,28 @@ namespace Tiny {
         std::string str(len, 0);
         WideCharToMultiByte(codepage, 0, w_str.data(), w_str.size(),
             &str[0], len, nullptr, nullptr);
+        return str;
+    }
+}
+#endif
+
+#if defined(TINY_CPP_MY_OS_UNIX) && !defined(TINY_CPP_DEFINED_UNIX)
+#define TINY_CPP_DEFINED_UNIX
+namespace Tiny {
+    std::wstring Win::string2Wide(const std::string& str) {
+        std::mbstate_t state{};
+        auto len = std::mbsrtowcs(nullptr, &str.data(), 0, &state);
+        std::wstring w_str(len, 0);
+        mbsrtowcs(&w_str[0], str.data(), w_str.size(), &state);
+        return w_str;
+    }
+
+    std::string Win::wide2String(const std::wstring& w_str) {
+        std::mbstate_t state{};
+        auto len = std::wcsrtombs(nullptr, &w_str.data(), 0, &state);
+        if (len == -1) return {};
+        std::string str(len, 0);
+        std::wcsrtombs(&str[0], &w_str.data(), len, &state);
         return str;
     }
 }
@@ -288,6 +310,49 @@ namespace Tiny {
         if (!SetConsoleCursorPosition(console, {static_cast<short>(column), static_cast<short>(row)})) return false;
 #endif
         return true;
+    }
+
+    bool TUI::Terminal::flushScreen() {
+#ifdef TINY_CPP_MY_OS_UNIX
+        return fsync(STDOUT_FILENO) != -1;
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        auto handler = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (handler == INVALID_HANDLE_VALUE) return false;
+        return FlushFileBuffers(handler);
+#endif
+        return true;
+    }
+
+    std::string TUI::Terminal::readLine() {
+        std::string out;
+#ifdef TINY_CPP_MY_OS_UNIX
+
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        char buffer[2048] = {};
+        DWORD read_count = 0;
+        HANDLE console = GetStdHandle(STD_INPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return out;
+        if (!ReadConsole(console, buffer, 2048, &read_count, nullptr)) return out;
+        out.resize(read_count - 2);                // Removed "\r\n"
+        strncpy(&out[0], buffer, read_count - 2);
+#endif
+        return out;
+    }
+
+    std::wstring TUI::Terminal::readLineW() {
+        std::wstring out;
+#ifdef TINY_CPP_MY_OS_UNIX
+
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        wchar_t buffer[2048] = {};
+        DWORD read_count = 0;
+        HANDLE console = GetStdHandle(STD_INPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return out;
+        if (!ReadConsoleW(console, buffer, 2048, &read_count, nullptr)) return out;
+        out.resize(read_count - 2);
+        wcsncpy(&out[0], buffer, read_count - 2);
+#endif
+        return out;
     }
 
     void TUI::Terminal::setBackgroundColor(Color color, bool intensity) {

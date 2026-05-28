@@ -25,12 +25,9 @@
 
 #ifndef TINY_CPP_TUI_INT_HPP
 #define TINY_CPP_TUI_INT_HPP
-#include "Terminal.hpp"
-#include <type_traits>
 #include <cmath>
 #include <iomanip>
 #include <bitset>
-#include <cassert>
 
 namespace Tiny {
     namespace TUI {

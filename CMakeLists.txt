@@ -20,11 +20,11 @@ add_library(${PROJECT_NAME} STATIC
         src/OS/File.cpp
         src/OS/System.cpp
         src/OS/System.hpp
+        src/Events/Events.hpp
+        src/Events/Events.cpp
         src/TUI/Terminal.hpp
         src/TUI/Terminal.cpp
         src/TUI/Terminal_Int.hpp
-        src/Events/Events.hpp
-        src/Events/Events.cpp
         src/TUI/TUI.hpp
         src/TUI/TUI.cpp
 )

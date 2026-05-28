@@ -23,8 +23,8 @@
  *                                                                                   *
  *************************************************************************************/
 
-#ifndef TINY_CPP_TUI_HPP
-#define TINY_CPP_TUI_HPP
+#ifndef TINY_CPP_TUI_TERMINAL_HPP
+#define TINY_CPP_TUI_TERMINAL_HPP
 #include <string>
 #include <sstream>
 #include <cstdint>
@@ -50,6 +50,15 @@ namespace Tiny {
         std::string convertPath(const std::string& path);
         std::wstring string2Wide(const std::string& str, uint32_t codepage = 65001);
         std::string wide2String(const std::wstring& w_str, uint32_t codepage = 65001);
+    }
+}
+#endif
+
+#if defined(TINY_CPP_MY_OS_UNIX) && !defined(TINY_CPP_DEFINED_UNIX)
+namespace Tiny {
+    namespace Win {
+        std::wstring string2Wide(const std::string& str);
+        std::string wide2String(const std::wstring& w_str);
     }
 }
 #endif
@@ -88,7 +97,10 @@ namespace Tiny {
             static bool clearInRow(uint8_t row);
             static bool moveCursor(Position position);
             static bool moveCursor(uint32_t row, uint32_t column);
-            
+            static bool flushScreen();
+            static std::string readLine();
+            static std::wstring readLineW();
+
             static void setBackgroundColor(Color color, bool intensity = true);
             static void setBackgroundColor(uint8_t r, uint8_t g, uint8_t b);
             static void setForegroundColor(Color color, bool intensity = false);
@@ -129,7 +141,7 @@ namespace Tiny {
 }
 
 #include "Terminal_Int.hpp"
-#endif //TINY_CPP_TUI_HPP
+#endif //TINY_CPP_TUI_TERMINAL_HPP
 
 /*************************************************************************************
  * MIT License                                                                       *
