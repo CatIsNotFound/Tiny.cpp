@@ -402,7 +402,7 @@ namespace Tiny {
     bool TUI::Terminal::clearInRow(uint8_t row) {
 #ifdef TINY_CPP_MY_OS_UNIX
         auto old_row = cursorPosition().row;
-        auto cmd = "\x1b[2K\x1b[" + std::to_string(row) + ";0H\x1b[" + std::to_string(old_row) + ";0H";
+        auto cmd = "\x1b[" + std::to_string(row + 1) + ";0H\x1b[2K\x1b[" + std::to_string(old_row + 1) + ";0H";
         write(STDOUT_FILENO, cmd.data(), cmd.size());
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);

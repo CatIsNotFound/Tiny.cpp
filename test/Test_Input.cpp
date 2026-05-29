@@ -94,21 +94,18 @@ void match_word() {
     const size_t ROW_START = 2, ROW_END = ter::screenSize().height - 2;
     auto tokens = splitViewText(buf);
     size_t tokens_size = tokens.size();
-    size_t page_cnt = tokens.size() / (ROW_END - ROW_START + 1) + 1;
+    size_t page_cnt = tokens.size() / (ROW_END - ROW_START) + 1;
 
     ter::moveCursor(0, 0);
     ter::setBolder(true);
     ter::print("::>> Test Scroll Page <<::");
     ter::setBolder(false);
 
-
-    ter::setScrollRegion(ROW_START, ROW_END);
-
     auto drawPage = [&]() {
         for (size_t i = ROW_START; i <= ROW_END; ++i) {
             ter::moveCursor(i, 0);
             ter::clearInRow(i);
-            size_t idx = (page_index - 1) * 8 + (i - ROW_START);
+            size_t idx = (page_index - 1) * (ROW_END - ROW_START) + (i - ROW_START);
             if (idx < tokens.size()) {
                 ter::print(tokens[idx]);
             }
@@ -143,21 +140,17 @@ void match_word() {
             drawPage();
             ter::moveCursor(ROW_START, 0);
         } else if (ch == TUI::KEY_SPECIAL && sp_keys == TUI::SP_KEY_END) {
-            page_index = page_cnt + 1;
+            page_index = page_cnt;
             drawPage();
         } else if (ch == TUI::KEY_SPECIAL && sp_keys == TUI::SP_KEY_PAGE_UP) {
-            page_index = clamp(page_index - 1, (size_t)1, page_cnt + 1);
+            page_index = clamp(page_index - 1, (size_t)1, page_cnt);
             drawPage();
             ter::moveCursor(ROW_START, 0);
         } else if (ch == TUI::KEY_SPECIAL && sp_keys == TUI::SP_KEY_PAGE_DOWN) {
-            page_index = clamp(page_index + 1, (size_t)1, page_cnt + 1);
+            page_index = clamp(page_index + 1, (size_t)1, page_cnt);
             drawPage();
         }
-
-
     }
-
-    ter::resetScrollRegion();
     ter::leaveRawMode();
 }
 
