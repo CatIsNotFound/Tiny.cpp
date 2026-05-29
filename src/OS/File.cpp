@@ -37,10 +37,9 @@
 #include <sys/stat.h>
 #endif
 
-#if defined(TINY_CPP_MY_OS_WINDOWS) && !defined(TINY_CPP_DEFINED_WIN)
-#define TINY_CPP_DEFINED_WIN
-namespace Tiny {
-    std::string Win::convert2Win(const std::string& path) {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+namespace {
+    std::string convertPath(const std::string& path) {
         std::string _new_path;
         for (auto c : path) {
             _new_path.push_back(c == '/' ? '\\' : c);
@@ -48,7 +47,7 @@ namespace Tiny {
         return _new_path;
     }
 
-    std::wstring Win::string2Wide(const std::string& str, uint32_t codepage) {
+    std::wstring string2Wide(const std::string& str, uint32_t codepage = 65001) {
         auto len = MultiByteToWideChar(codepage, 0, str.data(),
         str.size(), nullptr, 0);
         std::wstring w_str(len, 0);
@@ -57,7 +56,7 @@ namespace Tiny {
         return w_str;
     }
 
-    std::string Win::wide2String(const std::wstring& w_str, uint32_t codepage) {
+    std::string wide2String(const std::wstring& w_str, uint32_t codepage = 65001) {
         auto len = WideCharToMultiByte(codepage, 0, w_str.data(), w_str.size(),
             nullptr, 0, nullptr, nullptr);
         std::string str(len, 0);
@@ -228,7 +227,7 @@ namespace Tiny {
             return;
         }
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        auto my_path = Win::convertPath(_path);
+        auto my_path = convertPath(_path);
         auto ok = GetFileAttributesA(my_path.c_str());
         if (ok == INVALID_FILE_ATTRIBUTES) return;
         bool is_dir = (ok & FILE_ATTRIBUTE_DIRECTORY);
@@ -280,7 +279,7 @@ namespace Tiny {
             return type;
         }
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        auto my_path = Win::convertPath(path);
+        auto my_path = convertPath(path);
         auto ok = GetFullPathNameA(my_path.c_str(), 0, nullptr, nullptr);
         if (ok == 0) return type;
         std::string new_full_path(ok, 0);
@@ -622,7 +621,7 @@ namespace Tiny {
             if (open_mode & GENERIC_WRITE) open_mode &= ~GENERIC_WRITE;
         }
 
-        auto str = Win::string2Wide(_path.path());
+        auto str = string2Wide(_path.path());
         auto handler = CreateFileW(str.c_str(), open_mode, FILE_SHARE_READ, nullptr, need_create, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (handler == INVALID_HANDLE_VALUE) return false;
         _handler = handler;

@@ -44,17 +44,6 @@
     #endif
 #endif
 
-#if defined(TINY_CPP_MY_OS_WINDOWS) && !defined(TINY_CPP_DEFINED_WIN)
-#define TINY_CPP_DEFINED_WIN
-namespace Tiny {
-    namespace Win {
-        std::string convertPath(const std::string& path);
-        std::wstring string2Wide(const std::string& str, uint32_t codepage = 65001);
-        std::string wide2String(const std::wstring& w_str, uint32_t codepage = 65001);
-    }
-}
-#endif
-
 namespace Tiny {
     namespace OS {
         enum class FileType : uint8_t {
