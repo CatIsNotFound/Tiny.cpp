@@ -84,7 +84,7 @@ namespace {
 #endif
 
 namespace Tiny {
-    const char* TUI::getKeyName(uint8_t KEY, SP_Keys SP) {
+    const char* TUI::getKeyName(const uint8_t &KEY, const SP_Keys &SP) {
         if (KEY >= 32 && KEY <= 126) {
             static std::string out = "";
             out = std::string(1, KEY);
@@ -209,6 +209,25 @@ namespace Tiny {
         }
     }
 
+    const char *TUI::getMouseName(const SP_Mouse &SP) {
+        switch (SP) {
+            case SP_MOUSE_LEFT_BUTTON:
+                return "Left Button";
+            case SP_MOUSE_MIDDLE_BUTTON:
+                return "Middle Button";
+            case SP_MOUSE_RIGHT_BUTTON:
+                return "Right Button";
+            case SP_MOUSE_WHEEL_UP:
+                return "Mouse Wheel Up";
+            case SP_MOUSE_WHEEL_DOWN:
+                return "Mouse Wheel Down";
+            case SP_MOUSE_MOVING:
+                return "Mouse Moving";
+            default:
+                return "Unknown";
+        }
+    }
+
 #ifdef TINY_CPP_MY_OS_UNIX
     struct termios TUI::Terminal::_old_terminal{};
     bool TUI::Terminal::_is_in_raw_mode{};
@@ -243,10 +262,10 @@ namespace Tiny {
         DWORD mode;
         if (!GetConsoleMode(console, &mode)) return false;
         _old_console_handle = mode;
-        mode &= ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_QUICK_EDIT_MODE);
+        mode &= ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_QUICK_EDIT_MODE);
         mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
         // SetConsoleCtrlHandler(nullptr, TRUE);
-        if (!SetConsoleMode(console, mode)) return false;
+        if (!SetConsoleMode(new_console, mode)) return false;
         SetStdHandle(STD_OUTPUT_HANDLE, new_console);
         SetStdHandle(STD_ERROR_HANDLE, new_console);
 #endif
@@ -261,7 +280,7 @@ namespace Tiny {
         _is_in_raw_mode = false;
         auto cmd = "\x1b[?1049l";
         write(STDOUT_FILENO, cmd, strlen(cmd));
-        
+
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         if (_old_console != nullptr) {
             auto console = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -713,6 +732,62 @@ namespace Tiny {
 #endif
     }
 
+    bool TUI::Terminal::setMouseEnabled(bool enabled) {
+#ifdef TINY_CPP_MY_OS_UNIX
+
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        HANDLE console = GetStdHandle(STD_INPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return false;
+        DWORD mode = 0;
+        if (!GetConsoleMode(console, &mode)) return false;
+        if (enabled) {
+            _old_console_handle = mode;
+            mode = ENABLE_EXTENDED_FLAGS | ENABLE_MOUSE_INPUT | ENABLE_WINDOW_INPUT;
+        } else {
+            mode = _old_console_handle;
+        }
+        if (!SetConsoleMode(console, mode)) return false;
+#endif
+        return true;
+    }
+
+    uint8_t TUI::Terminal::getMouseButton(Position* mouse_pos) {
+#ifdef TINY_CPP_MY_OS_UNIX
+
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        HANDLE console = GetStdHandle(STD_INPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return '\0';
+        INPUT_RECORD input;
+        DWORD read_count = 0;
+        while (ReadConsoleInput(console, &input, 1, &read_count)) {
+            if (input.EventType != MOUSE_EVENT) continue;
+            if (read_count == 0) return SP_MOUSE_UNKNOWN;
+            auto mouse_event = input.Event.MouseEvent;
+            if (mouse_pos) {
+                mouse_pos->row = mouse_event.dwMousePosition.Y;
+                mouse_pos->column = mouse_event.dwMousePosition.X;
+            }
+            if (mouse_event.dwEventFlags == MOUSE_WHEELED) {
+                auto high = mouse_event.dwButtonState >> 24;
+                if (high == 0) {
+                    return SP_MOUSE_WHEEL_UP;
+                }
+                return SP_MOUSE_WHEEL_DOWN;
+            }
+            if (mouse_event.dwEventFlags == 0) {
+                if (mouse_event.dwButtonState & FROM_LEFT_1ST_BUTTON_PRESSED) {
+                    return SP_MOUSE_LEFT_BUTTON;
+                } else if (mouse_event.dwButtonState & RIGHTMOST_BUTTON_PRESSED) {
+                    return SP_MOUSE_RIGHT_BUTTON;
+                } else if (mouse_event.dwButtonState & FROM_LEFT_2ND_BUTTON_PRESSED) {
+                    return SP_MOUSE_MIDDLE_BUTTON;
+                }
+            }
+        }
+#endif
+        return SP_MOUSE_UNKNOWN;
+    }
+
     void TUI::Terminal::setBackgroundColor(Color color, bool intensity) {
 #ifdef TINY_CPP_MY_OS_UNIX
         std::string cmd;
@@ -721,7 +796,7 @@ namespace Tiny {
         } else {
             cmd = "\x1b[22m\x1b[4" + std::to_string(static_cast<uint8_t>(color)) + "m";
         }
-        write(STDOUT_FILENO, cmd.c_str(), cmd.length());     
+        write(STDOUT_FILENO, cmd.c_str(), cmd.length());
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return;
@@ -1033,13 +1108,13 @@ namespace Tiny {
             if (read_bytes <= 0) break;
             if (temp[0] == KEY_CR || temp[0] == KEY_LF) {
                 auto enter = "\r\n";
-                write(STDOUT_FILENO, enter, 2); 
+                write(STDOUT_FILENO, enter, 2);
                 break;
             } else if (temp[0] == KEY_BACKSPACE) {
                 if (!result.empty()) {
                     result.pop_back();
                     auto backsp = "\b \b";
-                    write(STDOUT_FILENO, backsp, 3); 
+                    write(STDOUT_FILENO, backsp, 3);
                 }
             } else {
                 result += temp;

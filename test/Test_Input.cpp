@@ -73,7 +73,33 @@ void input_text() {
     ter::leaveRawMode();
 }
 
-void match_word() {
+void mouse_test() {
+    ter::enterRawMode();
+    ter::setMouseEnabled(true);
+    ter::moveCursor(ter::screenSize().height - 1, 0);
+    ter::reverseColor(true);
+    ter::print("Press any mouse button, and click this line to quit.");
+    ter::reverseColor(false);
+    TUI::Position mouse_pos;
+    while (true) {
+        auto mouse_btn = static_cast<TUI::SP_Mouse>(ter::getMouseButton(&mouse_pos));
+        auto scr_height = ter::screenSize().height - 1;
+        ter::moveCursor(scr_height, 0);
+        ter::setBackgroundColor(24, 80, 243);
+        ter::setForegroundColor(243, 248, 32);
+        ter::reverseColor(true);
+        ter::clearInRow(scr_height);
+        ter::printFormat("Pos: (R {}, C {}), M: {}, Click this line to quit.", mouse_pos.row, mouse_pos.column, TUI::getMouseName(mouse_btn));
+        ter::reverseColor(false);
+        ter::setBackgroundColor(TUI::Color::Default, false);
+        ter::moveCursor(mouse_pos);
+        if (mouse_pos.row >= scr_height) break;
+    }
+    ter::setMouseEnabled(false);
+    ter::leaveRawMode();
+}
+
+void view_file() {
     ter::enterRawMode();
     size_t page_index = 1;
     auto width = ter::screenSize().width;
@@ -161,7 +187,8 @@ int main() {
         ter::printLine("Which one would you like to test? ");
         ter::printLine("1) Keyboard test");
         ter::printLine("2) Input text test");
-        ter::printLine("3) Match words test");
+        ter::printLine("3) Mouse Test");
+        ter::printLine("4) View File");
         ter::printLine("0) Exit");
         ter::print("Please select: ");
         auto opt = ter::readLine();
@@ -170,10 +197,79 @@ int main() {
         } else if (opt == "2") {
             input_text();
         } else if (opt == "3") {
-            match_word();
+            mouse_test();
+        } else if (opt == "4") {
+            view_file();
         } else if (opt == "0") {
             return 0;
         }
     }
     return 0;
 }
+
+// #include <windows.h>
+// #include <stdio.h>
+//
+// int main() {
+//     system("chcp 65001");
+//     // 获取控制台输入句柄
+//     HANDLE hInput = GetStdHandle(STD_INPUT_HANDLE);
+//     if (hInput == INVALID_HANDLE_VALUE) {
+//         printf("获取输入句柄失败\n");
+//         return 1;
+//     }
+//
+//     // 启用鼠标输入
+//     DWORD mode = ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS;
+//     if (!SetConsoleMode(hInput, mode)) {
+//         printf("设置控制台模式失败\n");
+//         return 1;
+//     }
+//
+//     INPUT_RECORD ir;
+//     DWORD read;
+//     printf("===== 鼠标测试 =====\n");
+//     printf("滚轮向上/向下、左键/右键测试，按 ESC 退出\n\n");
+//
+//     while (ReadConsoleInput(hInput, &ir, 1, &read)) {
+//         // 只处理鼠标事件
+//         if (ir.EventType != MOUSE_EVENT) continue;
+//
+//         MOUSE_EVENT_RECORD mer = ir.Event.MouseEvent;
+//         SHORT wheelDelta;
+//
+//         // ==============================================
+//         // 核心：判断 滚轮向上 / 滚轮向下
+//         // ==============================================
+//         if (mer.dwEventFlags == MOUSE_WHEELED) {
+//             // 取高16位值
+//             wheelDelta = (SHORT)(mer.dwButtonState >> 16);
+//
+//             if (wheelDelta > 0) {
+//                 printf("滚轮 【向上】滚动 | 坐标 X=%d, Y=%d\n",
+//                        mer.dwMousePosition.X, mer.dwMousePosition.Y);
+//             } else {
+//                 printf("滚轮 【向下】滚动 | 坐标 X=%d, Y=%d\n",
+//                        mer.dwMousePosition.X, mer.dwMousePosition.Y);
+//             }
+//         }
+//         // 鼠标按下事件（左键/右键）
+//         else if (mer.dwEventFlags == 0) {
+//             if (mer.dwButtonState & FROM_LEFT_1ST_BUTTON_PRESSED) {
+//                 printf("左键 按下 | X=%d, Y=%d\n",
+//                        mer.dwMousePosition.X, mer.dwMousePosition.Y);
+//             }
+//             if (mer.dwButtonState & RIGHTMOST_BUTTON_PRESSED) {
+//                 printf("右键 按下 | X=%d, Y=%d\n",
+//                        mer.dwMousePosition.X, mer.dwMousePosition.Y);
+//             }
+//         }
+//
+//         // ESC 退出
+//         if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
+//             break;
+//         }
+//     }
+//
+//     return 0;
+// }

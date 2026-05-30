@@ -246,6 +246,13 @@ namespace Tiny {
         return printFormattedText(oss.str());
     }
 
+    template<typename... Args>
+    std::string TUI::Terminal::formatString(const char *format, Args... args) {
+        std::ostringstream oss;
+        formatImpl(oss, format, std::forward<Args>(args)...);
+        return oss.str();
+    }
+
     template<typename T, typename ... Args>
     void TUI::Terminal::formatImpl(std::ostringstream &ostream, const char *format, T arg, Args... args) {
         while (*format) {
@@ -341,10 +348,10 @@ namespace Tiny {
         
         if (*format == '}') {
             if (!addIntPart) {
-                
+
                 FormatHandler<T>::handleDefaultFloat(ostream, arg, intPart, decPart, isRightAlign);
             } else {
-                
+
                 ostream << arg;
             }
             format++;

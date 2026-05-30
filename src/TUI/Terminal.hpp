@@ -52,8 +52,8 @@ struct termios;
 
 namespace Tiny {
     namespace TUI {
-        struct Size { uint32_t width{}, height{}; };
-        struct Position { uint32_t row{}, column{}; };
+        struct Size { uint32_t width, height; };
+        struct Position { uint32_t row, column; };
         enum class Color : uint8_t {
             Black = 0,
             Red = 1,
@@ -160,7 +160,18 @@ namespace Tiny {
             SP_KEY_RIGHT
         };
 
-        const char* getKeyName(uint8_t KEY, SP_Keys SP); 
+        enum SP_Mouse : uint8_t {
+            SP_MOUSE_UNKNOWN,
+            SP_MOUSE_LEFT_BUTTON,
+            SP_MOUSE_MIDDLE_BUTTON,
+            SP_MOUSE_RIGHT_BUTTON,
+            SP_MOUSE_WHEEL_UP,
+            SP_MOUSE_WHEEL_DOWN,
+            SP_MOUSE_MOVING
+        };
+
+        const char* getKeyName(const uint8_t &KEY, const SP_Keys &SP);
+        const char* getMouseName(const SP_Mouse &SP);
 
         class Terminal {
         public:
@@ -173,6 +184,8 @@ namespace Tiny {
             static bool printLine(const std::string &text);
             template<typename ... Args>
             static bool printFormat(const char* format, Args... args);
+            template<typename ... Args>
+            static std::string formatString(const char* format, Args... args);
             static bool clearScreen();
             static bool clearInRow(uint8_t row);
             static bool moveCursor(Position position);
@@ -184,6 +197,9 @@ namespace Tiny {
             static std::wstring readLineW();
             static uint8_t getKey();
             static void getKey(uint8_t& key, SP_Keys& sp_key);
+
+            static bool setMouseEnabled(bool enabled);
+            static uint8_t getMouseButton(Position* mouse_pos = nullptr);
 
             static void setBackgroundColor(Color color, bool intensity = true);
             static void setBackgroundColor(uint8_t r, uint8_t g, uint8_t b);
@@ -214,11 +230,14 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_WINDOWS
             static void* _old_console;
             static unsigned long _old_console_handle;
+            static void* _old_input_handle;
+            static bool _mouse_mode;
         };
 #elif defined(TINY_CPP_MY_OS_UNIX)
             static std::string readLineOnRaw();
             static struct termios _old_terminal;
             static bool _is_in_raw_mode;
+            static bool _mouse_mode;
         };
 #endif
 
