@@ -28,6 +28,7 @@
 namespace Tiny {
     std::string TUI::splitFront(const char *data) {
         std::string str;
+        if (data == nullptr) return str; 
         uint8_t ch = *data;
         if ((ch & 0xE0) == 0xc0) {
             str += *data++;
@@ -49,6 +50,7 @@ namespace Tiny {
 
     std::vector<std::string> TUI::splitUTF8(const char *data) {
         std::vector<std::string> result;
+        if (data == nullptr) return result; 
         while (*data) {
             std::string str;
             uint8_t ch = *data;

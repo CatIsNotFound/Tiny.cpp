@@ -167,7 +167,7 @@ namespace Tiny {
             SP_MOUSE_RIGHT_BUTTON,
             SP_MOUSE_WHEEL_UP,
             SP_MOUSE_WHEEL_DOWN,
-            SP_MOUSE_MOVING
+            SP_MOUSE_MOVED
         };
 
         const char* getKeyName(const uint8_t &KEY, const SP_Keys &SP);
@@ -199,7 +199,7 @@ namespace Tiny {
             static void getKey(uint8_t& key, SP_Keys& sp_key);
 
             static bool setMouseEnabled(bool enabled);
-            static uint8_t getMouseButton(Position* mouse_pos = nullptr);
+            static uint8_t getMouseButton(Position* mouse_pos = nullptr, bool* is_pressed = nullptr);
 
             static void setBackgroundColor(Color color, bool intensity = true);
             static void setBackgroundColor(uint8_t r, uint8_t g, uint8_t b);
@@ -231,13 +231,15 @@ namespace Tiny {
             static void* _old_console;
             static unsigned long _old_console_handle;
             static void* _old_input_handle;
-            static bool _mouse_mode;
         };
 #elif defined(TINY_CPP_MY_OS_UNIX)
             static std::string readLineOnRaw();
+            static ssize_t readAfterDelay(int fd, void* buffer, size_t size, size_t delay = 50);
+            static ssize_t writeAfterDelay(int fd, void* buffer, size_t size, size_t delay = 50);
+            static size_t removeFrontCharCount(const std::string& buf);
             static struct termios _old_terminal;
             static bool _is_in_raw_mode;
-            static bool _mouse_mode;
+            static Position _last_cur_pos;
         };
 #endif
 

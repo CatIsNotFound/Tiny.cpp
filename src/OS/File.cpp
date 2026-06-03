@@ -73,11 +73,14 @@ namespace Tiny {
     }
 
     OS::Path::Path(const Path &path) : _path(path._path),
-                                              _type(path._type) {
+                                       _short_file_name(path._short_file_name),
+                                       _type(path._type) {
         checkPath();
     }
 
-    OS::Path::Path(Path &&path) noexcept : _path(std::move(path._path)), _type(path._type) {
+    OS::Path::Path(Path &&path) noexcept : _path(std::move(path._path)),
+                                           _short_file_name(std::move(path._short_file_name)), 
+                                           _type(std::move(path._type)) {
         checkPath();
     }
 
@@ -88,7 +91,10 @@ namespace Tiny {
     }
 
     OS::Path& OS::Path::operator=(Path &&path) noexcept {
-        _path = std::move(path._path);
+        _path = path._path;
+        path._type = FileType::Unknown;
+        path._path.clear();
+        path._short_file_name.clear();
         checkPath();
         return *this;
     }
@@ -103,6 +109,12 @@ namespace Tiny {
     void OS::Path::setPath(const Path &path) {
         _path = path._path;
         checkPath();
+    }
+
+    void OS::Path::unset() {
+        _path.clear();
+        _short_file_name.clear();
+        _type = FileType::Unknown;
     }
 
     const std::string & OS::Path::path() const {
@@ -333,15 +345,22 @@ namespace Tiny {
     OS::File::File(File &&file) noexcept : _path(std::move(file._path)),
                                            _open_mode(std::move(file._open_mode)),
                                            _handler(std::move(file._handler)) {
-        if (this != &file) file.reset();
+        if (this != &file) {
+            file.reset();
+            file._file_size = 0;
+            file._path.unset();
+        }
     }
 
     OS::File &OS::File::operator=(File &&file) noexcept {
         if (this == &file) return *this;
+        
         _path = std::move(file._path);
         _open_mode = std::move(file._open_mode);
         _handler = std::move(file._handler);
         file.reset();
+        file._file_size = 0;
+        file._path.unset();
         return *this;
     }
 

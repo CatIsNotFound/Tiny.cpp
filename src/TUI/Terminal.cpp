@@ -221,8 +221,8 @@ namespace Tiny {
                 return "Mouse Wheel Up";
             case SP_MOUSE_WHEEL_DOWN:
                 return "Mouse Wheel Down";
-            case SP_MOUSE_MOVING:
-                return "Mouse Moving";
+            case SP_MOUSE_MOVED:
+                return "Mouse Moved";
             default:
                 return "Unknown";
         }
@@ -231,6 +231,7 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_UNIX
     struct termios TUI::Terminal::_old_terminal{};
     bool TUI::Terminal::_is_in_raw_mode{};
+    TUI::Position TUI::Terminal::_last_cur_pos{0, 0};
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
     void* TUI::Terminal::_old_console{};
     unsigned long TUI::Terminal::_old_console_handle{0};
@@ -345,22 +346,16 @@ namespace Tiny {
             return position;
         }
         char buf[32] = {};
-        int i = 0;
-        while (i < sizeof(buf) - 1) {
-            if (read(STDIN_FILENO, &buf[i], 1) != 1) break;
-            if (buf[i] == 'R') {
-                buf[i + 1] = '\0';
-                break;
-            }
-            i++;
-        }
-
+        size_t read_bytes = readAfterDelay(STDIN_FILENO, &buf, 32);
+        if (read_bytes == -1) return _last_cur_pos;
         tcsetattr(STDIN_FILENO, TCSAFLUSH, &original);
 
-        if (buf[0] != '\x1b' || buf[1] != '[') return position;
-        if (sscanf(&buf[2], "%d;%d", &position.row, &position.column) != 2) return {};
+        if (sscanf(buf, "\x1b[%d;%dR", &position.row, &position.column) != 2) {
+            return _last_cur_pos;
+        }
         position.row -= 1;
         position.column -= 1;
+        _last_cur_pos = position;
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return position;
@@ -517,7 +512,7 @@ namespace Tiny {
             out = readLineOnRaw();
         } else {
             char buffer[2048] = {};
-            size_t read_count = read(STDIN_FILENO, buffer, 2048);
+            size_t read_count = readAfterDelay(STDIN_FILENO, buffer, 2048);
             if (buffer[read_count - 1] == '\n') read_count -= 1;
             out.resize(read_count);
             strncpy(&out[0], buffer, read_count);
@@ -542,7 +537,7 @@ namespace Tiny {
             out = string2Wide(readLineOnRaw());
         } else {
             char buffer[2048] = {};
-            size_t read_count = read(STDIN_FILENO, buffer, 2048);
+            size_t read_count = readAfterDelay(STDIN_FILENO, buffer, 2048);
             if (buffer[read_count - 1] == '\n') read_count -= 1;
             out = string2Wide(buffer);
             if (out.back() == L'\n') out.pop_back();
@@ -581,7 +576,7 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_UNIX
         char buf[16] = {};
         std::string temp_cmd;
-        size_t keys_cnt = read(STDIN_FILENO, buf, 16);
+        size_t keys_cnt = readAfterDelay(STDIN_FILENO, buf, 16);
         temp_cmd = buf;
         if (keys_cnt > 1) {
             key = KEY_SPECIAL;
@@ -734,7 +729,8 @@ namespace Tiny {
 
     bool TUI::Terminal::setMouseEnabled(bool enabled) {
 #ifdef TINY_CPP_MY_OS_UNIX
-
+        std::string cmd = enabled ? "\x1b[?1000;1003;1006h" : "\x1b[?1000;1003;1006l";
+        write(STDIN_FILENO, cmd.data(), cmd.size());
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         HANDLE console = GetStdHandle(STD_INPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return false;
@@ -751,8 +747,48 @@ namespace Tiny {
         return true;
     }
 
-    uint8_t TUI::Terminal::getMouseButton(Position* mouse_pos) {
+    uint8_t TUI::Terminal::getMouseButton(Position* mouse_pos, bool* is_pressed) {
 #ifdef TINY_CPP_MY_OS_UNIX
+        char buf[16] = {};
+        size_t read_bytes = readAfterDelay(STDIN_FILENO, buf, 16);
+        
+        uint32_t ev_type, row, col;
+        bool is_big_M = (buf[strlen(buf) - 1] == 'M');
+        if (sscanf(buf, "\x1b[<%d;%d;%d", &ev_type, &col, &row) != 3) {
+            if (sscanf(buf, "\x1b[%d;%dH", &row, &col) == 2) {
+                if (mouse_pos) {
+                    mouse_pos->row = row - 1;
+                    mouse_pos->column = col - 1;
+                }
+                return SP_MOUSE_MOVED;
+            } else { 
+                return SP_MOUSE_UNKNOWN;
+            }
+        }
+
+        if (is_pressed) *is_pressed = is_big_M;
+        if (mouse_pos) {
+            mouse_pos->row = row - 1;
+            mouse_pos->column = col - 1;
+        }
+
+        switch (ev_type) {
+        case 0:
+            return SP_MOUSE_LEFT_BUTTON;
+        case 1:
+            return SP_MOUSE_MIDDLE_BUTTON;
+        case 2:
+            return SP_MOUSE_RIGHT_BUTTON;
+        case 32:
+        case 33:
+        case 34:
+        case 35:
+            return SP_MOUSE_MOVED;
+        case 64:
+            return SP_MOUSE_WHEEL_UP;
+        case 65:
+            return SP_MOUSE_WHEEL_DOWN;
+        }
 
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         HANDLE console = GetStdHandle(STD_INPUT_HANDLE);
@@ -774,13 +810,17 @@ namespace Tiny {
                 }
                 return SP_MOUSE_WHEEL_DOWN;
             }
+            if (mouse_event.dwEventFlags == MOUSE_MOVED) return SP_MOUSE_MOVED;
             if (mouse_event.dwEventFlags == 0) {
+                if (is_pressed) *is_pressed = true;
                 if (mouse_event.dwButtonState & FROM_LEFT_1ST_BUTTON_PRESSED) {
                     return SP_MOUSE_LEFT_BUTTON;
                 } else if (mouse_event.dwButtonState & RIGHTMOST_BUTTON_PRESSED) {
                     return SP_MOUSE_RIGHT_BUTTON;
                 } else if (mouse_event.dwButtonState & FROM_LEFT_2ND_BUTTON_PRESSED) {
                     return SP_MOUSE_MIDDLE_BUTTON;
+                } else if (is_pressed) {
+                    *is_pressed = false;
                 }
             }
         }
@@ -1103,26 +1143,71 @@ namespace Tiny {
         std::string result;
         char temp[256] = {};
         size_t read_bytes = 0;
+        auto start_pos = cursorPosition();
         do {
-            read_bytes = read(STDIN_FILENO, temp, 256);
-            if (read_bytes <= 0) break;
+            read_bytes = readAfterDelay(STDIN_FILENO, temp, 256);
+            if (read_bytes < 0) break;
             if (temp[0] == KEY_CR || temp[0] == KEY_LF) {
                 auto enter = "\r\n";
                 write(STDOUT_FILENO, enter, 2);
                 break;
             } else if (temp[0] == KEY_BACKSPACE) {
                 if (!result.empty()) {
-                    result.pop_back();
-                    auto backsp = "\b \b";
-                    write(STDOUT_FILENO, backsp, 3);
+                    size_t ori_length = result.size();
+                    size_t del_length = removeFrontCharCount(result);
+                    result = result.substr(0, result.size() - del_length);
+                    moveCursor(start_pos);
+                    auto cover = std::string(ori_length, ' ');
+                    write(STDOUT_FILENO, cover.c_str(), cover.size());
+                    moveCursor(start_pos);
+                    write(STDOUT_FILENO, result.data(), result.size());
                 }
-            } else {
+            } else if (temp[0] != '\x1b') {
                 result += temp;
                 write(STDOUT_FILENO, temp, read_bytes);
             }
         } while (read_bytes > 0);
 
         return result;
+    }
+
+    ssize_t TUI::Terminal::readAfterDelay(int fd, void* buffer, size_t size, size_t delay) {
+        fd_set sets;
+        FD_ZERO(&sets);
+        FD_SET(fd, &sets);
+
+        timeval internal;
+        internal.tv_sec = delay / 1000;
+        internal.tv_usec = (delay % 1000) * 1000;
+        auto ret = select(fd + 1, &sets, nullptr, nullptr, &internal);
+        if (ret == -1) return -1;
+        return read(fd, buffer, size);
+    }
+
+    ssize_t TUI::Terminal::writeAfterDelay(int fd, void* buffer, size_t size, size_t delay) {
+        fd_set sets;
+        FD_ZERO(&sets);
+        FD_SET(fd, &sets);
+
+        timeval internal;
+        internal.tv_sec = delay / 1000;
+        internal.tv_usec = (delay % 1000) * 1000;
+        auto ret = select(fd + 1, &sets, nullptr, nullptr, &internal);
+        if (ret == -1) return -1;
+        return write(fd, buffer, size);
+    }
+
+    size_t TUI::Terminal::removeFrontCharCount(const std::string& buf) {
+        if (buf.empty()) return 0;
+        size_t cnt = 0;
+        for (size_t i = buf.size() - 1; ; --i) {
+            cnt++;
+            if ((static_cast<uint8_t>(buf[i]) & 0xc0) != 0x80) {
+                break;
+            }
+            if (i == 0) break;
+        }
+        return cnt;
     }
 #endif
 }

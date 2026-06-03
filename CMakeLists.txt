@@ -27,6 +27,8 @@ add_library(${PROJECT_NAME} STATIC
         src/TUI/Terminal_Int.hpp
         src/TUI/TUI.hpp
         src/TUI/TUI.cpp
+        src/Parser/CommandParser.hpp
+        src/Parser/CommandParser.cpp
 )
 
 # Link Windows libraries

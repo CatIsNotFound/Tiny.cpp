@@ -23,6 +23,10 @@ addModule(TestEvent MY_MODULE
         TestEvent.cpp
 )
 
+addModule(TestCommandParser MY_MODULE
+        TestCmdParser.cpp
+)
+
 addModule(TestTUI MY_MODULE_WITHOUT_GTEST
         Test_TUI.cpp
 )

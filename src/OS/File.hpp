@@ -84,6 +84,7 @@ namespace Tiny {
 
             void setPath(const std::string& path);
             void setPath(const Path& path);
+            void unset();
             [[nodiscard]] const std::string& path() const;
             [[nodiscard]] std::string extensionName() const;
             [[nodiscard]] std::string fileNameWithoutExtension() const;
