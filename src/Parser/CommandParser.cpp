@@ -156,8 +156,8 @@ namespace Tiny {
                             _exec_cmd_list.push_back(command.second);
                         } else {
                             _exec_cmd_list.push_back(command.second);
-                            break;
                         }
+                        break;
                     }
                 }
                 if (is_ok) continue;
@@ -227,7 +227,7 @@ namespace Tiny {
                 is_parsing = true;
                 bool is_value = false;
                 bool is_match_opt;
-                bool is_all_match = true;
+                bool is_all_match = false;
                 for (size_t j = 1; j < arg.size(); ++j) {
                     char opt = arg[j];
                     is_match_opt = false;
@@ -238,15 +238,17 @@ namespace Tiny {
                             filling_option = cmd.option_name;
                             _exec_cmd_list.push_back(cmd);
                             if (j == arg.size() - 1 && cmd.has_value) {
-                                
-                                // Needs value of the arguments
-                                err_pos = i;
-                                return ParseError::MissingArgument;
+                                if (i == _argc - 1) {
+                                    // Needs value of the arguments
+                                    err_pos = i;
+                                    return ParseError::MissingArgument;
+                                }
                             } else if (arg.size() > j + 1 && cmd.has_value) {
                                 size_t count = arg.size() - j - 1;
                                 _exec_cmd_list.back().value = arg.substr(arg[j + 1] == '=' ? j + 2 : j + 1);
                                 filling_option.clear();
                                 is_parsing = false;
+                                is_all_match = true;
                             } else if (!cmd.has_value) {
                                 is_parsing = false;
                                 filling_option.clear();
@@ -259,6 +261,7 @@ namespace Tiny {
                         err_pos = i;
                         return ParseError::UnknownOption;
                     }
+                    if (is_all_match) break;
                 }
             }
             else {
@@ -270,7 +273,7 @@ namespace Tiny {
         // Is parsing completely?
         if (is_parsing) {
             err_pos = _argc - 1;
-            return ParseError::MissingArgument;
+            return ParseError::InvalidValue;
         }
 
         // All of the arguments has no problem!
