@@ -31,6 +31,7 @@
 #include "Events/Events.hpp"
 #include "TUI/Terminal.hpp"
 #include "TUI/TUI.hpp"
+#include "Parser/CommandParser.hpp"
 
 #endif //TINY_HPP
 

@@ -29,6 +29,9 @@ The `OS::File` module provides cross-platform file and path operation functional
 ## 2. Header File
 
 ```cpp
+// CMake method
+#include <Tiny/OS/File.hpp>
+// Direct source copy method
 #include "OS/File.hpp"
 ```
 

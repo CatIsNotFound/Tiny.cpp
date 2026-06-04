@@ -33,6 +33,9 @@
 ## 2. 头文件
 
 ```cpp
+// CMake 方式
+#include <Tiny/TUI/TUI.hpp>
+// 直接复制源代码方式
 #include "TUI/TUI.hpp"
 ```
 

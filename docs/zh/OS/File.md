@@ -29,6 +29,9 @@
 ## 2. 头文件
 
 ```cpp
+// CMake 方式
+#include <Tiny/OS/File.hpp>
+// 直接复制源代码方式
 #include "OS/File.hpp"
 ```
 

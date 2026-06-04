@@ -35,6 +35,9 @@
 ## 2. 头文件
 
 ```cpp
+// CMake 方式
+#include <Tiny/Parser/CommandParser.hpp>
+// 直接复制源代码方式
 #include "Parser/CommandParser.hpp"
 ```
 

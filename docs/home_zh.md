@@ -133,6 +133,22 @@ int main() {
 
 ### 5.4 引入方式
 
+若使用 CMake 方式安装本项目，请使用如下引入方式：
+
+```cpp
+// 主头文件，包含所有模块
+#include <Tiny/Tiny.hpp>
+
+// 或单独引入特定模块
+#include <Tiny/Events/Events.hpp>
+#include <Tiny/OS/File.hpp>
+#include <Tiny/OS/System.hpp>
+#include <Tiny/Parser/CommandParser.hpp>
+#include <Tiny/TUI/TUI.hpp>
+```
+
+若直接复制源代码 `src` 目录，则使用如下引入方式：
+
 ```cpp
 // 主头文件，包含所有模块
 #include "Tiny.hpp"
@@ -178,7 +194,7 @@ g++ -std=c++17 -I./src main.cpp src/*.cpp src/*/*.cpp -o myapp.exe
 ```cpp
 // 在包含头文件前手动定义
 #define TINY_CPP_MY_OS_WINDOWS
-#include "Tiny.hpp"
+#include <Tiny/Tiny.hpp>
 ```
 
 ### 6.2 模块命名空间
@@ -393,9 +409,9 @@ event.stop();  // 请求停止
 
 ### 10.4 C++ 标准
 
-- **要求**: C++17 或更高版本
-- **推荐**: C++17
-- **测试标准**: C++17, C++20
+- **要求**: C++11 或更高版本
+- **推荐**: C++20
+- **测试标准**: C++11, C++20
 
 ### 10.5 已知限制
 
@@ -420,6 +436,4 @@ event.stop();  // 请求停止
 
 `Tiny.cpp` 采用 [MIT 许可证](../LICENSE) 许可协议，您可以在 `LICENSE` 文件或其它任一头文件或源文件中查看详细信息。
 
----
 
-*本文档基于 Tiny.cpp 源代码生成，所有 API 描述均来自实际代码实现。*

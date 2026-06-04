@@ -28,6 +28,9 @@ The `OS::System` module provides system information retrieval and file system op
 ## 2. Header File
 
 ```cpp
+// CMake method
+#include <Tiny/OS/System.hpp>
+// Direct source copy method
 #include "OS/System.hpp"
 ```
 

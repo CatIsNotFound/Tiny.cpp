@@ -34,6 +34,9 @@ The `Event` class provides asynchronous event management functionality, supporti
 ## 2. Header File
 
 ```cpp
+// CMake method
+#include <Tiny/Events/Events.hpp>
+// Direct source copy method
 #include "Events/Events.hpp"
 ```
 

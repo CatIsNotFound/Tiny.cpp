@@ -35,6 +35,9 @@ The `CommandParser` class provides command-line argument parsing functionality, 
 ## 2. Header File
 
 ```cpp
+// CMake method
+#include <Tiny/Parser/CommandParser.hpp>
+// Direct source copy method
 #include "Parser/CommandParser.hpp"
 ```
 

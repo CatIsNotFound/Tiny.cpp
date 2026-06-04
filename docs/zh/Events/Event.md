@@ -34,6 +34,9 @@
 ## 2. 头文件
 
 ```cpp
+// CMake 方式
+#include <Tiny/Events/Events.hpp>
+// 直接复制源代码方式
 #include "Events/Events.hpp"
 ```
 

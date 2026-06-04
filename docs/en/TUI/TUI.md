@@ -8,11 +8,11 @@ Namespace: `Tiny::TUI`
 
 1. [Module Overview](#1-module-overview)
 2. [Header File](#2-header-file)
-3. [Type Definitions](#3-type-definitions)
-4. [Enum Definitions](#4-enum-definitions)
-5. [Color Class](#5-color-class)
-6. [Style Class](#6-style-class)
-7. [Canvas Class](#7-canvas-class)
+3. [Helper Functions](#3-helper-functions)
+4. [Data Structures](#4-data-structures)
+5. [Terminal Class](#5-terminal-class)
+6. [Renderer Class](#6-renderer-class)
+7. [AbstractWidget Class](#7-abstractwidget-class)
 8. [Usage Examples](#8-usage-examples)
 9. [Notes](#9-notes)
 
@@ -20,528 +20,640 @@ Namespace: `Tiny::TUI`
 
 ## 1. Module Overview
 
-The `TUI` module provides basic terminal user interface rendering functionality, containing three core classes:
+The `TUI` module provides terminal user interface functionality, including:
 
-- **Color Class**: Color representation and ANSI escape code generation
-- **Style Class**: Text style (color, background, attributes) management
-- **Canvas Class**: Terminal canvas, supports drawing characters, strings, borders, etc.
+- **Terminal Control**: Raw mode switching, screen control, cursor operations
+- **Input Handling**: Key reading, mouse events
+- **Color & Style**: Foreground/background colors, bold, underline, etc.
+- **Double Buffering**: Efficient screen rendering
+- **Widget Base Class**: Extensible widget system
 
 ---
 
 ## 2. Header File
 
 ```cpp
+// CMake method
+#include <Tiny/TUI/TUI.hpp>
+// Direct source copy method
 #include "TUI/TUI.hpp"
 ```
 
 ---
 
-## 3. Type Definitions
+## 3. Helper Functions
+
+### 3.1 splitFront
 
 ```cpp
-using ColorValue = uint8_t;
+std::string splitFront(const char* data);
 ```
+- **Function**: Extract the first character from a UTF-8 string
+- **Parameter**: `data` - UTF-8 string
+- **Return Value**: First character (may be multi-byte)
 
-**Description**: Color value type, 8-bit unsigned integer (0-255).
+### 3.2 splitUTF8
+
+```cpp
+std::vector<std::string> splitUTF8(const char* data);
+```
+- **Function**: Split UTF-8 string into character array
+- **Parameter**: `data` - UTF-8 string
+- **Return Value**: Character array
+
+### 3.3 getKeyName
+
+```cpp
+const char* getKeyName(const uint8_t& KEY, const SP_Keys& SP);
+```
+- **Function**: Get key name
+- **Parameters**: 
+  - `KEY` - Key code
+  - `SP` - Special key type
+- **Return Value**: Key name string
+
+### 3.4 getMouseName
+
+```cpp
+const char* getMouseName(const SP_Mouse& SP);
+```
+- **Function**: Get mouse event name
+- **Parameter**: `SP` - Mouse event type
+- **Return Value**: Event name string
 
 ---
 
-## 4. Enum Definitions
+## 4. Data Structures
 
-### 4.1 ColorType Enum
+### 4.1 Size Structure
 
 ```cpp
-enum class ColorType : uint8_t {
-    Foreground = 38,  // Foreground color
-    Background = 48   // Background color
+struct Size {
+    uint32_t width;   // Width (columns)
+    uint32_t height;  // Height (rows)
 };
 ```
 
-| Enum Value | Value | Description |
-|------------|-------|-------------|
-| `Foreground` | 38 | Foreground color (text color) |
-| `Background` | 48 | Background color |
-
-### 4.2 TextStyle Enum
+### 4.2 Position Structure
 
 ```cpp
-enum class TextStyle : uint8_t {
-    Reset      = 0,   // Reset all styles
-    Bold       = 1,   // Bold
-    Dim        = 2,   // Dim
-    Italic     = 3,   // Italic
-    Underline  = 4,   // Underline
-    Blink      = 5,   // Blink
-    Reverse    = 7,   // Reverse (swap foreground/background)
-    Hidden     = 8,   // Hidden
-    Strikethrough = 9  // Strikethrough
+struct Position {
+    uint32_t row;     // Row number (0-based)
+    uint32_t column;  // Column number (0-based)
 };
 ```
 
-### 4.3 BorderStyle Enum
+### 4.3 Color Enum
 
 ```cpp
-enum class BorderStyle : uint8_t {
-    None,     // No border
-    Single,   // Single line border
-    Double,   // Double line border
-    Rounded,  // Rounded corners border
-    Bold,     // Bold border
-    Block     // Block border
+enum class Color : uint8_t {
+    Black   = 0,
+    Red     = 1,
+    Green   = 2,
+    Yellow  = 3,
+    Blue    = 4,
+    Magenta = 5,
+    Cyan    = 6,
+    White   = 7,
+    Default = 9
 };
 ```
 
-| Enum Value | Description |
-|------------|-------------|
-| `None` | No border |
-| `Single` | Single line border (┌─┐) |
-| `Double` | Double line border (╔═╗) |
-| `Rounded` | Rounded corners border (╭─╮) |
-| `Bold` | Bold border (┏━┓) |
-| `Block` | Block border (▛▀▜) |
+### 4.4 Keys Enum
+
+```cpp
+enum Keys : uint8_t {
+    KEY_NONE        = 0,
+    KEY_TAB         = 9,
+    KEY_CR          = 13,
+    KEY_ESC         = 27,
+    KEY_SPACE       = 32,
+    KEY_BACKSPACE   = 127,
+    KEY_CTRL_A      = 1,
+    // ... CTRL_B ~ CTRL_Z
+    KEY_SPECIAL     = 254,
+    KEY_UNKNOWN     = 255
+};
+```
+
+**Control Keys**:
+- `KEY_CTRL_A` to `KEY_CTRL_Z`: Correspond to Ctrl+A to Ctrl+Z
+
+### 4.5 SP_Keys Enum (Special Keys)
+
+```cpp
+enum SP_Keys : uint8_t {
+    SP_KEY_UNKNOWN,
+    SP_KEY_F1, SP_KEY_F2, SP_KEY_F3, SP_KEY_F4,
+    SP_KEY_F5, SP_KEY_F6, SP_KEY_F7, SP_KEY_F8,
+    SP_KEY_F9, SP_KEY_F10, SP_KEY_F11, SP_KEY_F12,
+    SP_KEY_INSERT,
+    SP_KEY_DELETE,
+    SP_KEY_HOME,
+    SP_KEY_END,
+    SP_KEY_PAGE_UP,
+    SP_KEY_PAGE_DOWN,
+    SP_KEY_CENTER,
+    SP_KEY_UP,
+    SP_KEY_LEFT,
+    SP_KEY_DOWN,
+    SP_KEY_RIGHT
+};
+```
+
+### 4.6 SP_Mouse Enum (Mouse Events)
+
+```cpp
+enum SP_Mouse : uint8_t {
+    SP_MOUSE_UNKNOWN,
+    SP_MOUSE_LEFT_BUTTON,    // Left button
+    SP_MOUSE_MIDDLE_BUTTON,  // Middle button
+    SP_MOUSE_RIGHT_BUTTON,   // Right button
+    SP_MOUSE_WHEEL_UP,       // Wheel up
+    SP_MOUSE_WHEEL_DOWN,     // Wheel down
+    SP_MOUSE_MOVED           // Mouse moved
+};
+```
 
 ---
 
-## 5. Color Class
+## 5. Terminal Class
 
 ### 5.1 Class Overview
 
-Color representation class, supports ANSI 256 colors and RGB colors.
+Terminal control class providing raw mode switching, screen control, cursor operations, color settings, input reading, and other functions.
 
-### 5.2 Constructors
+All member functions are static.
+
+### 5.2 Raw Mode Control
+
+#### enterRawMode
 
 ```cpp
-Color(ColorValue value);                    // Construct from 256-color value
-Color(uint8_t r, uint8_t g, uint8_t b);     // Construct from RGB values
-Color(const Color& color);                  // Copy constructor
-Color(Color&& color) noexcept;              // Move constructor
+static bool enterRawMode();
+```
+- **Function**: Enter raw mode (disable line buffering, echo, etc.)
+- **Return Value**: `true` means success
+- **Notes**: 
+  - Windows: Creates new screen buffer
+  - Unix: Uses termios to set raw mode
+
+#### leaveRawMode
+
+```cpp
+static bool leaveRawMode();
+```
+- **Function**: Exit raw mode, restore terminal settings
+- **Return Value**: `true` means success
+
+#### isInRawMode
+
+```cpp
+static bool isInRawMode();
+```
+- **Function**: Check if currently in raw mode
+- **Return Value**: `true` means in raw mode
+
+### 5.3 Screen Information
+
+#### screenSize
+
+```cpp
+static Size screenSize();
+```
+- **Function**: Get terminal screen size
+- **Return Value**: `Size` structure (width and height)
+
+#### cursorPosition
+
+```cpp
+static Position cursorPosition();
+```
+- **Function**: Get current cursor position
+- **Return Value**: `Position` structure (row and column)
+
+### 5.4 Output Functions
+
+#### print
+
+```cpp
+static bool print(const std::string& text);
+```
+- **Function**: Output text (no newline)
+- **Parameter**: `text` - Text to output
+- **Return Value**: `true` means success
+
+#### printLine
+
+```cpp
+static bool printLine(const std::string& text);
+```
+- **Function**: Output text with newline
+- **Parameter**: `text` - Text to output
+- **Return Value**: `true` means success
+
+#### printFormat
+
+```cpp
+template<typename ... Args>
+static bool printFormat(const char* format, Args... args);
+```
+- **Function**: Formatted output (similar to Python f-string)
+- **Parameters**: 
+  - `format` - Format string using `{}` as placeholders
+  - `args` - Variable arguments
+- **Return Value**: `true` means success
+- **Example**: `printFormat("Hello, {}!", "World")`
+
+#### formatString
+
+```cpp
+template<typename ... Args>
+static std::string formatString(const char* format, Args... args);
+```
+- **Function**: Format string
+- **Parameters**: Same as `printFormat`
+- **Return Value**: Formatted string
+
+### 5.5 Screen Control
+
+#### clearScreen
+
+```cpp
+static bool clearScreen();
+```
+- **Function**: Clear screen
+- **Return Value**: `true` means success
+
+#### clearInRow
+
+```cpp
+static bool clearInRow(uint8_t row);
+```
+- **Function**: Clear specified row
+- **Parameter**: `row` - Row number (0-based)
+- **Return Value**: `true` means success
+
+#### moveCursor
+
+```cpp
+static bool moveCursor(Position position);
+static bool moveCursor(uint32_t row, uint32_t column);
+```
+- **Function**: Move cursor to specified position
+- **Parameters**: Target position
+- **Return Value**: `true` means success
+
+#### setScrollRegion
+
+```cpp
+static bool setScrollRegion(uint32_t row_start, uint32_t row_end);
+```
+- **Function**: Set scroll region
+- **Parameters**: 
+  - `row_start` - Start row
+  - `row_end` - End row
+- **Return Value**: `true` means success
+
+#### resetScrollRegion
+
+```cpp
+static bool resetScrollRegion();
+```
+- **Function**: Reset scroll region to full screen
+- **Return Value**: `true` means success
+
+#### flushScreen
+
+```cpp
+static bool flushScreen();
+```
+- **Function**: Flush screen output
+- **Return Value**: `true` means success
+
+### 5.6 Input Functions
+
+#### readLine
+
+```cpp
+static std::string readLine();
+```
+- **Function**: Read a line of input
+- **Return Value**: Input string (without newline)
+
+#### readLineW
+
+```cpp
+static std::wstring readLineW();
+```
+- **Function**: Read a line of wide character input
+- **Return Value**: Wide string
+
+#### getKey
+
+```cpp
+static uint8_t getKey();
+static void getKey(uint8_t& key, SP_Keys& sp_key);
+```
+- **Function**: Read key press
+- **Parameters** (overload 2): 
+  - `key` - Output key code
+  - `sp_key` - Output special key type
+- **Return Value**: Key code (overload 1)
+
+### 5.7 Mouse Control
+
+#### setMouseEnabled
+
+```cpp
+static bool setMouseEnabled(bool enabled);
+```
+- **Function**: Enable/disable mouse events
+- **Parameter**: `enabled` - Whether to enable
+- **Return Value**: `true` means success
+
+#### getMouseButton
+
+```cpp
+static uint8_t getMouseButton(Position* mouse_pos = nullptr, bool* is_pressed = nullptr);
+```
+- **Function**: Get mouse event
+- **Parameters**: 
+  - `mouse_pos` - Output mouse position (optional)
+  - `is_pressed` - Output whether pressed (optional)
+- **Return Value**: Mouse event code
+
+### 5.8 Color and Style Functions
+
+#### Color Settings
+
+```cpp
+static void setBackgroundColor(Color color, bool intensity = true);
+static void setBackgroundColor(uint8_t r, uint8_t g, uint8_t b);
+static void setForegroundColor(Color color, bool intensity = false);
+static void setForegroundColor(uint8_t r, uint8_t g, uint8_t b);
 ```
 
-| Parameter | Type | Description | Range |
-|-----------|------|-------------|-------|
-| `value` | `ColorValue` | 256-color index | 0-255 |
-| `r` | `uint8_t` | Red component | 0-255 |
-| `g` | `uint8_t` | Green component | 0-255 |
-| `b` | `uint8_t` | Blue component | 0-255 |
+| Function | Description | Parameters |
+|----------|-------------|------------|
+| `setBackgroundColor(Color, bool)` | Set background color (ANSI 16 colors) | `color` - Color, `intensity` - Whether bright |
+| `setBackgroundColor(uint8_t, uint8_t, uint8_t)` | Set background color (RGB) | `r, g, b` - Red, green, blue components (0-255) |
+| `setForegroundColor(Color, bool)` | Set foreground color (ANSI 16 colors) | `color` - Color, `intensity` - Whether bright |
+| `setForegroundColor(uint8_t, uint8_t, uint8_t)` | Set foreground color (RGB) | `r, g, b` - Red, green, blue components (0-255) |
 
-### 5.3 Static Member Functions
-
-#### getColorCode
+#### Style Settings
 
 ```cpp
-static std::string getColorCode(ColorType color_type, ColorValue value);
-static std::string getColorCode(ColorType color_type, uint8_t r, uint8_t g, uint8_t b);
-```
-- **Function**: Generate ANSI color escape code
-- **Parameter**: 
-  - `color_type` - Color type (Foreground/Background)
-  - `value` / `r, g, b` - Color value
-- **Return Value**: ANSI escape code string
-
-### 5.4 Member Functions
-
-#### setColor (overloads)
-
-```cpp
-void setColor(ColorValue value);
-void setColor(uint8_t r, uint8_t g, uint8_t b);
-```
-- **Function**: Set color value
-- **Parameter**: Color index or RGB components
-- **Return Value**: None
-
-#### colorCode
-
-```cpp
-[[nodiscard]] std::string colorCode(ColorType color_type) const;
-```
-- **Function**: Get ANSI escape code for specified color type
-- **Parameter**: `color_type` - Foreground or background
-- **Return Value**: Escape code string
-
-#### value
-
-```cpp
-[[nodiscard]] ColorValue value() const;
-```
-- **Function**: Get color value
-- **Return Value**: Color index (0-255)
-
-#### r / g / b
-
-```cpp
-[[nodiscard]] uint8_t r() const;
-[[nodiscard]] uint8_t g() const;
-[[nodiscard]] uint8_t b() const;
-```
-- **Function**: Get RGB component values
-- **Return Value**: Component value (0-255)
-
-### 5.5 Static Color Constants
-
-```cpp
-static const Color Black;        // Black (0)
-static const Color Red;          // Red (1)
-static const Color Green;        // Green (2)
-static const Color Yellow;       // Yellow (3)
-static const Color Blue;         // Blue (4)
-static const Color Magenta;      // Magenta (5)
-static const Color Cyan;         // Cyan (6)
-static const Color White;        // White (7)
-static const Color Default;      // Default color
-static const Color BrightBlack;  // Bright black (8)
-static const Color BrightRed;    // Bright red (9)
-static const Color BrightGreen;  // Bright green (10)
-static const Color BrightYellow; // Bright yellow (11)
-static const Color BrightBlue;   // Bright blue (12)
-static const Color BrightMagenta;// Bright magenta (13)
-static const Color BrightCyan;   // Bright cyan (14)
-static const Color BrightWhite;  // Bright white (15)
+static void setBolder(bool enable);        // Bold
+static void setDark(bool enable);          // Dim
+static void setItalic(bool enable);        // Italic
+static void setUnderline(bool enable);     // Underline
+static void setBlinking(bool enable);      // Blink
+static void reverseColor(bool enable);     // Reverse
+static void setCursorVisible(bool enable); // Cursor visibility
+static void setStrikethrough(bool enable); // Strikethrough
+static void reset();                       // Reset all styles
 ```
 
 ---
 
-## 6. Style Class
+## 6. Renderer Class
 
 ### 6.1 Class Overview
 
-Text style management class, combines foreground color, background color, and text attributes.
+Double-buffered terminal renderer supporting character drawing, rectangle filling, border drawing, and other functions.
 
-### 6.2 Constructors
+### 6.2 Nested Structures
 
-```cpp
-Style();                                    // Default style
-Style(const Color& foreground);             // Style with foreground color
-Style(const Color& foreground, const Color& background);  // Style with foreground and background
-Style(const Color& foreground, const Color& background, 
-      const std::vector<TextStyle>& styles);  // Complete style
-Style(const Style& style);                  // Copy constructor
-Style(Style&& style) noexcept;              // Move constructor
-```
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `foreground` | `Color` | Foreground color |
-| `background` | `Color` | Background color |
-| `styles` | `std::vector<TextStyle>` | Text style list |
-
-### 6.3 Destructor
+#### Style
 
 ```cpp
-~Style();
+struct Style {
+    uint16_t property;   // Style property
+    Color bg_color;      // Background color
+    Color fg_color;      // Foreground color
+};
 ```
+
+#### Cell
+
+```cpp
+struct Cell {
+    Char data;        // Character data
+    bool is_dirty;    // Whether modified
+    Style style;      // Style
+};
+```
+
+#### Corner
+
+```cpp
+struct Corner {
+    Char left_top;     // Top-left corner
+    Char left;         // Left side
+    Char left_bottom;  // Bottom-left corner
+    Char right_top;    // Top-right corner
+    Char right;        // Right side
+    Char right_bottom; // Bottom-right corner
+    Char top;          // Top side
+    Char bottom;       // Bottom side
+};
+```
+
+### 6.3 Static Member Functions
+
+#### self
+
+```cpp
+static Renderer& self();
+```
+- **Function**: Get renderer singleton
+- **Return Value**: Renderer reference
 
 ### 6.4 Member Functions
 
-#### setForeground
+#### set (overloads)
 
 ```cpp
-void setForeground(const Color& color);
+void set(const Position& pos, uint8_t ch, Style style = {});
+void set(uint32_t x, uint32_t y, uint8_t ch, Style style = {});
+void set(const Position& pos, const std::string& str, Style style = {});
+void set(uint32_t x, uint32_t y, const std::string& str, Style style = {});
 ```
-- **Function**: Set foreground color
-- **Parameter**: `color` - Foreground color
-- **Return Value**: None
+- **Function**: Set character at specified position
+- **Parameters**: 
+  - `pos` / `x, y` - Position
+  - `ch` / `str` - Character or string
+  - `style` - Style (optional)
 
-#### setBackground
+#### setStrF
 
 ```cpp
-void setBackground(const Color& color);
+template<typename ... Args>
+void setStrF(const Position& pos, const char* format, Args... args);
 ```
-- **Function**: Set background color
-- **Parameter**: `color` - Background color
-- **Return Value**: None
+- **Function**: Set formatted string
+- **Parameters**: 
+  - `pos` - Position
+  - `format` - Format string
+  - `args` - Variable arguments
 
-#### setStyles
+#### setSSF
 
 ```cpp
-void setStyles(const std::vector<TextStyle>& styles);
+template<typename ... Args>
+void setSSF(const Position& pos, const char* format, const std::vector<Style>& style, Args... args);
 ```
-- **Function**: Set text style list
-- **Parameter**: `styles` - Style list
-- **Return Value**: None
+- **Function**: Set formatted string with styles
+- **Parameters**: 
+  - `pos` - Position
+  - `format` - Format string
+  - `style` - Style array
+  - `args` - Variable arguments
 
-#### addStyle
+#### fillRect
 
 ```cpp
-void addStyle(TextStyle style);
+void fillRect(const Position& start_pos, const Position& end_pos, uint8_t ch, Style style = {});
+void fillRect(const Position& start_pos, const Position& end_pos, const std::string& str, Style style = {});
 ```
-- **Function**: Add text style
-- **Parameter**: `style` - Style to add
-- **Return Value**: None
+- **Function**: Fill rectangular region
+- **Parameters**: 
+  - `start_pos` - Start position
+  - `end_pos` - End position
+  - `ch` / `str` - Fill character or string
+  - `style` - Style
 
-#### removeStyle
+#### drawBorder
 
 ```cpp
-void removeStyle(TextStyle style);
+void drawBorder(const Position& start_pos, const Position& end_pos, Corner corner, Style style = {});
 ```
-- **Function**: Remove text style
-- **Parameter**: `style` - Style to remove
-- **Return Value**: None
+- **Function**: Draw border
+- **Parameters**: 
+  - `start_pos` - Top-left position
+  - `end_pos` - Bottom-right position
+  - `corner` - Corner character definitions
+  - `style` - Style
 
-#### foreground / background
+#### unset
 
 ```cpp
-[[nodiscard]] const Color& foreground() const;
-[[nodiscard]] const Color& background() const;
+void unset(const Position& pos);
+void unset(uint32_t x, uint32_t y);
 ```
-- **Function**: Get foreground/background color
-- **Return Value**: Constant reference to color
+- **Function**: Clear specified position
+- **Parameters**: Target position
 
-#### styles
+#### refresh
 
 ```cpp
-[[nodiscard]] const std::vector<TextStyle>& styles() const;
+void refresh();
 ```
-- **Function**: Get style list
-- **Return Value**: Constant reference to style list
-
-#### ansiCode
-
-```cpp
-[[nodiscard]] std::string ansiCode() const;
-```
-- **Function**: Generate complete ANSI escape code
-- **Return Value**: Escape code string
-
-### 6.5 Static Style Constants
-
-```cpp
-static const Style Default;       // Default style
-static const Style Bold;          // Bold style
-static const Style Underline;     // Underline style
-static const Style Italic;        // Italic style
-static const Style Strikethrough; // Strikethrough style
-static const Style Blink;         // Blink style
-static const Style Reverse;       // Reverse style
-static const Style Hidden;        // Hidden style
-static const Style Dim;           // Dim style
-```
-
----
-
-## 7. Canvas Class
-
-### 7.1 Class Overview
-
-Terminal canvas class, provides drawing characters, strings, borders, and other functionality.
-
-### 7.2 Constructors
-
-```cpp
-Canvas();
-Canvas(uint16_t width, uint16_t height);
-Canvas(const Canvas& canvas);
-Canvas(Canvas&& canvas) noexcept;
-```
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `width` | `uint16_t` | Canvas width (characters) |
-| `height` | `uint16_t` | Canvas height (characters) |
-
-### 7.3 Destructor
-
-```cpp
-~Canvas();
-```
-
-### 7.4 Member Functions
-
-#### setSize
-
-```cpp
-void setSize(uint16_t width, uint16_t height);
-```
-- **Function**: Set canvas size
-- **Parameter**: `width` - Width, `height` - Height
-- **Return Value**: None
-- **Constraint**: Clears canvas content
-
-#### resize
-
-```cpp
-void resize(uint16_t width, uint16_t height);
-```
-- **Function**: Resize canvas (preserves existing content)
-- **Parameter**: `width` - New width, `height` - New height
-- **Return Value**: None
-
-#### width / height
-
-```cpp
-[[nodiscard]] uint16_t width() const;
-[[nodiscard]] uint16_t height() const;
-```
-- **Function**: Get canvas width/height
-- **Return Value**: Size value
+- **Function**: Refresh buffer size (respond to terminal size changes)
 
 #### clear
 
 ```cpp
 void clear();
 ```
-- **Function**: Clear canvas content
-- **Return Value**: None
+- **Function**: Clear front buffer
 
-#### fill
-
-```cpp
-void fill(char c);
-void fill(char c, const Style& style);
-```
-- **Function**: Fill entire canvas with specified character
-- **Parameter**: 
-  - `c` - Fill character
-  - `style` - Fill style (optional)
-- **Return Value**: None
-
-#### drawChar
+#### present
 
 ```cpp
-void drawChar(uint16_t x, uint16_t y, char c);
-void drawChar(uint16_t x, uint16_t y, char c, const Style& style);
+void present();
 ```
-- **Function**: Draw character at specified position
-- **Parameter**: 
-  - `x, y` - Coordinates (0-based)
-  - `c` - Character
-  - `style` - Style (optional)
-- **Return Value**: None
-- **Constraint**: Does nothing if coordinates out of bounds
+- **Function**: Present front buffer content to screen
 
-#### drawString
+---
+
+## 7. AbstractWidget Class
+
+### 7.1 Class Overview
+
+Abstract widget base class, base class for all TUI widgets.
+
+### 7.2 Constructor
 
 ```cpp
-void drawString(uint16_t x, uint16_t y, const std::string& str);
-void drawString(uint16_t x, uint16_t y, const std::string& str, const Style& style);
+explicit AbstractWidget(const std::string& name, const Position& position, const Size& size);
 ```
-- **Function**: Draw string at specified position
-- **Parameter**: 
-  - `x, y` - Starting coordinates
-  - `str` - String content
-  - `style` - Style (optional)
-- **Return Value**: None
-- **Constraint**: Truncates if string exceeds canvas boundary
+- **Parameters**: 
+  - `name` - Widget name
+  - `position` - Position
+  - `size` - Size
 
-#### drawHorizontalLine
+### 7.3 Destructor
 
 ```cpp
-void drawHorizontalLine(uint16_t x, uint16_t y, uint16_t length);
-void drawHorizontalLine(uint16_t x, uint16_t y, uint16_t length, const Style& style);
+virtual ~AbstractWidget();
 ```
-- **Function**: Draw horizontal line
-- **Parameter**: 
-  - `x, y` - Starting coordinates
-  - `length` - Line length
-  - `style` - Style (optional)
-- **Return Value**: None
 
-#### drawVerticalLine
+### 7.4 Member Functions
+
+#### rename
 
 ```cpp
-void drawVerticalLine(uint16_t x, uint16_t y, uint16_t length);
-void drawVerticalLine(uint16_t x, uint16_t y, uint16_t length, const Style& style);
+void rename(const std::string& name);
 ```
-- **Function**: Draw vertical line
-- **Parameter**: 
-  - `x, y` - Starting coordinates
-  - `length` - Line length
-  - `style` - Style (optional)
-- **Return Value**: None
+- **Function**: Rename widget
+- **Parameter**: `name` - New name
 
-#### drawBox
+#### move
 
 ```cpp
-void drawBox(uint16_t x, uint16_t y, uint16_t width, uint16_t height);
-void drawBox(uint16_t x, uint16_t y, uint16_t width, uint16_t height, 
-             BorderStyle border_style);
-void drawBox(uint16_t x, uint16_t y, uint16_t width, uint16_t height, 
-             BorderStyle border_style, const Style& style);
+void move(const Position& position);
+void move(uint32_t x, uint32_t y);
 ```
-- **Function**: Draw rectangular box
-- **Parameter**: 
-  - `x, y` - Top-left corner coordinates
-  - `width, height` - Box dimensions
-  - `border_style` - Border style (default Single)
-  - `style` - Style (optional)
-- **Return Value**: None
+- **Function**: Move widget position
+- **Parameters**: New position
 
-#### drawFilledBox
+#### resize
 
 ```cpp
-void drawFilledBox(uint16_t x, uint16_t y, uint16_t width, uint16_t height);
-void drawFilledBox(uint16_t x, uint16_t y, uint16_t width, uint16_t height, 
-                   char fill_char);
-void drawFilledBox(uint16_t x, uint16_t y, uint16_t width, uint16_t height, 
-                   char fill_char, const Style& style);
+void resize(const Size& size);
+void resize(uint32_t w, uint32_t h);
 ```
-- **Function**: Draw filled rectangular box
-- **Parameter**: 
-  - `x, y` - Top-left corner coordinates
-  - `width, height` - Box dimensions
-  - `fill_char` - Fill character (default space)
-  - `style` - Style (optional)
-- **Return Value**: None
+- **Function**: Resize widget
+- **Parameters**: New size
 
-#### render
+#### name
 
 ```cpp
-void render() const;
+[[nodiscard]] const std::string& name() const;
 ```
-- **Function**: Render canvas content to terminal
-- **Return Value**: None
-- **Output**: ANSI escape code formatted text
+- **Function**: Get widget name
+- **Return Value**: Name reference
 
-### 7.5 Static Member Functions
-
-#### moveCursor
+#### position
 
 ```cpp
-static std::string moveCursor(uint16_t x, uint16_t y);
+[[nodiscard]] const Position& position() const;
 ```
-- **Function**: Generate cursor movement escape code
-- **Parameter**: `x, y` - Target coordinates (1-based)
-- **Return Value**: Escape code string
+- **Function**: Get widget position
+- **Return Value**: Position reference
 
-#### clearScreen
+#### size
 
 ```cpp
-static std::string clearScreen();
+[[nodiscard]] const Size& size() const;
 ```
-- **Function**: Generate screen clear escape code
-- **Return Value**: Escape code string
+- **Function**: Get widget size
+- **Return Value**: Size reference
 
-#### clearLine
+### 7.5 Pure Virtual Functions
 
 ```cpp
-static std::string clearLine();
+virtual void renderEvent() = 0;
 ```
-- **Function**: Generate line clear escape code
-- **Return Value**: Escape code string
-
-#### hideCursor / showCursor
-
-```cpp
-static std::string hideCursor();
-static std::string showCursor();
-```
-- **Function**: Generate cursor hide/show escape codes
-- **Return Value**: Escape code string
-
-#### setWindowTitle
-
-```cpp
-static std::string setWindowTitle(const std::string& title);
-```
-- **Function**: Generate window title setting escape code
-- **Parameter**: `title` - Window title
-- **Return Value**: Escape code string
+- **Function**: Render event handling, must be implemented by subclasses
 
 ---
 
 ## 8. Usage Examples
 
-### 8.1 Basic Color Usage Example
+### 8.1 Basic Terminal Control
 
 ```cpp
 #include "TUI/TUI.hpp"
@@ -550,178 +662,168 @@ static std::string setWindowTitle(const std::string& title);
 int main() {
     using namespace Tiny::TUI;
     
-    // Use predefined colors
-    std::cout << Color::Red.colorCode(ColorType::Foreground) 
-              << "Red text" << Style::Default.ansiCode() << std::endl;
-    
-    // Use RGB colors
-    Color custom(255, 128, 0);  // Orange
-    std::cout << custom.colorCode(ColorType::Foreground) 
-              << "Orange text" << Style::Default.ansiCode() << std::endl;
-    
-    // Use 256 colors
-    Color purple(93);  // Purple
-    std::cout << purple.colorCode(ColorType::Foreground) 
-              << "Purple text" << Style::Default.ansiCode() << std::endl;
-    
-    return 0;
-}
-```
-
-### 8.2 Style Usage Example
-
-```cpp
-#include "TUI/TUI.hpp"
-#include <iostream>
-
-int main() {
-    using namespace Tiny::TUI;
-    
-    // Create custom style
-    Style myStyle(Color::White, Color::Blue, {TextStyle::Bold});
-    std::cout << myStyle.ansiCode() << "Bold white text on blue background" 
-              << Style::Default.ansiCode() << std::endl;
-    
-    // Chain styles
-    std::cout << Style(Color::Green).ansiCode() << "Green text"
-              << Style::Bold.ansiCode() << " and bold"
-              << Style::Underline.ansiCode() << " and underlined"
-              << Style::Default.ansiCode() << std::endl;
-    
-    // Use static styles
-    std::cout << Style::Bold.ansiCode() << "Bold only"
-              << Style::Default.ansiCode() << std::endl;
-    
-    return 0;
-}
-```
-
-### 8.3 Canvas Basic Usage Example
-
-```cpp
-#include "TUI/TUI.hpp"
-#include <iostream>
-
-int main() {
-    using namespace Tiny::TUI;
-    
-    // Create canvas
-    Canvas canvas(40, 10);
-    
-    // Fill background
-    canvas.fill(' ', Style(Color::Black, Color::Black));
-    
-    // Draw border
-    canvas.drawBox(0, 0, 40, 10, BorderStyle::Single);
-    
-    // Draw title
-    canvas.drawString(12, 1, "Terminal UI Demo", 
-                      Style(Color::Yellow, Color::Black, {TextStyle::Bold}));
-    
-    // Draw content
-    canvas.drawString(2, 3, "This is a simple TUI example.");
-    canvas.drawString(2, 5, "Features:");
-    canvas.drawString(4, 6, "- Color support");
-    canvas.drawString(4, 7, "- Border styles");
-    canvas.drawString(4, 8, "- Text styling");
-    
-    // Draw button
-    canvas.drawFilledBox(15, 8, 10, 1, ' ', 
-                         Style(Color::White, Color::Blue));
-    canvas.drawString(17, 8, "[ OK ]", 
-                      Style(Color::White, Color::Blue, {TextStyle::Bold}));
-    
-    // Render
-    canvas.render();
-    
-    return 0;
-}
-```
-
-### 8.4 Complex UI Example
-
-```cpp
-#include "TUI/TUI.hpp"
-#include <iostream>
-#include <vector>
-
-int main() {
-    using namespace Tiny::TUI;
-    
-    Canvas canvas(60, 15);
+    // Enter raw mode
+    Terminal::enterRawMode();
     
     // Clear screen
-    std::cout << Canvas::clearScreen();
+    Terminal::clearScreen();
     
-    // Draw main window
-    canvas.drawBox(0, 0, 60, 15, BorderStyle::Double);
-    canvas.drawString(20, 1, "System Monitor", 
-                      Style(Color::Cyan, Color::Black, {TextStyle::Bold}));
+    // Set color and output
+    Terminal::setForegroundColor(Color::Green);
+    Terminal::printLine("Hello, TUI!");
+    Terminal::reset();
     
-    // Draw separator line
-    canvas.drawHorizontalLine(1, 2, 58, Style(Color::Gray));
+    // Formatted output
+    Terminal::printFormat("Screen size: {}x{}\n", 
+        Terminal::screenSize().width,
+        Terminal::screenSize().height);
     
-    // Draw info panel
-    canvas.drawBox(2, 3, 25, 5, BorderStyle::Single);
-    canvas.drawString(4, 4, "CPU: 45%", Style(Color::Green));
-    canvas.drawString(4, 5, "RAM: 2.1GB / 8GB", Style(Color::Yellow));
-    canvas.drawString(4, 6, "Disk: 120GB / 500GB", Style(Color::Blue));
+    // Move cursor
+    Terminal::moveCursor(5, 10);
+    Terminal::print("Position (5, 10)");
     
-    // Draw progress bar
-    canvas.drawString(30, 4, "CPU Usage:");
-    canvas.drawBox(30, 5, 20, 1, BorderStyle::Single);
-    canvas.drawFilledBox(31, 5, 9, 1, '#', Style(Color::Green, Color::Green));
+    // Read key
+    Terminal::printLine("\nPress any key...");
+    uint8_t key;
+    SP_Keys sp_key;
+    Terminal::getKey(key, sp_key);
     
-    // Draw menu
-    std::vector<std::string> menu = {"Process", "Network", "Disk", "Settings"};
-    for (size_t i = 0; i < menu.size(); ++i) {
-        if (i == 0) {
-            canvas.drawFilledBox(30, 7 + i, 15, 1, ' ', 
-                                 Style(Color::Black, Color::White));
-            canvas.drawString(32, 7 + i, menu[i], 
-                              Style(Color::Black, Color::White, {TextStyle::Bold}));
-        } else {
-            canvas.drawString(32, 7 + i, menu[i]);
+    Terminal::printFormat("Key: {} ({})", 
+        getKeyName(key, sp_key),
+        (int)key);
+    
+    // Exit raw mode
+    Terminal::leaveRawMode();
+    
+    return 0;
+}
+```
+
+### 8.2 Renderer Usage
+
+```cpp
+#include "TUI/TUI.hpp"
+
+int main() {
+    using namespace Tiny::TUI;
+    
+    // Get renderer instance
+    auto& renderer = Renderer::self();
+    
+    // Set character
+    renderer.set(0, 0, 'H');
+    renderer.set(1, 0, "Hello");
+    
+    // Set style
+    Renderer::Style style;
+    style.fg_color = Color::Green;
+    renderer.set(2, 0, "Green Text", style);
+    
+    // Draw border
+    Renderer::Corner corner;
+    corner.left_top = "+";
+    corner.left = "|";
+    corner.top = "-";
+    corner.right_top = "+";
+    corner.right = "|";
+    corner.right_bottom = "+";
+    corner.left_bottom = "+";
+    corner.bottom = "-";
+    renderer.drawBorder({5, 5}, {15, 25}, corner);
+    
+    // Fill rectangle
+    renderer.fillRect({6, 6}, {14, 24}, ' ');
+    
+    // Formatted output
+    renderer.setStrF({7, 7}, "Count: {}", 42);
+    
+    // Present to screen
+    renderer.present();
+    
+    // Wait for input
+    Terminal::getKey();
+    
+    return 0;
+}
+```
+
+### 8.3 Mouse Event Handling
+
+```cpp
+#include "TUI/TUI.hpp"
+#include <iostream>
+
+int main() {
+    using namespace Tiny::TUI;
+    
+    Terminal::enterRawMode();
+    Terminal::setMouseEnabled(true);
+    Terminal::clearScreen();
+    
+    Terminal::printLine("Click anywhere or press 'q' to quit...");
+    
+    while (true) {
+        uint8_t key;
+        SP_Keys sp_key;
+        Terminal::getKey(key, sp_key);
+        
+        if (key == 'q' || key == 'Q') {
+            break;
+        }
+        
+        if (key == KEY_SPECIAL) {
+            Position pos;
+            bool pressed;
+            uint8_t mouse_btn = Terminal::getMouseButton(&pos, &pressed);
+            
+            Terminal::moveCursor(2, 0);
+            Terminal::clearInRow(2);
+            Terminal::printFormat("Mouse: {} at ({}, {}), Pressed: {}",
+                getMouseName(static_cast<SP_Mouse>(mouse_btn)),
+                pos.row, pos.column, pressed);
         }
     }
     
-    // Draw status bar
-    canvas.drawFilledBox(1, 13, 58, 1, ' ', 
-                         Style(Color::White, Color::Blue));
-    canvas.drawString(2, 13, " F1:Help  F2:Refresh  F10:Exit", 
-                      Style(Color::White, Color::Blue));
-    
-    // Render
-    canvas.render();
+    Terminal::setMouseEnabled(false);
+    Terminal::leaveRawMode();
     
     return 0;
 }
 ```
 
-### 8.5 Direct Escape Code Usage Example
+### 8.4 Color and Style Example
 
 ```cpp
 #include "TUI/TUI.hpp"
-#include <iostream>
 
 int main() {
     using namespace Tiny::TUI;
     
-    // Hide cursor
-    std::cout << Canvas::hideCursor();
+    Terminal::enterRawMode();
+    Terminal::clearScreen();
     
-    // Clear screen
-    std::cout << Canvas::clearScreen();
+    // ANSI 16 colors
+    Terminal::setForegroundColor(Color::Red);
+    Terminal::printLine("Red Text");
     
-    // Set window title
-    std::cout << Canvas::setWindowTitle("My TUI App");
+    Terminal::setForegroundColor(Color::Blue, true);  // Bright
+    Terminal::printLine("Bright Blue Text");
     
-    // Move cursor and output
-    std::cout << Canvas::moveCursor(10, 5) << "Position (10, 5)";
-    std::cout << Canvas::moveCursor(10, 6) << "Position (10, 6)";
+    // RGB colors
+    Terminal::setForegroundColor(255, 128, 0);  // Orange
+    Terminal::setBackgroundColor(0, 0, 128);    // Dark blue background
+    Terminal::printLine("Orange on Dark Blue");
     
-    // Show cursor
-    std::cout << Canvas::showCursor();
+    Terminal::reset();
+    
+    // Style combination
+    Terminal::setBolder(true);
+    Terminal::setUnderline(true);
+    Terminal::printLine("Bold and Underlined");
+    
+    Terminal::reset();
+    Terminal::getKey();
+    Terminal::leaveRawMode();
     
     return 0;
 }
@@ -731,49 +833,39 @@ int main() {
 
 ## 9. Notes
 
-### 9.1 Terminal Support
+### 9.1 Raw Mode
 
-- Modern terminals (Windows Terminal, iTerm2, GNOME Terminal) fully support
-- Windows cmd.exe has limited support (requires Windows 10+)
-- Some terminals may not support certain styles (e.g., Blink)
+- After entering raw mode, terminal will not automatically handle input/output
+- Must manually handle Enter, Backspace, and other keys
+- Must call `leaveRawMode()` before program exit
+- Recommended to use RAII pattern to ensure terminal state restoration
 
-### 9.2 Coordinate System
+### 9.2 Terminal Compatibility
 
-- Canvas uses 0-based coordinates (top-left is 0, 0)
-- `moveCursor` uses 1-based coordinates (compatibility with ANSI standard)
-- Coordinates out of bounds are automatically ignored
+- Requires terminal supporting ANSI escape sequences
+- Windows 10+, modern Linux terminals, macOS Terminal are all supported
+- Windows 7/8 may need to enable virtual terminal processing
 
-### 9.3 Performance Considerations
+### 9.3 Mouse Support
 
-- Canvas `render()` generates complete escape code string
-- Frequent rendering may cause screen flicker
-- Recommended to render at 30fps or below
+- Requires terminal supporting mouse events
+- After enabling, mouse events are returned via `getKey()` as `KEY_SPECIAL`
+- Then call `getMouseButton()` to get detailed information
 
-### 9.4 Color Limitations
+### 9.4 Renderer Usage
 
-- 256 colors: index 0-15 are standard colors, 16-231 are color cube, 232-255 are grayscale
-- RGB colors: requires terminal supporting true color (24-bit)
-- If terminal doesn't support, colors automatically degrade
+- Uses double buffering mechanism, draws to buffer first
+- Call `present()` to actually output to screen
+- Call `refresh()` to update buffer after terminal size changes
 
-### 9.5 Escape Code Reference
+### 9.5 UTF-8 Support
 
-| Code | Function |
-|------|----------|
-| `\033[0m` | Reset all styles |
-| `\033[38;5;Nm` | Set foreground to 256-color N |
-| `\033[48;5;Nm` | Set background to 256-color N |
-| `\033[38;2;R;G;Bm` | Set foreground to RGB color |
-| `\033[48;2;R;G;Bm` | Set background to RGB color |
-| `\033[H` | Move cursor to top-left |
-| `\033[2J` | Clear screen |
-| `\033[K` | Clear to end of line |
-| `\033[?25l` | Hide cursor |
-| `\033[?25h` | Show cursor |
-| `\033]0;Title\007` | Set window title |
+- Supports multi-byte character display
+- Use `splitUTF8()` to process strings
+- Note width calculation for full-width characters like Chinese
 
-### 9.6 Best Practices
+### 9.6 Performance Considerations
 
-- Always reset styles after colored output
-- Use Canvas for complex UI, direct escape codes for simple output
-- Hide cursor during animation to avoid flicker
-- Test terminal support before using advanced features
+- Avoid frequent `present()` calls
+- Batch drawing and present uniformly
+- Use dirty marking to reduce unnecessary redraws
