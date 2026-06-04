@@ -104,7 +104,7 @@ int main() {
 }
 ```
 
-> P.S: Since this project is still in the development stage, there is currently no related API documentation, which may be planned for future updates.
+**P.S: To view the API reference, please refer to [API Reference](docs/home.md).**
 
 ## License
 
