@@ -12,11 +12,6 @@ int main() {
     renderer.drawBorder({2, 0}, {4, 10}, {});
     renderer.drawBorder({4, 0}, {10, 10}, {});
     renderer.fillRect({6, 2}, {9, 8}, '*');
-    renderer.set(1, 1, "哈");
-    renderer.set(2, 1, "哈");
-    renderer.set(3, 1, "哈");
-    renderer.set(4, 1, "~");
-    renderer.set(5, 1, "~");
     renderer.present();
     TUI::Terminal::getKey();
     renderer.set(1, 11, 'E');

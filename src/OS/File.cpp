@@ -355,7 +355,7 @@ namespace Tiny {
     OS::File &OS::File::operator=(File &&file) noexcept {
         if (this == &file) return *this;
         
-        _path = std::move(file._path);
+        _path = file._path;
         _open_mode = std::move(file._open_mode);
         _handler = std::move(file._handler);
         file.reset();

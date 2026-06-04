@@ -179,11 +179,12 @@ namespace Tiny {
         Terminal::clearScreen();
         size_t row = 0;
         for (auto& bufs : _buffer) {
+            size_t col = 0;
             for (auto& b : bufs) {
-                // if (b.data.display_length > 1) {
-                //     Terminal::print("\b");
-                // }
-                Terminal::print(b.is_dirty ? " " : b.data.data);
+                if (!b.is_dirty) {
+                    Terminal::moveCursor(row, col);
+                    Terminal::print(b.data.data);
+                }
             }
             Terminal::moveCursor(++row, 0);
         }
