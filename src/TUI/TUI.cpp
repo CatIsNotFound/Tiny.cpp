@@ -56,18 +56,18 @@ namespace Tiny {
             uint8_t ch = *data;
             if ((ch & 0xE0) == 0xc0) {
                 str += *data++;
-                str += *data;
+                str += *data++;
             } else if ((ch & 0xF0) == 0xE0) {
                 str += *data++;
                 str += *data++;
-                str += *data;
+                str += *data++;
             } else if ((ch & 0xF8) == 0xF0) {
                 str += *data++;
                 str += *data++;
                 str += *data++;
-                str += *data;
+                str += *data++;
             } else {
-                str += *data;
+                str += *data++;
             }
             result.push_back(str);
         }
@@ -122,22 +122,22 @@ namespace Tiny {
 
     void TUI::Renderer::drawBorder(const Position &start_pos, const Position &end_pos, Corner corner, Style style) {
         // left top
-        _front_buffer[start_pos.row][start_pos.column].set(corner.left_top.data.c_str(), style);
+        _front_buffer[start_pos.row][start_pos.column].set(corner.left_top.data().c_str(), style);
         // left bottom
-        _front_buffer[end_pos.row][start_pos.column].set(corner.left_bottom.data.c_str(), style);
+        _front_buffer[end_pos.row][start_pos.column].set(corner.left_bottom.data().c_str(), style);
         // right top
-        _front_buffer[start_pos.row][end_pos.column].set(corner.right_top.data.c_str(), style);
+        _front_buffer[start_pos.row][end_pos.column].set(corner.right_top.data().c_str(), style);
         // right bottom
-        _front_buffer[end_pos.row][end_pos.column].set(corner.right_bottom.data.c_str(), style);
+        _front_buffer[end_pos.row][end_pos.column].set(corner.right_bottom.data().c_str(), style);
         // top / bottom
         for (uint32_t c = start_pos.column + 1; c < end_pos.column; c++) {
-            _front_buffer[start_pos.row][c].set(corner.top.data.c_str(), style);
-            _front_buffer[end_pos.row][c].set(corner.bottom.data.c_str(), style);
+            _front_buffer[start_pos.row][c].set(corner.top.data().c_str(), style);
+            _front_buffer[end_pos.row][c].set(corner.bottom.data().c_str(), style);
         }
         // left / right
         for (uint32_t r = start_pos.row + 1; r < end_pos.row; r++) {
-            _front_buffer[r][start_pos.column].set(corner.left.data.c_str(), style);
-            _front_buffer[r][end_pos.column].set(corner.right.data.c_str(), style);
+            _front_buffer[r][start_pos.column].set(corner.left.data().c_str(), style);
+            _front_buffer[r][end_pos.column].set(corner.right.data().c_str(), style);
         }
     }
 
@@ -177,14 +177,33 @@ namespace Tiny {
 
     void TUI::Renderer::renderEvent() {
         Terminal::clearScreen();
+        Terminal::reset();
         size_t row = 0;
+        Style old_style{};
         for (auto& bufs : _buffer) {
             size_t col = 0;
             for (auto& b : bufs) {
                 if (!b.is_dirty) {
                     Terminal::moveCursor(row, col);
-                    Terminal::print(b.data.data);
+                    if (b.style != old_style) {
+                        old_style = b.style;
+                        if (b.style.isDefault()) {
+                            Terminal::reset();
+                        } else {
+                            Terminal::setBackgroundColor(old_style.bg_color, old_style.intensity & 1);
+                            Terminal::setForegroundColor(old_style.fg_color, old_style.intensity & 2);
+                            Terminal::setBolder(old_style.property & Style::Bolder);
+                            Terminal::setDark(old_style.property & Style::Dark);
+                            Terminal::setItalic(old_style.property & Style::Italic);
+                            Terminal::setUnderline(old_style.property & Style::Underline);
+                            Terminal::setBlinking(old_style.property & Style::Blinking);
+                            Terminal::reverseColor(old_style.property & Style::Reverse);
+                            Terminal::setStrikethrough(old_style.property & Style::Strikethrough);
+                        }
+                    }
+                    Terminal::print(b.data.data());
                 }
+                col++;
             }
             Terminal::moveCursor(++row, 0);
         }
@@ -195,6 +214,20 @@ namespace Tiny {
         _front_buffer.resize(size.height);
         for (auto &i : _front_buffer) {
             i.resize(size.width);
+        }
+    }
+
+    void TUI::Renderer::setChars(const Position &pos, const std::string &str, const Style& style) {
+        auto strs = splitUTF8(str.c_str());
+        auto size = Terminal::screenSize();
+        Position temp = pos;
+        for (auto &s : strs) {
+            if (temp.column + 1 >= size.width) {
+                temp.column = 0;
+                temp.row += 1;
+            }
+            set(temp, s, style);
+            temp.column += (s.size() > 1 ? s.size() - 1 : s.size());
         }
     }
 }

@@ -28,6 +28,7 @@
 
 #include "Terminal.hpp"
 #include <vector>
+#include <bitset>
 #include <cstring>
 
 namespace Tiny {
@@ -35,59 +36,79 @@ namespace Tiny {
         std::string splitFront(const char* data);
         std::vector<std::string> splitUTF8(const char* data);
 
-        struct Char {
-            std::string data;
-            uint8_t display_length;
-
-            Char() : data(" "), display_length(1) {}
-            Char(const char* data) : data(splitFront(data)), display_length(strlen(data)) {}
-            Char(const std::string& data) : data(splitFront(data.data())), display_length(data.size()) {}
+        class Char {
+            std::string _data;
+            uint8_t _length;
+        public:
+            Char() : _data(" "), _length(1) {}
+            Char(const char* data) : _data(splitFront(data)), _length(strlen(data)) {}
+            Char(const std::string& data) : _data(splitFront(data.data())), _length(data.size()) {}
             Char& operator=(const std::string& ch) {
-                this->data = ch;
-                this->display_length = ch.length();
+                this->_data = ch;
+                this->_length = ch.length();
                 return *this;
             }
             Char& operator=(const char* ch) {
-                this->data = ch;
-                this->display_length = this->data.length();
+                this->_data = ch;
+                this->_length = this->_data.length();
                 return *this;
             }
             Char& operator=(const Char& ch) {
-                this->data = ch.data;
-                this->display_length = this->data.length();
+                this->_data = ch._data;
+                this->_length = this->_data.length();
                 return *this;
             }
             bool operator==(const Char& other) const {
-                if (this->data != other.data) return false;
-                if (this->display_length != other.display_length) return false;
+                if (this->_data != other._data) return false;
+                if (this->_length != other._length) return false;
                 return true;
             }
             bool operator!=(const Char& other) const {
-                if (this->data != other.data) return true;
-                if (this->display_length != other.display_length) return true;
+                if (this->_data != other._data) return true;
+                if (this->_length != other._length) return true;
                 return false;
             }
+
+            const std::string& data() const { return _data; }
+            uint8_t length() const { return _length; }
         };
 
         class Renderer {
         public:
             struct Style {
-                uint16_t property;
+                uint8_t property;
                 Color bg_color;
                 Color fg_color;
+                uint8_t intensity;
 
-                Style() : property(), bg_color(), fg_color(Color::Default) {}
+                enum Property : uint8_t {
+                    Bolder            = 1,
+                    Dark              = 2,
+                    Italic            = 4,
+                    Underline         = 8,
+                    Blinking          = 16,
+                    Reverse           = 32,
+                    Strikethrough     = 64,
+                };
+
+                Style() : property(), bg_color(), fg_color(Color::Default), intensity(2) {}
 
                 void reset() {
                     property = 0;
+                    intensity = 2;
                     bg_color = Color::Black;
                     fg_color = Color::Default;
+                }
+
+                bool isDefault() const {
+                    return property == 0 && intensity == 2 && bg_color == Color::Black && fg_color == Color::Default;
                 }
 
                 bool operator==(const Style& other) const {
                     if (property != other.property) return false;
                     if (bg_color != other.bg_color) return false;
                     if (fg_color != other.fg_color) return false;
+                    if (intensity != other.intensity) return false;
                     return true;
                 }
 
@@ -95,6 +116,7 @@ namespace Tiny {
                     if (property != other.property) return true;
                     if (bg_color != other.bg_color) return true;
                     if (fg_color != other.fg_color) return true;
+                    if (intensity != other.intensity) return true;
                     return false;
                 }
             };
@@ -138,19 +160,12 @@ namespace Tiny {
             void set(const Position& pos, const std::string& str, Style style = {});
             void set(uint32_t x, uint32_t y, const std::string& str, Style style = {});
             template<typename ... Args>
-            void setStrF(const Position& pos, const char* format, Args... args) {
-                auto f_text = Terminal::formatString(format, args...);
-                setChars(pos, f_text);
-            }
+            void setStrF(const Position& pos, const char* format, Args... args);
             template<typename ... Args>
-            void setSSF(const Position& pos, const char* format, const std::vector<Style>& style, Args... args) {
-                auto f_text = Terminal::formatString(format, args...);
-                formatStyle(pos, f_text, style);
-                setChars(pos, f_text);
-            }
+            void setSSF(const Position& pos, const char* format, const Style& style, Args... args);
             void fillRect(const Position& start_pos, const Position& end_pos, uint8_t ch, Style style = {});
             void fillRect(const Position& start_pos, const Position& end_pos, const std::string& str, Style style = {});
-            void drawBorder(const Position& start_pos, const Position& end_pos, Corner corner, Style style = {});
+            void drawBorder(const Position& start_pos, const Position& end_pos, Corner corner = {}, Style style = {});
             void unset(const Position& pos);
             void unset(uint32_t x, uint32_t y);
 
@@ -162,13 +177,22 @@ namespace Tiny {
             virtual void renderEvent();
             virtual void resizeEvent();
         private:
-            void setChars(const Position& pos, const std::string& str);
-            void formatStyle(const Position& pos, const char* format, const std::vector<Style>& styles);
+            void setChars(const Position& pos, const std::string& str, const Style& style = {});
             std::vector<std::vector<Cell>> _buffer;
             std::vector<std::vector<Cell>> _front_buffer;
         };
 
+        template<typename ... Args>
+        void Renderer::setStrF(const Position& pos, const char* format, Args... args) {
+            auto f_text = Terminal::formatString(format, args...);
+            setChars(pos, f_text);
+        }
 
+        template<typename ... Args>
+        void Renderer::setSSF(const Position& pos, const char* format, const Style& style, Args... args) {
+            std::string f_text = Terminal::formatString(format, args...);
+            setChars(pos, f_text, style);
+        }
 
         class AbstractWidget {
         public:
