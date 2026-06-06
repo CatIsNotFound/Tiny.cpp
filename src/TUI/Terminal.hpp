@@ -172,6 +172,8 @@ namespace Tiny {
 
         const char* getKeyName(const uint8_t &KEY, const SP_Keys &SP);
         const char* getMouseName(const SP_Mouse &SP);
+        int8_t comparePosition(const Position& pos1, const Position& pos2);
+        int8_t compareSize(const Size& size1, const Size& size2);
 
         class Terminal {
         public:

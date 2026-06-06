@@ -228,6 +228,22 @@ namespace Tiny {
         }
     }
 
+    int8_t TUI::comparePosition(const TUI::Position &pos1, const TUI::Position &pos2) {
+        if (pos1.row < pos2.row) return 1;
+        if (pos1.row == pos2.row) {
+            return (pos1.column < pos2.column) ? 1 : ((pos1.column > pos2.column) ? -1 : 0);
+        }
+        return -1;
+    }
+
+    int8_t TUI::compareSize(const TUI::Size &size1, const TUI::Size &size2) {
+        if (size1.height < size2.height) return 1;
+        if (size1.height == size2.height) {
+            return (size1.width < size2.width) ? 1 : ((size1.width > size2.width) ? -1 : 0);
+        }
+        return -1;
+    }
+
 #ifdef TINY_CPP_MY_OS_UNIX
     termios TUI::Terminal::_old_terminal{};
     bool TUI::Terminal::_is_in_raw_mode{};
@@ -397,7 +413,7 @@ namespace Tiny {
 
     bool TUI::Terminal::clearScreen() {
 #ifdef TINY_CPP_MY_OS_UNIX
-        write(STDOUT_FILENO, "\x1b[2J\x1b[H", 8);
+        write(STDOUT_FILENO, "\x1b[2J", 8);
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return false;
@@ -407,7 +423,6 @@ namespace Tiny {
         DWORD written{};
         if (!FillConsoleOutputCharacterW(console, L' ', size, {0, 0}, &written))
             return false;
-        if (!SetConsoleCursorPosition(console, {0, 0})) return false;
 #endif
         return true;
     }

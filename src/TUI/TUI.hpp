@@ -89,11 +89,11 @@ namespace Tiny {
         class Renderer {
         public:
             struct Style {
-                uint8_t property;
+                uint8_t property;   // Used enum `Renderer::Style::Property` is better.
                 Color bg_color;
                 Color fg_color;
-                uint8_t intensity;
-                bool used_rgb_color{};
+                uint8_t intensity;  // 0 = None, 1 = Only Background, 2 = Only Foreground, 3 = All.
+                bool used_rgb_color{};  // If set `true`, need set `bg_rgb_color` and `fg_rgb_color` members.
                 RGBColor bg_rgb_color;
                 RGBColor fg_rgb_color;
 
@@ -182,15 +182,19 @@ namespace Tiny {
             void setStrF(const Position& pos, const char* format, Args... args);
             template<typename ... Args>
             void setSSF(const Position& pos, const char* format, const Style& style, Args... args);
-            void fillRows(uint8_t start_row, uint8_t end_row, uint8_t ch = ' ', Style style = {});
-            void fillRows(uint8_t start_row, uint8_t end_row, const std::string& ch, Style style = {});
-            void fillCols(uint8_t start_col, uint8_t end_col, uint8_t ch = ' ', Style style = {});
-            void fillCols(uint8_t start_col, uint8_t end_col, const std::string& ch, Style style = {});
+            void fillScreen(const Style& style = {});
+            void fillRows(uint32_t start_row, uint32_t end_row, uint8_t ch = ' ', Style style = {});
+            void fillRows(uint32_t start_row, uint32_t end_row, const std::string& ch, Style style = {});
+            void fillCols(uint32_t start_col, uint32_t end_col, uint8_t ch = ' ', Style style = {});
+            void fillCols(uint32_t start_col, uint32_t end_col, const std::string& ch, Style style = {});
             void fillRect(const Position& start_pos, const Position& end_pos, uint8_t ch = ' ', Style style = {});
             void fillRect(const Position& start_pos, const Position& end_pos, const std::string& ch, Style style = {});
             void drawBorder(const Position& start_pos, const Position& end_pos, Corner corner, Style style = {});
             void unset(const Position& pos);
             void unset(uint32_t x, uint32_t y);
+            void unsetRow(uint32_t row);
+            void unsetCol(uint32_t col);
+            void unsetRect(const Position &start_pos, const Position &end_pos);
 
             void clear();
             void present();
@@ -201,7 +205,8 @@ namespace Tiny {
         private:
             void setChars(const Position& pos, const std::string& str, const Style& style = {});
             void setStyle(const Style& style);
-
+            void fillBuffers();
+            Size _win_size;
             std::vector<std::vector<Cell>> _buffer;
             std::vector<std::vector<Cell>> _front_buffer;
         };
