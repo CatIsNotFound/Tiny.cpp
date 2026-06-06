@@ -5,7 +5,7 @@ using namespace Tiny;
 using SS = TUI::Renderer::Style;
 using ter = TUI::Terminal;
 
-auto renderer = TUI::Renderer::self();
+auto& renderer = TUI::Renderer::self();
 
 SS style1, style2, win_shadow, btn_shadow, btn_fill;
 

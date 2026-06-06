@@ -24,11 +24,10 @@
  *************************************************************************************/
 
 #include "TUI.hpp"
+#include <csignal>
 
 #ifdef TINY_CPP_MY_OS_WINDOWS
 #include <windows.h>
-#include <csignal>
-#else
 #endif
 
 
@@ -88,6 +87,9 @@ namespace Tiny {
     }
 
     TUI::Renderer::~Renderer() {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        _is_running.store(false);
+#endif
         Terminal::setMouseEnabled(false);
         Terminal::reset();
         Terminal::leaveRawMode();
@@ -261,10 +263,12 @@ namespace Tiny {
     TUI::Renderer::Renderer() {
         Terminal::enterRawMode();
         auto size = Terminal::screenSize();
+        _win_size = size;
         _front_buffer.resize(size.height);
         for (auto &i : _front_buffer) {
             i.resize(size.width);
         }
+        initSignal();
     }
 
     void TUI::Renderer::renderEvent() {
@@ -349,9 +353,43 @@ namespace Tiny {
                     }
                     Terminal::print(_buffer[r][c].data.data());
                 }
-                _front_buffer[r][c].reset();
+                // _front_buffer[r][c].reset();
             }
         }
+    }
+
+    void TUI::Renderer::initSignal() {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        _is_running.store(true);
+        _resize_win_signal = std::thread(&Renderer::resizeWindow, 0);
+        _resize_win_signal.detach();
+#else
+        signal(SIGWINCH, Renderer::resizeWindow);
+
+#endif
+    }
+
+    void TUI::Renderer::resizeWindow(int) {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        while (self()._is_running.load()) {
+            std::unique_lock<std::mutex> lock(self()._mutex);
+            Sleep(50);
+            Size new_size = Terminal::screenSize();
+            if (compareSize(new_size, self()._win_size) != 0) {
+                self()._is_resizing.store(true);
+            }
+            if (self()._is_resizing.load()) {
+                self().renderEvent();
+                self()._is_resizing.store(false);
+            }
+        }
+#else
+        self()._is_resizing.store(true);
+        if (self()._is_resizing.load()) {
+            self().renderEvent();
+            self()._is_resizing.store(false);
+        }
+#endif
     }
 }
 

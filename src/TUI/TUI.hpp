@@ -30,6 +30,9 @@
 #include <vector>
 #include <bitset>
 #include <cstring>
+#include <thread>
+#include <atomic>
+#include <mutex>
 
 namespace Tiny {
     namespace TUI {
@@ -206,9 +209,18 @@ namespace Tiny {
             void setChars(const Position& pos, const std::string& str, const Style& style = {});
             void setStyle(const Style& style);
             void fillBuffers();
-            Size _win_size;
+            void initSignal();
+            static void resizeWindow(int);
+
+            Size _win_size{};
             std::vector<std::vector<Cell>> _buffer;
             std::vector<std::vector<Cell>> _front_buffer;
+            std::atomic<bool> _is_resizing{};
+            std::mutex _mutex{};
+#ifdef TINY_CPP_MY_OS_WINDOWS
+            std::thread _resize_win_signal{};
+            std::atomic<bool> _is_running{};
+#endif
         };
 
         template<typename ... Args>
