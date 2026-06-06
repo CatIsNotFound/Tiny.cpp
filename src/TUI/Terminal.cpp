@@ -229,7 +229,7 @@ namespace Tiny {
     }
 
 #ifdef TINY_CPP_MY_OS_UNIX
-    struct termios TUI::Terminal::_old_terminal{};
+    termios TUI::Terminal::_old_terminal{};
     bool TUI::Terminal::_is_in_raw_mode{};
     TUI::Position TUI::Terminal::_last_cur_pos{0, 0};
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
@@ -302,7 +302,7 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_UNIX
         struct termios raw;
         tcgetattr(STDIN_FILENO, &raw);
-        _is_in_raw_mode = (raw.c_lflag & (ICANON | ECHO | ISIG | IEXTEN) == 0);
+        _is_in_raw_mode = (raw.c_lflag & (ICANON | ECHO | ISIG | IEXTEN)) == 0;
         return _is_in_raw_mode;
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         HANDLE console = GetStdHandle(STD_INPUT_HANDLE);
@@ -311,7 +311,6 @@ namespace Tiny {
         if (!GetConsoleMode(console, &mode)) return 0;
         return !(mode & (ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT));
 #endif
-        return false;
     }
 
     TUI::Size TUI::Terminal::screenSize() {
@@ -333,7 +332,7 @@ namespace Tiny {
     }
 
     TUI::Position TUI::Terminal::cursorPosition() {
-        Position position;
+        Position position{};
 #ifdef TINY_CPP_MY_OS_UNIX
         struct termios raw, original;
 
@@ -502,7 +501,6 @@ namespace Tiny {
         if (handler == INVALID_HANDLE_VALUE) return false;
         return FlushFileBuffers(handler);
 #endif
-        return true;
     }
 
     std::string TUI::Terminal::readLine() {
@@ -753,7 +751,7 @@ namespace Tiny {
         size_t read_bytes = readAfterDelay(STDIN_FILENO, buf, 16);
         
         uint32_t ev_type, row, col;
-        bool is_big_M = (buf[strlen(buf) - 1] == 'M');
+        bool is_big_M = (buf[read_bytes - 1] == 'M');
         if (sscanf(buf, "\x1b[<%d;%d;%d", &ev_type, &col, &row) != 3) {
             if (sscanf(buf, "\x1b[%d;%dH", &row, &col) == 2) {
                 if (mouse_pos) {
@@ -761,12 +759,17 @@ namespace Tiny {
                     mouse_pos->column = col - 1;
                 }
                 return SP_MOUSE_MOVED;
-            } else { 
-                return SP_MOUSE_UNKNOWN;
             }
+            return SP_MOUSE_UNKNOWN;
         }
 
-        if (is_pressed) *is_pressed = is_big_M;
+        if (is_pressed) {
+            if (is_big_M) {
+                *is_pressed = (ev_type != 35);
+            } else {
+                *is_pressed = false;
+            }
+        }
         if (mouse_pos) {
             mouse_pos->row = row - 1;
             mouse_pos->column = col - 1;
