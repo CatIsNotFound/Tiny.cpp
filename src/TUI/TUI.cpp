@@ -25,6 +25,13 @@
 
 #include "TUI.hpp"
 
+#ifdef TINY_CPP_MY_OS_WINDOWS
+#include <windows.h>
+#include <csignal>
+#else
+#endif
+
+
 namespace Tiny {
     std::string TUI::splitFront(const char *data) {
         std::string str;
@@ -81,7 +88,12 @@ namespace Tiny {
     }
 
     TUI::Renderer::~Renderer() {
+        Terminal::setMouseEnabled(false);
+        Terminal::reset();
         Terminal::leaveRawMode();
+#ifdef TINY_CPP_MY_OS_UNIX
+        signal(SIGWINCH, SIG_DFL);
+#endif
     }
 
     void TUI::Renderer::set(const Position &pos, uint8_t ch, Style style) {
@@ -102,6 +114,64 @@ namespace Tiny {
         _front_buffer[y][x].set(splitFront(str.c_str()).c_str(), style);
     }
 
+    void TUI::Renderer::fillRows(uint8_t start_row, uint8_t end_row, uint8_t ch, Style style) {
+        char temp[2] = {static_cast<char>(ch), 0};
+        if (start_row > end_row) {
+            auto t = start_row;
+            start_row = end_row;
+            end_row = t;
+        }
+        for (size_t r = start_row; r <= end_row; r++) {
+            if (r >= _front_buffer.size()) continue;
+            for (auto& col : _front_buffer[r]) {
+                col.set(temp, style);
+            }
+        }
+    }
+
+    void TUI::Renderer::fillRows(uint8_t start_row, uint8_t end_row, const std::string &ch, Style style) {
+        if (start_row > end_row) {
+            auto t = start_row;
+            start_row = end_row;
+            end_row = t;
+        }
+        for (size_t r = start_row; r <= end_row; r++) {
+            if (r >= _front_buffer.size()) continue;
+            for (auto& col : _front_buffer[r]) {
+                col.set(ch.data(), style);
+            }
+        }
+    }
+
+    void TUI::Renderer::fillCols(uint8_t start_col, uint8_t end_col, uint8_t ch, Style style) {
+        char temp[2] = {static_cast<char>(ch), 0};
+        if (start_col > end_col) {
+            auto t = start_col;
+            start_col = end_col;
+            end_col = t;
+        }
+        for (auto& buf : _front_buffer) {
+            for (size_t c = start_col; c <= end_col; c++) {
+                if (c >= buf.size()) continue;
+                buf[c].set(temp, style);
+            }
+        }
+    }
+
+    void TUI::Renderer::fillCols(uint8_t start_col, uint8_t end_col, const std::string &ch, Style style) {
+        if (start_col > end_col) {
+            auto t = start_col;
+            start_col = end_col;
+            end_col = t;
+        }
+        for (auto& buf : _front_buffer) {
+            for (size_t c = start_col; c <= end_col; c++) {
+                if (c >= buf.size()) continue;
+                buf[c].set(ch.data(), style);
+            }
+        }
+    }
+
     void TUI::Renderer::fillRect(const Position &start_pos, const Position &end_pos, uint8_t ch, Style style) {
         char temp[2] = {static_cast<char>(ch), 0};
         for (uint32_t r = start_pos.row; r <= end_pos.row; r++) {
@@ -111,11 +181,11 @@ namespace Tiny {
         }
     }
 
-    void TUI::Renderer::fillRect(const Position &start_pos, const Position &end_pos, const std::string &str,
+    void TUI::Renderer::fillRect(const Position &start_pos, const Position &end_pos, const std::string &ch,
         Style style) {
         for (uint32_t r = start_pos.row; r <= end_pos.row; r++) {
             for (uint32_t c = start_pos.column; c <= end_pos.column; c++) {
-                _front_buffer[r][c].set(splitFront(str.c_str()).c_str(), style);
+                _front_buffer[r][c].set(splitFront(ch.c_str()).c_str(), style);
             }
         }
     }
@@ -149,10 +219,6 @@ namespace Tiny {
         _front_buffer[y][x].reset();
     }
 
-    void TUI::Renderer::refresh() {
-        resizeEvent();
-    }
-
     void TUI::Renderer::clear() {
         for (auto& front : _front_buffer) {
             for (auto& i : front) {
@@ -167,7 +233,11 @@ namespace Tiny {
     }
 
     TUI::Renderer::Renderer() {
+#ifdef TINY_CPP_MY_OS_UNIX
+        signal(SIGWINCH, resizeWin);
+#endif
         Terminal::enterRawMode();
+        Terminal::setMouseEnabled(true);
         auto size = Terminal::screenSize();
         _front_buffer.resize(size.height);
         for (auto &i : _front_buffer) {
@@ -178,6 +248,10 @@ namespace Tiny {
     void TUI::Renderer::renderEvent() {
         Terminal::clearScreen();
         Terminal::reset();
+        auto size = Terminal::screenSize();
+        if (size.height != _buffer.size() || size.width != _buffer.front().size()) {
+            resizeEvent(false, size);
+        }
         size_t row = 0;
         Style old_style{};
         for (auto& bufs : _buffer) {
@@ -190,30 +264,23 @@ namespace Tiny {
                         if (b.style.isDefault()) {
                             Terminal::reset();
                         } else {
-                            Terminal::setBackgroundColor(old_style.bg_color, old_style.intensity & 1);
-                            Terminal::setForegroundColor(old_style.fg_color, old_style.intensity & 2);
-                            Terminal::setBolder(old_style.property & Style::Bolder);
-                            Terminal::setDark(old_style.property & Style::Dark);
-                            Terminal::setItalic(old_style.property & Style::Italic);
-                            Terminal::setUnderline(old_style.property & Style::Underline);
-                            Terminal::setBlinking(old_style.property & Style::Blinking);
-                            Terminal::reverseColor(old_style.property & Style::Reverse);
-                            Terminal::setStrikethrough(old_style.property & Style::Strikethrough);
+                            setStyle(b.style);
                         }
                     }
                     Terminal::print(b.data.data());
                 }
+                b.reset();
                 col++;
             }
-            Terminal::moveCursor(++row, 0);
+            row++;
         }
     }
 
-    void TUI::Renderer::resizeEvent() {
-        auto size = Terminal::screenSize();
-        _front_buffer.resize(size.height);
+    void TUI::Renderer::resizeEvent(bool use_default_size, const Size& size) {
+        Size new_size = (use_default_size ? Terminal::screenSize() : size);
+        _front_buffer.resize(new_size.height);
         for (auto &i : _front_buffer) {
-            i.resize(size.width);
+            i.resize(new_size.width);
         }
     }
 
@@ -229,6 +296,31 @@ namespace Tiny {
             set(temp, s, style);
             temp.column += (s.size() > 1 ? s.size() - 1 : s.size());
         }
+    }
+
+    void TUI::Renderer::setStyle(const Style &style) {
+        if (style.used_rgb_color) {
+            Terminal::setBackgroundColor(style.bg_rgb_color.r,
+                                         style.bg_rgb_color.g,
+                                         style.bg_rgb_color.b);
+            Terminal::setForegroundColor(style.fg_rgb_color.r,
+                                         style.fg_rgb_color.g,
+                                         style.fg_rgb_color.b);
+        } else {
+            Terminal::setBackgroundColor(style.bg_color, style.intensity & 1);
+            Terminal::setForegroundColor(style.fg_color, style.intensity & 2);
+        }
+        Terminal::setBolder(style.property & Style::Bolder);
+        Terminal::setDark(style.property & Style::Dark);
+        Terminal::setItalic(style.property & Style::Italic);
+        Terminal::setUnderline(style.property & Style::Underline);
+        Terminal::setBlinking(style.property & Style::Blinking);
+        Terminal::reverseColor(style.property & Style::Reverse);
+        Terminal::setStrikethrough(style.property & Style::Strikethrough);
+    }
+
+    void TUI::Renderer::resizeWin(int) {
+        self().resizeEvent();
     }
 }
 

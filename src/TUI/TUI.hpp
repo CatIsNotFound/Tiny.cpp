@@ -36,6 +36,19 @@ namespace Tiny {
         std::string splitFront(const char* data);
         std::vector<std::string> splitUTF8(const char* data);
 
+        struct RGBColor {
+            uint8_t r, g, b;
+
+            RGBColor() : r(0), g(0), b(0) {}
+            RGBColor(uint8_t r, uint8_t g, uint8_t b) : r(r), g(g), b(b) {}
+            bool operator==(const RGBColor& other) const {
+                return r == other.r && g == other.g && b == other.b;
+            }
+            bool operator!=(const RGBColor& other) const {
+                return r != other.r || g != other.g || b != other.b;
+            }
+        };
+
         class Char {
             std::string _data;
             uint8_t _length;
@@ -80,6 +93,10 @@ namespace Tiny {
                 Color bg_color;
                 Color fg_color;
                 uint8_t intensity;
+                bool used_rgb_color{};
+                RGBColor bg_rgb_color;
+                RGBColor fg_rgb_color;
+
 
                 enum Property : uint8_t {
                     Bolder            = 1,
@@ -101,7 +118,9 @@ namespace Tiny {
                 }
 
                 bool isDefault() const {
-                    return property == 0 && intensity == 2 && bg_color == Color::Black && fg_color == Color::Default;
+                    return property == 0 && intensity == 2 &&
+                           bg_color == Color::Black && fg_color == Color::Default &&
+                           !used_rgb_color;
                 }
 
                 bool operator==(const Style& other) const {
@@ -163,21 +182,26 @@ namespace Tiny {
             void setStrF(const Position& pos, const char* format, Args... args);
             template<typename ... Args>
             void setSSF(const Position& pos, const char* format, const Style& style, Args... args);
-            void fillRect(const Position& start_pos, const Position& end_pos, uint8_t ch, Style style = {});
-            void fillRect(const Position& start_pos, const Position& end_pos, const std::string& str, Style style = {});
-            void drawBorder(const Position& start_pos, const Position& end_pos, Corner corner = {}, Style style = {});
+            void fillRows(uint8_t start_row, uint8_t end_row, uint8_t ch = ' ', Style style = {});
+            void fillRows(uint8_t start_row, uint8_t end_row, const std::string& ch, Style style = {});
+            void fillCols(uint8_t start_col, uint8_t end_col, uint8_t ch = ' ', Style style = {});
+            void fillCols(uint8_t start_col, uint8_t end_col, const std::string& ch, Style style = {});
+            void fillRect(const Position& start_pos, const Position& end_pos, uint8_t ch = ' ', Style style = {});
+            void fillRect(const Position& start_pos, const Position& end_pos, const std::string& ch, Style style = {});
+            void drawBorder(const Position& start_pos, const Position& end_pos, Corner corner, Style style = {});
             void unset(const Position& pos);
             void unset(uint32_t x, uint32_t y);
 
-            void refresh();
             void clear();
             void present();
         protected:
             Renderer();
             virtual void renderEvent();
-            virtual void resizeEvent();
+            virtual void resizeEvent(bool use_default_size = true, const Size& size = {});
         private:
             void setChars(const Position& pos, const std::string& str, const Style& style = {});
+            void setStyle(const Style& style);
+            static void resizeWin(int);
             std::vector<std::vector<Cell>> _buffer;
             std::vector<std::vector<Cell>> _front_buffer;
         };
