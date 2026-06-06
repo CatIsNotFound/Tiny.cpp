@@ -91,9 +91,6 @@ namespace Tiny {
         Terminal::setMouseEnabled(false);
         Terminal::reset();
         Terminal::leaveRawMode();
-#ifdef TINY_CPP_MY_OS_UNIX
-        signal(SIGWINCH, SIG_DFL);
-#endif
     }
 
     void TUI::Renderer::set(const Position &pos, uint8_t ch, Style style) {
@@ -233,11 +230,7 @@ namespace Tiny {
     }
 
     TUI::Renderer::Renderer() {
-#ifdef TINY_CPP_MY_OS_UNIX
-        signal(SIGWINCH, resizeWin);
-#endif
         Terminal::enterRawMode();
-        Terminal::setMouseEnabled(true);
         auto size = Terminal::screenSize();
         _front_buffer.resize(size.height);
         for (auto &i : _front_buffer) {
@@ -246,8 +239,8 @@ namespace Tiny {
     }
 
     void TUI::Renderer::renderEvent() {
-        Terminal::clearScreen();
         Terminal::reset();
+        Terminal::clearScreen();
         auto size = Terminal::screenSize();
         if (size.height != _buffer.size() || size.width != _buffer.front().size()) {
             resizeEvent(false, size);
@@ -317,10 +310,6 @@ namespace Tiny {
         Terminal::setBlinking(style.property & Style::Blinking);
         Terminal::reverseColor(style.property & Style::Reverse);
         Terminal::setStrikethrough(style.property & Style::Strikethrough);
-    }
-
-    void TUI::Renderer::resizeWin(int) {
-        self().resizeEvent();
     }
 }
 

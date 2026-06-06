@@ -201,7 +201,7 @@ namespace Tiny {
         private:
             void setChars(const Position& pos, const std::string& str, const Style& style = {});
             void setStyle(const Style& style);
-            static void resizeWin(int);
+
             std::vector<std::vector<Cell>> _buffer;
             std::vector<std::vector<Cell>> _front_buffer;
         };
