@@ -33,6 +33,7 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
+#include <functional>
 
 namespace Tiny {
     namespace TUI {
@@ -198,6 +199,7 @@ namespace Tiny {
             void unsetRow(uint32_t row);
             void unsetCol(uint32_t col);
             void unsetRect(const Position &start_pos, const Position &end_pos);
+            void setResizeEvent(const std::function<void(Renderer&)>& event);
 
             void clear();
             void present();
@@ -217,6 +219,7 @@ namespace Tiny {
             std::vector<std::vector<Cell>> _front_buffer;
             std::atomic<bool> _is_resizing{};
             std::mutex _mutex{};
+            std::function<void(Renderer&)> _resize_event{};
 #ifdef TINY_CPP_MY_OS_WINDOWS
             std::thread _resize_win_signal{};
             std::atomic<bool> _is_running{};

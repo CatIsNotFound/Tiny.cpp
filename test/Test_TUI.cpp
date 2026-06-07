@@ -24,13 +24,14 @@ void drawBox() {
     // renderer.fillRect({12, 8}, {14, 17}, ' ', btn_shadow);
     renderer.drawBorder({11, 7}, {13, 16}, {}, style2);
     renderer.fillRect({12, 8}, {12, 15}, ' ', style2);
-    renderer.setSSF({12, 10}, "不错", style2);
+    renderer.setSSF({12, 10}, "🎹不错", style2);
     renderer.drawBorder({11, 22}, {13, 31}, {}, style2);
     renderer.fillRect({12, 23}, {12, 30}, ' ', btn_fill);
-    renderer.setSSF({12, 23}, "非常不错", btn_fill);
+    renderer.setSSF({12, 24}, "👍不错", btn_fill);
 }
 
 int main() {
+
     auto scr_size = TUI::Terminal::screenSize();
 
     style1.bg_color = TUI::Color::White;
@@ -48,6 +49,9 @@ int main() {
 
     drawBox();
     renderer.present();
+    renderer.setResizeEvent([&](TUI::Renderer&) {
+        drawBox();
+    });
     while (TUI::Terminal::getKey() != TUI::KEY_CTRL_D) {
         scr_size = TUI::Terminal::screenSize();
         drawBox();

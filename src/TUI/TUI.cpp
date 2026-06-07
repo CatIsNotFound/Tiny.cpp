@@ -24,11 +24,85 @@
  *************************************************************************************/
 
 #include "TUI.hpp"
-#include <csignal>
 
 #ifdef TINY_CPP_MY_OS_WINDOWS
 #include <windows.h>
+#else
+#include <csignal>
+#include <clocale>
+#include <cwchar>
 #endif
+
+
+
+namespace {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+    uint32_t strToCodePoint(const std::string& utf8_char) {
+        uint8_t ch = utf8_char[0];
+        uint32_t cp = 0;
+        if ((ch & 0x80) == 0) {                     // 1 字节 ASCII
+            cp = ch;
+        } else if ((ch & 0xE0) == 0xC0) {           // 2 字节
+            cp = (ch & 0x1F) << 6 | (utf8_char[1] & 0x3F);
+        } else if ((ch & 0xF0) == 0xE0) {           // 3 字节
+            cp = (ch & 0x0F) << 12 | (utf8_char[1] & 0x3F) << 6 | (utf8_char[2] & 0x3F);
+        } else if ((ch & 0xF8) == 0xF0) {           // 4 字节
+            cp = (ch & 0x07) << 18 | (utf8_char[1] & 0x3F) << 12 |
+                 (utf8_char[2] & 0x3F) << 6 | (utf8_char[3] & 0x3F);
+        }
+        return cp;
+    }
+
+    size_t wcwidth(const std::string& str) {
+        uint32_t cp = strToCodePoint(str);
+        if (cp == 0 || iswcntrl(cp)) return 0;
+        if (cp < 0x80) return 1;
+        if ((cp >= 0x1100 && cp <= 0x115F) ||   // Hangul Jamo
+        (cp >= 0x2600 && cp <= 0x26FF) ||       // Miscellaneous Symbols
+        (cp >= 0x2700 && cp <= 0x27FF) ||       // Decorative Symbols
+        (cp >= 0x2E80 && cp <= 0x2EFF) ||       // CJK Radicals Supplement
+        (cp >= 0x3000 && cp <= 0x303F) ||       // CJK Symbols and Punctuation
+        (cp >= 0x3040 && cp <= 0x309F) ||       // Hiragana
+        (cp >= 0x30A0 && cp <= 0x30FF) ||       // Katakana
+        (cp >= 0x3100 && cp <= 0x312F) ||       // Bopomofo
+        (cp >= 0x3130 && cp <= 0x318F) ||       // Hangul Compatibility Jamo
+        (cp >= 0x31A0 && cp <= 0x31BF) ||       // Bopomofo Extended
+        (cp >= 0x31C0 && cp <= 0x31EF) ||       // CJK Strokes
+        (cp >= 0x3200 && cp <= 0x32FF) ||       // Enclosed CJK Letters and Months
+        (cp >= 0x3300 && cp <= 0x33FF) ||       // CJK Compatibility
+        (cp >= 0x3400 && cp <= 0x4DBF) ||       // CJK Unified Ideographs Extension A
+        (cp >= 0x4E00 && cp <= 0x9FFF) ||       // CJK Unified Ideographs
+        (cp >= 0xF900 && cp <= 0xFAFF) ||       // CJK Compatibility Ideographs
+        (cp >= 0xFE10 && cp <= 0xFE1F) ||       // Vertical Forms
+        (cp >= 0xFE30 && cp <= 0xFE4F) ||       // CJK Compatibility Forms
+        (cp >= 0xFF00 && cp <= 0xFFEF) ||       // Halfwidth and Fullwidth Forms
+        (cp >= 0x1F300 && cp <= 0x1F6FF) ||     // Emoji
+        (cp >= 0x1F900 && cp <= 0x1F9FF) ||     // Emoji Extension
+        (cp >= 0x20000 && cp <= 0x2A6DF) ||     // CJK Unified Ideographs Extension B
+        (cp >= 0x2A700 && cp <= 0x2B73F) ||     // CJK Unified Ideographs Extension C
+        (cp >= 0x2B740 && cp <= 0x2B81F) ||     // CJK Unified Ideographs Extension D
+        (cp >= 0x2B820 && cp <= 0x2CEAF) ||     // CJK Unified Ideographs Extension E
+        (cp >= 0x2CEB0 && cp <= 0x2EBEF) ||     // CJK Unified Ideographs Extension F
+        (cp >= 0x30000 && cp <= 0x3134F) ||     // CJK Unified Ideographs Extension G
+        (cp >= 0xE0100 && cp <= 0xE01EF)) {     // Variation Selectors Supplement
+            return 2;
+        }
+        return 1;
+    }
+#endif
+
+    size_t calcStrDisplayWidth(const std::string& data) {
+#ifdef TINY_CPP_MY_OS_UNIX
+        wchar_t* w_ch{};
+        std::mbtowc(w_ch, data.c_str(), data.size());
+        size_t width = wcwidth(w_ch);
+        if (width == 0) width = 1;
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        size_t width = wcwidth(data);
+#endif
+        return width;
+    }
+}
 
 
 namespace Tiny {
@@ -248,6 +322,10 @@ namespace Tiny {
         }
     }
 
+    void TUI::Renderer::setResizeEvent(const std::function<void(Renderer&)>& event) {
+        _resize_event = event;
+    }
+
     void TUI::Renderer::clear() {
         for (auto& front : _front_buffer) {
             for (auto& i : front) {
@@ -261,6 +339,9 @@ namespace Tiny {
     }
 
     TUI::Renderer::Renderer() {
+#ifdef TINY_CPP_MY_OS_UNIX
+        setlocale(LC_ALL, "");
+#endif
         Terminal::enterRawMode();
         auto size = Terminal::screenSize();
         _win_size = size;
@@ -300,6 +381,7 @@ namespace Tiny {
                 _buffer[row][col].reset();
             }
         }
+        if (_resize_event) _resize_event(self());
     }
 
     void TUI::Renderer::setChars(const Position &pos, const std::string &str, const Style& style) {
@@ -312,7 +394,12 @@ namespace Tiny {
                 temp.row += 1;
             }
             set(temp, s, style);
-            temp.column += (s.size() > 1 ? s.size() - 1 : s.size());
+            size_t display_width = calcStrDisplayWidth(s);
+            if (display_width > 1) {
+                for (size_t i = 1; i < display_width; ++i) 
+                    _front_buffer[temp.row][temp.column + i].is_dirty = true;
+            }
+            temp.column += display_width;
         }
     }
 
@@ -353,7 +440,7 @@ namespace Tiny {
                     }
                     Terminal::print(_buffer[r][c].data.data());
                 }
-                // _front_buffer[r][c].reset();
+                _front_buffer[r][c].reset();
             }
         }
     }
