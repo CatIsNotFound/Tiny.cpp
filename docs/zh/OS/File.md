@@ -71,6 +71,20 @@ enum class FileType : uint8_t {
 | `Device` | 4 | 设备文件 |
 | `Socket` | 5 | 套接字文件 |
 
+### fileTypeName 函数
+
+```cpp
+inline const char* fileTypeName(FileType type);
+```
+- **功能**: 获取文件类型名称字符串
+- **参数**: `type` - 文件类型枚举值
+- **返回值**: 类型名称字符串（如 "File"、"Directory"、"Symbol Link" 等）
+- **示例**:
+```cpp
+Tiny::OS::Path path("./test.txt");
+std::cout << "Type: " << Tiny::OS::fileTypeName(path.fileType()) << std::endl;
+```
+
 ### 4.2 OpenMode 枚举
 
 ```cpp

@@ -71,6 +71,20 @@ enum class FileType : uint8_t {
 | `Device` | 4 | Device file |
 | `Socket` | 5 | Socket file |
 
+### fileTypeName Function
+
+```cpp
+inline const char* fileTypeName(FileType type);
+```
+- **Function**: Get file type name string
+- **Parameter**: `type` - File type enum value
+- **Return Value**: Type name string (e.g., "File", "Directory", "Symbol Link", etc.)
+- **Example**:
+```cpp
+Tiny::OS::Path path("./test.txt");
+std::cout << "Type: " << Tiny::OS::fileTypeName(path.fileType()) << std::endl;
+```
+
 ### 4.2 OpenMode Enum
 
 ```cpp

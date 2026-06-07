@@ -36,9 +36,42 @@
 
 ---
 
-## 3. 数据结构
+## 3. 全局常量
 
-### 3.1 HostInfo 结构体
+### Name
+
+```cpp
+constexpr const char* Name;
+```
+
+**说明**: 当前操作系统名称常量，根据编译平台自动定义。
+
+| 平台 | 值 |
+|------|-----|
+| Windows | `"windows"` |
+| Linux | `"linux"` |
+| macOS | `"apple"` |
+| Unix | `"unix"` |
+| Android | `"android"` |
+| OpenHarmony | `"openHarmony"` |
+| 其他 | `"unknown"` |
+
+**使用示例**:
+```cpp
+#include "OS/System.hpp"
+#include <iostream>
+
+int main() {
+    std::cout << "Current OS: " << Tiny::OS::Name << std::endl;
+    return 0;
+}
+```
+
+---
+
+## 4. 数据结构
+
+### 4.1 HostInfo 结构体
 
 ```cpp
 struct HostInfo {
@@ -58,7 +91,7 @@ struct HostInfo {
 | `machine` | `std::string` | 硬件架构（如 "x86_64"） |
 | `version` | `std::string` | 操作系统版本号 |
 
-### 3.2 CPU_Arch 枚举
+### 4.2 CPU_Arch 枚举
 
 ```cpp
 enum class CPU_Arch {
@@ -74,7 +107,7 @@ enum class CPU_Arch {
 };
 ```
 
-### 3.3 CPU 结构体
+### 4.3 CPU 结构体
 
 ```cpp
 struct CPU {
@@ -94,7 +127,7 @@ struct CPU {
 | `total_usage` | `float` | 总体 CPU 使用率（0-100） |
 | `usages` | `std::vector<float>` | 每个核心的使用率 |
 
-### 3.4 Memory 结构体
+### 4.4 Memory 结构体
 
 ```cpp
 struct Memory {
@@ -125,7 +158,7 @@ struct Memory {
 | `free_swap` | `size_t` | 空闲交换空间（字节） | All |
 | `app_*` | `size_t` | macOS 特有内存统计 | macOS only |
 
-### 3.5 DiskSpace 结构体
+### 4.5 DiskSpace 结构体
 
 ```cpp
 struct DiskSpace {
@@ -138,7 +171,7 @@ struct DiskSpace {
 
 ---
 
-## 4. 系统信息函数
+## 5. 系统信息函数
 
 ### 4.1 getCPUArchName
 
@@ -230,7 +263,7 @@ CPU_Arch getCurrentCPUArch();
 
 ---
 
-## 5. FileSystem 类
+## 6. FileSystem 类
 
 ### 5.1 类简介
 
@@ -415,7 +448,7 @@ static std::vector<Path> listPath(uint8_t recursion_count = 1,
 
 ---
 
-## 6. 使用示例
+## 7. 使用示例
 
 ### 6.1 系统信息获取示例
 
@@ -541,7 +574,7 @@ int main() {
 
 ---
 
-## 7. 注意事项
+## 8. 注意事项
 
 ### 7.1 CPU 使用率获取
 

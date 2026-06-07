@@ -81,6 +81,34 @@ const char* getMouseName(const SP_Mouse& SP);
 - **Parameter**: `SP` - Mouse event type
 - **Return Value**: Event name string
 
+### 3.5 comparePosition
+
+```cpp
+int8_t comparePosition(const Position& pos1, const Position& pos2);
+```
+- **Function**: Compare two positions
+- **Parameters**: 
+  - `pos1` - First position
+  - `pos2` - Second position
+- **Return Value**: 
+  - `-1` - pos1 is before pos2
+  - `0` - Same position
+  - `1` - pos1 is after pos2
+
+### 3.6 compareSize
+
+```cpp
+int8_t compareSize(const Size& size1, const Size& size2);
+```
+- **Function**: Compare two sizes
+- **Parameters**: 
+  - `size1` - First size
+  - `size2` - Second size
+- **Return Value**: 
+  - `-1` - size1 is smaller than size2
+  - `0` - Same size
+  - `1` - size1 is larger than size2
+
 ---
 
 ## 4. Data Structures
@@ -429,11 +457,43 @@ Double-buffered terminal renderer supporting character drawing, rectangle fillin
 
 ```cpp
 struct Style {
-    uint16_t property;   // Style property
-    Color bg_color;      // Background color
-    Color fg_color;      // Foreground color
+    uint8_t property;       // Style property (use Property enum)
+    Color bg_color;         // Background color (ANSI 16 colors)
+    Color fg_color;         // Foreground color (ANSI 16 colors)
+    uint8_t intensity;      // Color intensity: 0=None, 1=Background only, 2=Foreground only, 3=All
+    bool used_rgb_color;    // Whether to use RGB colors
+    RGBColor bg_rgb_color;  // RGB background color
+    RGBColor fg_rgb_color;  // RGB foreground color
+
+    enum Property : uint8_t {
+        Bolder            = 1,    // Bold
+        Dark              = 2,    // Dim
+        Italic            = 4,    // Italic
+        Underline         = 8,    // Underline
+        Blinking          = 16,   // Blink
+        Reverse           = 32,   // Reverse
+        Strikethrough     = 64,   // Strikethrough
+    };
+
+    Style();
+    void reset();
+    bool isDefault() const;
 };
 ```
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `property` | `uint8_t` | Style property bitmask |
+| `bg_color` | `Color` | ANSI background color |
+| `fg_color` | `Color` | ANSI foreground color |
+| `intensity` | `uint8_t` | Color intensity: 0=None, 1=Background only, 2=Foreground only, 3=All |
+| `used_rgb_color` | `bool` | Whether to use RGB colors (when true, ignores ANSI colors) |
+| `bg_rgb_color` | `RGBColor` | RGB background color (r, g, b each 0-255) |
+| `fg_rgb_color` | `RGBColor` | RGB foreground color (r, g, b each 0-255) |
+
+**Property Enum**:
+- Use bitwise operations to combine multiple properties: `Style::Bolder | Style::Underline`
+- Or set directly via the `property` field
 
 #### Cell
 
@@ -502,14 +562,48 @@ void setStrF(const Position& pos, const char* format, Args... args);
 
 ```cpp
 template<typename ... Args>
-void setSSF(const Position& pos, const char* format, const std::vector<Style>& style, Args... args);
+void setSSF(const Position& pos, const char* format, const Style& style, Args... args);
 ```
-- **Function**: Set formatted string with styles
+- **Function**: Set formatted string with style
 - **Parameters**: 
   - `pos` - Position
   - `format` - Format string
-  - `style` - Style array
+  - `style` - Style
   - `args` - Variable arguments
+
+#### fillScreen
+
+```cpp
+void fillScreen(const Style& style = {});
+```
+- **Function**: Fill entire screen with specified style
+- **Parameter**: `style` - Fill style
+
+#### fillRows
+
+```cpp
+void fillRows(uint32_t start_row, uint32_t end_row, uint8_t ch = ' ', Style style = {});
+void fillRows(uint32_t start_row, uint32_t end_row, const std::string& ch, Style style = {});
+```
+- **Function**: Fill specified row range
+- **Parameters**: 
+  - `start_row` - Start row
+  - `end_row` - End row
+  - `ch` / `str` - Fill character or string
+  - `style` - Style
+
+#### fillCols
+
+```cpp
+void fillCols(uint32_t start_col, uint32_t end_col, uint8_t ch = ' ', Style style = {});
+void fillCols(uint32_t start_col, uint32_t end_col, const std::string& ch, Style style = {});
+```
+- **Function**: Fill specified column range
+- **Parameters**: 
+  - `start_col` - Start column
+  - `end_col` - End column
+  - `ch` / `str` - Fill character or string
+  - `style` - Style
 
 #### fillRect
 
@@ -544,6 +638,41 @@ void unset(uint32_t x, uint32_t y);
 ```
 - **Function**: Clear specified position
 - **Parameters**: Target position
+
+#### unsetRow
+
+```cpp
+void unsetRow(uint32_t row);
+```
+- **Function**: Clear entire row
+- **Parameter**: `row` - Row number
+
+#### unsetCol
+
+```cpp
+void unsetCol(uint32_t col);
+```
+- **Function**: Clear entire column
+- **Parameter**: `col` - Column number
+
+#### unsetRect
+
+```cpp
+void unsetRect(const Position& start_pos, const Position& end_pos);
+```
+- **Function**: Clear rectangular region
+- **Parameters**: 
+  - `start_pos` - Start position
+  - `end_pos` - End position
+
+#### setResizeEvent
+
+```cpp
+void setResizeEvent(const std::function<void(Renderer&)>& event);
+```
+- **Function**: Set terminal resize event callback
+- **Parameter**: `event` - Callback function, receives Renderer reference
+- **Note**: Triggered when terminal window size changes
 
 #### refresh
 

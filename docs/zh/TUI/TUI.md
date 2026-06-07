@@ -81,6 +81,34 @@ const char* getMouseName(const SP_Mouse& SP);
 - **参数**: `SP` - 鼠标事件类型
 - **返回值**: 事件名称字符串
 
+### 3.5 comparePosition
+
+```cpp
+int8_t comparePosition(const Position& pos1, const Position& pos2);
+```
+- **功能**: 比较两个位置
+- **参数**: 
+  - `pos1` - 第一个位置
+  - `pos2` - 第二个位置
+- **返回值**: 
+  - `-1` - pos1 在 pos2 之前
+  - `0` - 位置相同
+  - `1` - pos1 在 pos2 之后
+
+### 3.6 compareSize
+
+```cpp
+int8_t compareSize(const Size& size1, const Size& size2);
+```
+- **功能**: 比较两个尺寸
+- **参数**: 
+  - `size1` - 第一个尺寸
+  - `size2` - 第二个尺寸
+- **返回值**: 
+  - `-1` - size1 小于 size2
+  - `0` - 尺寸相同
+  - `1` - size1 大于 size2
+
 ---
 
 ## 4. 数据结构
@@ -429,11 +457,43 @@ static void reset();                       // 重置所有样式
 
 ```cpp
 struct Style {
-    uint16_t property;   // 样式属性
-    Color bg_color;      // 背景色
-    Color fg_color;      // 前景色
+    uint8_t property;       // 样式属性（使用 Property 枚举）
+    Color bg_color;         // 背景色（ANSI 16色）
+    Color fg_color;         // 前景色（ANSI 16色）
+    uint8_t intensity;      // 颜色强度：0=无, 1=仅背景, 2=仅前景, 3=全部
+    bool used_rgb_color;    // 是否使用 RGB 颜色
+    RGBColor bg_rgb_color;  // RGB 背景色
+    RGBColor fg_rgb_color;  // RGB 前景色
+
+    enum Property : uint8_t {
+        Bolder            = 1,    // 粗体
+        Dark              = 2,    // 暗色
+        Italic            = 4,    // 斜体
+        Underline         = 8,    // 下划线
+        Blinking          = 16,   // 闪烁
+        Reverse           = 32,   // 反色
+        Strikethrough     = 64,   // 删除线
+    };
+
+    Style();
+    void reset();
+    bool isDefault() const;
 };
 ```
+
+| 成员 | 类型 | 说明 |
+|------|------|------|
+| `property` | `uint8_t` | 样式属性位掩码 |
+| `bg_color` | `Color` | ANSI 背景色 |
+| `fg_color` | `Color` | ANSI 前景色 |
+| `intensity` | `uint8_t` | 颜色强度：0=无, 1=仅背景, 2=仅前景, 3=全部 |
+| `used_rgb_color` | `bool` | 是否使用 RGB 颜色（true 时忽略 ANSI 颜色） |
+| `bg_rgb_color` | `RGBColor` | RGB 背景色（r, g, b 各 0-255） |
+| `fg_rgb_color` | `RGBColor` | RGB 前景色（r, g, b 各 0-255） |
+
+**Property 枚举**:
+- 使用位运算组合多个属性：`Style::Bolder | Style::Underline`
+- 或使用 `property` 字段直接设置
 
 #### Cell
 
@@ -502,14 +562,48 @@ void setStrF(const Position& pos, const char* format, Args... args);
 
 ```cpp
 template<typename ... Args>
-void setSSF(const Position& pos, const char* format, const std::vector<Style>& style, Args... args);
+void setSSF(const Position& pos, const char* format, const Style& style, Args... args);
 ```
 - **功能**: 带样式的格式化设置
 - **参数**: 
   - `pos` - 位置
   - `format` - 格式字符串
-  - `style` - 样式数组
+  - `style` - 样式
   - `args` - 可变参数
+
+#### fillScreen
+
+```cpp
+void fillScreen(const Style& style = {});
+```
+- **功能**: 使用指定样式填充整个屏幕
+- **参数**: `style` - 填充样式
+
+#### fillRows
+
+```cpp
+void fillRows(uint32_t start_row, uint32_t end_row, uint8_t ch = ' ', Style style = {});
+void fillRows(uint32_t start_row, uint32_t end_row, const std::string& ch, Style style = {});
+```
+- **功能**: 填充指定行范围
+- **参数**: 
+  - `start_row` - 起始行
+  - `end_row` - 结束行
+  - `ch` / `str` - 填充字符或字符串
+  - `style` - 样式
+
+#### fillCols
+
+```cpp
+void fillCols(uint32_t start_col, uint32_t end_col, uint8_t ch = ' ', Style style = {});
+void fillCols(uint32_t start_col, uint32_t end_col, const std::string& ch, Style style = {});
+```
+- **功能**: 填充指定列范围
+- **参数**: 
+  - `start_col` - 起始列
+  - `end_col` - 结束列
+  - `ch` / `str` - 填充字符或字符串
+  - `style` - 样式
 
 #### fillRect
 
@@ -544,6 +638,41 @@ void unset(uint32_t x, uint32_t y);
 ```
 - **功能**: 清除指定位置
 - **参数**: 目标位置
+
+#### unsetRow
+
+```cpp
+void unsetRow(uint32_t row);
+```
+- **功能**: 清除整行
+- **参数**: `row` - 行号
+
+#### unsetCol
+
+```cpp
+void unsetCol(uint32_t col);
+```
+- **功能**: 清除整列
+- **参数**: `col` - 列号
+
+#### unsetRect
+
+```cpp
+void unsetRect(const Position& start_pos, const Position& end_pos);
+```
+- **功能**: 清除矩形区域
+- **参数**: 
+  - `start_pos` - 起始位置
+  - `end_pos` - 结束位置
+
+#### setResizeEvent
+
+```cpp
+void setResizeEvent(const std::function<void(Renderer&)>& event);
+```
+- **功能**: 设置终端尺寸变化事件回调
+- **参数**: `event` - 回调函数，接收 Renderer 引用
+- **说明**: 当终端窗口大小变化时触发
 
 #### refresh
 

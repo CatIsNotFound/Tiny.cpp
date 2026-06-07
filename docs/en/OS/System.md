@@ -36,9 +36,42 @@ The `OS::System` module provides system information retrieval and file system op
 
 ---
 
-## 3. Data Structures
+## 3. Global Constants
 
-### 3.1 HostInfo Structure
+### Name
+
+```cpp
+constexpr const char* Name;
+```
+
+**Description**: Current operating system name constant, automatically defined based on compilation platform.
+
+| Platform | Value |
+|----------|-------|
+| Windows | `"windows"` |
+| Linux | `"linux"` |
+| macOS | `"apple"` |
+| Unix | `"unix"` |
+| Android | `"android"` |
+| OpenHarmony | `"openHarmony"` |
+| Others | `"unknown"` |
+
+**Usage Example**:
+```cpp
+#include "OS/System.hpp"
+#include <iostream>
+
+int main() {
+    std::cout << "Current OS: " << Tiny::OS::Name << std::endl;
+    return 0;
+}
+```
+
+---
+
+## 4. Data Structures
+
+### 4.1 HostInfo Structure
 
 ```cpp
 struct HostInfo {
@@ -58,7 +91,7 @@ struct HostInfo {
 | `machine` | `std::string` | Hardware architecture (e.g., "x86_64") |
 | `version` | `std::string` | Operating system version number |
 
-### 3.2 CPU_Arch Enum
+### 4.2 CPU_Arch Enum
 
 ```cpp
 enum class CPU_Arch {
@@ -74,7 +107,7 @@ enum class CPU_Arch {
 };
 ```
 
-### 3.3 CPU Structure
+### 4.3 CPU Structure
 
 ```cpp
 struct CPU {
@@ -94,7 +127,7 @@ struct CPU {
 | `total_usage` | `float` | Total CPU usage (0-100) |
 | `usages` | `std::vector<float>` | Usage of each core |
 
-### 3.4 Memory Structure
+### 4.4 Memory Structure
 
 ```cpp
 struct Memory {
@@ -125,7 +158,7 @@ struct Memory {
 | `free_swap` | `size_t` | Free swap space (bytes) | All |
 | `app_*` | `size_t` | macOS specific memory statistics | macOS only |
 
-### 3.5 DiskSpace Structure
+### 4.5 DiskSpace Structure
 
 ```cpp
 struct DiskSpace {
@@ -138,7 +171,7 @@ struct DiskSpace {
 
 ---
 
-## 4. System Information Functions
+## 5. System Information Functions
 
 ### 4.1 getCPUArchName
 
@@ -415,7 +448,7 @@ static std::vector<Path> listPath(uint8_t recursion_count = 1,
 
 ---
 
-## 6. Usage Examples
+## 7. Usage Examples
 
 ### 6.1 System Information Retrieval Example
 

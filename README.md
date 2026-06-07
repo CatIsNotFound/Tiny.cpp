@@ -16,11 +16,12 @@ An extremely small, lightweight, and easy-to-use foundational library.
 
 ## Included Modules
 
-| Module     | Path         | Functionality                                      |
-|------------|--------------|----------------------------------------------------|
-| **File**   | `src/OS`     | File operating system, supporting basic file and path operations |
-| **Events** | `src/Events` | Event system, providing basic components for easy implementation of timers, async functionality, etc. |
-| **TUI**    | `src/TUI`    | Terminal User Interface, providing basic terminal drawing functionality for easier terminal rendering |
+| Module            | Path         | Functionality                                                      |
+|-------------------|--------------|--------------------------------------------------------------------|
+| **TUI**           | `src/TUI`    | Terminal User Interface, providing basic terminal drawing functionality for easier terminal rendering |
+| **OS**            | `src/OS`     | Operating System, supporting basic file and path operations as well as viewing system information |
+| **CommandParser** | `src/Parser` | Command parser, providing basic command parameter parsing functionality for easy implementation of command-line tools |
+| **Events**        | `src/Events` | Event system, providing basic components for easy implementation of timers, asynchronous functions, etc. |
 
 ## Installation
 
@@ -38,12 +39,12 @@ You can download the latest precompiled release directly from [Github Release](h
     ```bash
     git clone https://github.com/CatIsNotFound/Tiny.cpp.git -b beta
     ```
-   
+
 2. Configure the project via CMake
     ```bash
     cd Tiny.cpp
     mkdir build ; cd build
-    cmake .. -DCMAKE_INSTALL_PREFIX=/path/to/Tiny.cpp -DCMAKE_BUILD_TYPE=Release -DTINY_BUILD_TEST=OFF 
+    cmake .. -DCMAKE_INSTALL_PREFIX=/path/to/Tiny.cpp -DCMAKE_BUILD_TYPE=Release -DTINY_BUILD_TEST=OFF
     ```
     **P.S: Please replace `/path/to/Tiny.cpp` with the actual installation path.**
 
@@ -76,7 +77,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_PREFIX_PATH "/path/to/Tiny.cpp")
 find_package(Tiny REQUIRED)
 
-add_executable(${CMAKE_PROJECT_NAME} 
+add_executable(${CMAKE_PROJECT_NAME}
         main.cpp
         # ....
 )
@@ -99,7 +100,7 @@ Taking the TUI module as an example, assuming you want to use the Terminal modul
 using ter = Tiny::TUI::Terminal;
 
 int main() {
-   ter::printLine("Hello, Tiny.cpp!");   
+   ter::printLine("Hello, Tiny.cpp!");
    return 0;
 }
 ```
