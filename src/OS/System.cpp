@@ -246,6 +246,15 @@ namespace Tiny {
     bool OS::getCPUInfo(CPU &info, size_t internal) {
         bool ret = true;
 #ifdef TINY_CPP_MY_OS_WINDOWS
+#ifndef PROCESSOR_ARCHITECTURE_ARM32_ON_WIN64
+#define PROCESSOR_ARCHITECTURE_ARM32_ON_WIN64 13
+#endif
+#ifndef PROCESSOR_ARCHITECTURE_ARM64
+#define PROCESSOR_ARCHITECTURE_ARM64 12
+#endif
+#ifndef PROCESSOR_ARCHITECTURE_IA32_ON_ARM64
+#define PROCESSOR_ARCHITECTURE_IA32_ON_ARM64 14
+#endif
         SYSTEM_INFO sys_info;
         GetNativeSystemInfo(&sys_info);
         switch (sys_info.wProcessorArchitecture) {

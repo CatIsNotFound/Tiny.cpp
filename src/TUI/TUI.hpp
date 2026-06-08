@@ -238,6 +238,19 @@ namespace Tiny {
             setChars(pos, f_text, style);
         }
 
+        class EventListener {
+        public:
+            static EventListener& self();
+            ~EventListener();
+
+            EventListener(const EventListener&) = delete;
+            EventListener(EventListener&&) = delete;
+            EventListener& operator=(const EventListener&) = delete;
+            EventListener& operator=(EventListener&&) = delete;
+        private:
+            EventListener();
+        };
+
         class AbstractWidget {
         public:
             explicit AbstractWidget(const std::string& name, const Position& position, const Size& size);

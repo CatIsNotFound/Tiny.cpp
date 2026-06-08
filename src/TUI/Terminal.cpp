@@ -280,7 +280,9 @@ namespace Tiny {
         if (!GetConsoleMode(console, &mode)) return false;
         _old_console_handle = mode;
         mode &= ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_QUICK_EDIT_MODE);
+#ifdef ENABLE_VIRTUAL_TERMINAL_PROCESSING
         mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+#endif
         // SetConsoleCtrlHandler(nullptr, TRUE);
         if (!SetConsoleMode(new_console, mode)) return false;
         SetStdHandle(STD_OUTPUT_HANDLE, new_console);
@@ -480,7 +482,7 @@ namespace Tiny {
         std::string cmd = "\x1b[" + std::to_string(row_start + 1) + ";" + std::to_string(row_end + 1) + "r";
 #ifdef TINY_CPP_MY_OS_UNIX
         write(STDOUT_FILENO, cmd.c_str(), cmd.length());
-#elif defined(TINY_CPP_MY_OS_WINDOWS)
+#elif defined(TINY_CPP_MY_OS_WINDOWS) && defined(ENABLE_VIRTUAL_TERMINAL_PROCESSING)
         HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return false;
         DWORD mode;
@@ -496,7 +498,7 @@ namespace Tiny {
         std::string cmd = "\x1b[r";
 #ifdef TINY_CPP_MY_OS_UNIX
         write(STDOUT_FILENO, cmd.c_str(), cmd.length());
-#elif defined(TINY_CPP_MY_OS_WINDOWS)
+#elif defined(TINY_CPP_MY_OS_WINDOWS) && defined(ENABLE_VIRTUAL_TERMINAL_PROCESSING)
         HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return false;
         DWORD mode;
@@ -900,7 +902,7 @@ namespace Tiny {
         std::string cmd = "\x1b[48;2;" + std::to_string(r) + ";" + std::to_string(g) + ";" + std::to_string(b) + "m";
 #ifdef TINY_CPP_MY_OS_UNIX
         write(STDOUT_FILENO, cmd.c_str(), cmd.length());
-#elif defined(TINY_CPP_MY_OS_WINDOWS)
+#elif defined(TINY_CPP_MY_OS_WINDOWS) && defined(ENABLE_VIRTUAL_TERMINAL_PROCESSING)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return;
         DWORD mode;
@@ -966,7 +968,7 @@ namespace Tiny {
         std::string cmd = "\x1b[38;2;" + std::to_string(r) + ";" + std::to_string(g) + ";" + std::to_string(b) + "m";
 #ifdef TINY_CPP_MY_OS_UNIX
         write(STDOUT_FILENO, cmd.c_str(), cmd.length());
-#elif defined(TINY_CPP_MY_OS_WINDOWS)
+#elif defined(TINY_CPP_MY_OS_WINDOWS) && defined(ENABLE_VIRTUAL_TERMINAL_PROCESSING)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return;
         DWORD mode;
@@ -982,7 +984,7 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_UNIX
         const char* cmd = enable ? "\x1b[1m" : "\x1b[22m";
         write(STDOUT_FILENO, cmd, strlen(cmd));
-#elif defined(TINY_CPP_MY_OS_WINDOWS)
+#elif defined(TINY_CPP_MY_OS_WINDOWS) && defined(ENABLE_VIRTUAL_TERMINAL_PROCESSING)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return;
         DWORD mode;
@@ -1002,7 +1004,7 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_UNIX
         const char* cmd = enable ? "\x1b[2m" : "\x1b[22m";
         write(STDOUT_FILENO, cmd, strlen(cmd));
-#elif defined(TINY_CPP_MY_OS_WINDOWS)
+#elif defined(TINY_CPP_MY_OS_WINDOWS) && defined(ENABLE_VIRTUAL_TERMINAL_PROCESSING)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return;
         DWORD mode;
@@ -1022,7 +1024,7 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_UNIX
         const char* cmd = enable ? "\x1b[3m" : "\x1b[23m";
         write(STDOUT_FILENO, cmd, strlen(cmd));
-#elif defined(TINY_CPP_MY_OS_WINDOWS)
+#elif defined(TINY_CPP_MY_OS_WINDOWS) && defined(ENABLE_VIRTUAL_TERMINAL_PROCESSING)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return;
         DWORD mode;
@@ -1042,7 +1044,7 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_UNIX
         const char* cmd = enable ? "\x1b[4m" : "\x1b[24m";
         write(STDOUT_FILENO, cmd, strlen(cmd));
-#elif defined(TINY_CPP_MY_OS_WINDOWS)
+#elif defined(TINY_CPP_MY_OS_WINDOWS) && defined(ENABLE_VIRTUAL_TERMINAL_PROCESSING)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return;
         DWORD mode;
@@ -1062,7 +1064,7 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_UNIX
         const char* cmd = enable ? "\x1b[5m" : "\x1b[25m";
         write(STDOUT_FILENO, cmd, strlen(cmd));
-#elif defined(TINY_CPP_MY_OS_WINDOWS)
+#elif defined(TINY_CPP_MY_OS_WINDOWS) && defined(ENABLE_VIRTUAL_TERMINAL_PROCESSING)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return;
         DWORD mode;
@@ -1082,7 +1084,7 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_UNIX
         const char* cmd = enable ? "\x1b[7m" : "\x1b[27m";
         write(STDOUT_FILENO, cmd, strlen(cmd));
-#elif defined(TINY_CPP_MY_OS_WINDOWS)
+#elif defined(TINY_CPP_MY_OS_WINDOWS) && defined(ENABLE_VIRTUAL_TERMINAL_PROCESSING)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return;
         DWORD mode;
@@ -1116,7 +1118,7 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_UNIX
         const char* cmd = enable ? "\x1b[9m" : "\x1b[29m";
         write(STDOUT_FILENO, cmd, strlen(cmd));
-#elif defined(TINY_CPP_MY_OS_WINDOWS)
+#elif defined(TINY_CPP_MY_OS_WINDOWS) && defined(ENABLE_VIRTUAL_TERMINAL_PROCESSING)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return;
         DWORD mode;

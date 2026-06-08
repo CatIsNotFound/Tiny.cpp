@@ -171,19 +171,23 @@ namespace Tiny {
 
     void TUI::Renderer::set(const Position &pos, uint8_t ch, Style style) {
         char c[2] = {static_cast<char>(ch), 0};
+        if (pos.row >= _front_buffer.size() || pos.column >= _front_buffer.front().size()) return;
         _front_buffer[pos.row][pos.column].set(c, style);
     }
 
     void TUI::Renderer::set(uint32_t x, uint32_t y, uint8_t ch, Style style) {
+        if (y >= _front_buffer.size() || x >= _front_buffer.front().size()) return;
         char c[2] = {static_cast<char>(ch), 0};
         _front_buffer[y][x].set(c, style);
     }
 
     void TUI::Renderer::set(const Position &pos, const std::string &str, Style style) {
+        if (pos.row >= _front_buffer.size() || pos.column >= _front_buffer.front().size()) return;
         _front_buffer[pos.row][pos.column].set(splitFront(str.c_str()).c_str(), style);
     }
 
     void TUI::Renderer::set(uint32_t x, uint32_t y, const std::string &str, Style style) {
+        if (y >= _front_buffer.size() || x >= _front_buffer.front().size()) return;
         _front_buffer[y][x].set(splitFront(str.c_str()).c_str(), style);
     }
 
