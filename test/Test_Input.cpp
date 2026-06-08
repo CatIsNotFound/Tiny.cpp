@@ -37,13 +37,13 @@ void test_input() {
     ter::moveCursor(0, 0);
     while (true) {
         TUI::SP_Keys sp{};
-        ter::getKey(ch, sp);
-        if (ch == Tiny::TUI::KEY_CTRL_C || ch == Tiny::TUI::KEY_CTRL_Z) {
+        ch = ter::getKey(&sp);
+        if (ch == TUI::KEY_CTRL_C || ch == TUI::KEY_CTRL_Z) {
             break;
         }
         auto old_pos = ter::cursorPosition();
         auto key_name = TUI::getKeyName(ch, sp);
-        if (ch == Tiny::TUI::KEY_SPECIAL) {
+        if (ch == TUI::KEY_SPECIAL) {
             ter::printFormat("{:#d} (SP_{}){:60c}\r\n", ch, key_name, ' ');
         } else {
             ter::printFormat("{:#d} ({}){:50c}\r\n", ch, key_name, ' ');
@@ -153,7 +153,7 @@ void view_file(const char* exec_path) {
     while (true) {
         uint8_t ch = 0;
         TUI::SP_Keys sp_keys{};
-        ter::getKey(ch, sp_keys);
+        ch = ter::getKey(&sp_keys);
         auto cur = ter::cursorPosition();
 
         if (ch == TUI::KEY_CTRL_Z) break;
@@ -189,6 +189,29 @@ void view_file(const char* exec_path) {
     ter::leaveRawMode();
 }
 
+void test_input_event() {
+    ter::enterRawMode();
+    ter::setMouseEnabled(true);
+    ter::printLine("Press Ctrl+Z to quit.");
+    while (true) {
+        auto ev = ter::getInput();
+        if (ev.type == TUI::InputEvent::Keyboard && ev.input.keyboard.key == TUI::KEY_CTRL_Z) break;
+        auto it = ev.type;
+        ter::printFormat("Input type: {}, ", it == 0 ? "None" : (it == 1 ? "Keyboard" : "Mouse"));
+        if (it == TUI::InputEvent::Keyboard) {
+            ter::printFormat("Key: {}, Is pressed: {:s}\r\n",
+                TUI::getKeyName(ev.input.keyboard.key, ev.input.keyboard.sp_key), ev.input.keyboard.is_pressed);
+        } else if (it == TUI::InputEvent::Mouse) {
+            ter::printFormat("Button: {}, Pos: ({}, {}), Is pressed: {:s}\r\n", TUI::getMouseName(ev.input.mouse.button),
+                ev.input.mouse.position.column, ev.input.mouse.position.row, ev.input.mouse.is_pressed);
+        } else {
+            ter::printLine();
+        }
+    }
+    ter::setMouseEnabled(false);
+    ter::leaveRawMode();
+}
+
 int main(int argc, char* argv[]) {
     ter::print("Please press any key to continue...");
     ter::getKey();
@@ -198,6 +221,7 @@ int main(int argc, char* argv[]) {
         ter::printLine("2) Input text test");
         ter::printLine("3) Mouse Test");
         ter::printLine("4) View File");
+        ter::printLine("5) Input Event Test");
         ter::printLine("0) Exit");
         ter::print("Input the number: ");
         auto opt = ter::readLine();
@@ -209,6 +233,8 @@ int main(int argc, char* argv[]) {
             mouse_test();
         } else if (opt == "4") {
             view_file(argv[0]);
+        } else if (opt == "5") {
+            test_input_event();
         } else if (opt == "0") {
             return 0;
         } else if (!opt.empty()){

@@ -167,13 +167,34 @@ namespace Tiny {
             SP_MOUSE_RIGHT_BUTTON,
             SP_MOUSE_WHEEL_UP,
             SP_MOUSE_WHEEL_DOWN,
-            SP_MOUSE_MOVED
+            SP_MOUSE_MOVED,
+            SP_MOUSE_RELEASE
         };
 
         const char* getKeyName(const uint8_t &KEY, const SP_Keys &SP);
         const char* getMouseName(const SP_Mouse &SP);
         int8_t comparePosition(const Position& pos1, const Position& pos2);
         int8_t compareSize(const Size& size1, const Size& size2);
+
+        struct InputEvent {
+            enum Type : uint8_t {
+                None,
+                Keyboard,
+                Mouse
+            } type;
+            union Input {
+                struct Keyboard {
+                    uint8_t key;
+                    SP_Keys sp_key;
+                    bool is_pressed;
+                } keyboard;
+                struct Mouse {
+                    Position position;
+                    SP_Mouse button;
+                    bool is_pressed;
+                } mouse;
+            } input;
+        };
 
         class Terminal {
         public:
@@ -183,7 +204,7 @@ namespace Tiny {
             static Size screenSize();
             static Position cursorPosition();
             static bool print(const std::string &text);
-            static bool printLine(const std::string &text);
+            static bool printLine(const std::string &text = {});
             template<typename ... Args>
             static bool printFormat(const char* format, Args... args);
             template<typename ... Args>
@@ -197,11 +218,12 @@ namespace Tiny {
             static bool flushScreen();
             static std::string readLine();
             static std::wstring readLineW();
-            static uint8_t getKey();
-            static void getKey(uint8_t& key, SP_Keys& sp_key);
+            static uint8_t getKey(SP_Keys* sp_key = nullptr);
 
             static bool setMouseEnabled(bool enabled);
             static uint8_t getMouseButton(Position* mouse_pos = nullptr, bool* is_pressed = nullptr);
+
+            static InputEvent getInput();
 
             static void setBackgroundColor(Color color, bool intensity = true);
             static void setBackgroundColor(uint8_t r, uint8_t g, uint8_t b);
@@ -221,7 +243,7 @@ namespace Tiny {
             static void formatImpl(std::ostringstream &ostream, const char* format, T arg, Args... args);
             static void formatImpl(std::ostringstream &ostream, const char* format);
             template<typename T, typename... Args>
-            static void parseFormatSpec(std::ostringstream &ostream, const char*& format, T arg, Args... args);
+            static void parseFormatSpec(std::ostringstream &ostream, const char *format, T arg, Args... args);
             template<typename T, typename... Args>
             static void handleAlternateForm(std::ostringstream &ostream, const char*& format,
                                             std::string& spec, T arg, Args... args);
@@ -230,12 +252,14 @@ namespace Tiny {
             static void appendFormatText(std::ostringstream& ostream, const char* format);
             static bool printFormattedText(const std::string& str);
 #ifdef TINY_CPP_MY_OS_WINDOWS
+            static InputEvent parseInputRecord(void *input_record);
             static void* _old_console;
             static unsigned long _old_console_handle;
             static void* _old_input_handle;
         };
 #elif defined(TINY_CPP_MY_OS_UNIX)
             static std::string readLineOnRaw();
+            static bool isReady(int fd, size_t delay = 50);
             static ssize_t readAfterDelay(int fd, void* buffer, size_t size, size_t delay = 50);
             static ssize_t writeAfterDelay(int fd, void* buffer, size_t size, size_t delay = 50);
             static size_t removeFrontCharCount(const std::string& buf);

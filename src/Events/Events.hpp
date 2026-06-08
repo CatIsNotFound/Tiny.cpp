@@ -28,14 +28,11 @@
 
 #include <string>
 #include <functional>
-#include <unordered_map>
-#include <memory>
 #include <mutex>
 #include <thread>
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
-#include <csignal>
 
 namespace Tiny {
     class Event {
@@ -67,17 +64,16 @@ namespace Tiny {
         void loop();
         uint32_t _id{};
         std::atomic<bool> _is_load_event{}, _needs_destroy{};
+        std::atomic<bool> _is_running{false};
         std::string _name{};
         std::function<void(const std::atomic<bool>&)> _event{};
         std::function<bool()> _condition{[] { return true; }};
-        std::atomic<bool> _is_running{false};
         std::thread _thread{};
         std::atomic<uint32_t> _delay{1000};
         std::atomic<uint32_t> _exec_count{1}, _now_cnt{0};
         std::mutex _mutex{};
         std::condition_variable _con_var{}, _run_var{};
     };
-
 }
 
 

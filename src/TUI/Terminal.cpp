@@ -223,6 +223,8 @@ namespace Tiny {
                 return "Mouse Wheel Down";
             case SP_MOUSE_MOVED:
                 return "Mouse Moved";
+            case SP_MOUSE_RELEASE:
+                return "Mouse Release";
             default:
                 return "Unknown";
         }
@@ -332,7 +334,7 @@ namespace Tiny {
     }
 
     TUI::Size TUI::Terminal::screenSize() {
-        Size size;
+        Size size{};
 #ifdef TINY_CPP_MY_OS_UNIX
         struct winsize w;
         if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == -1) return size;
@@ -570,176 +572,79 @@ namespace Tiny {
         return out;
     }
 
-    uint8_t TUI::Terminal::getKey() {
-#ifdef TINY_CPP_MY_OS_UNIX
-        return getchar();
-#elif defined(TINY_CPP_MY_OS_WINDOWS)
-        HANDLE console = GetStdHandle(STD_INPUT_HANDLE);
-        if (console == INVALID_HANDLE_VALUE) return '\0';
-        INPUT_RECORD input;
-        DWORD read_count = 0;
-        while (ReadConsoleInputA(console, &input, 1, &read_count)) {
-            if (input.EventType != KEY_EVENT || !input.Event.KeyEvent.bKeyDown) continue;
-            if (read_count == 0) return '\0';
-            return input.Event.KeyEvent.uChar.AsciiChar;
-        }
-        return '\0';
-#endif
-    }
-
-    void TUI::Terminal::getKey(uint8_t& key, SP_Keys& sp_key) {
+    uint8_t TUI::Terminal::getKey(SP_Keys* sp_key) {
 #ifdef TINY_CPP_MY_OS_UNIX
         char buf[16] = {};
         std::string temp_cmd;
         size_t keys_cnt = readAfterDelay(STDIN_FILENO, buf, 16);
         temp_cmd = buf;
         if (keys_cnt > 1) {
-            key = KEY_SPECIAL;
             if (temp_cmd == "\x1bOP") {
-                sp_key = SP_KEY_F1;
+                if (sp_key) *sp_key = SP_KEY_F1;
             } else if (temp_cmd == "\x1bOQ") {
-                sp_key = SP_KEY_F2;
+                if (sp_key) *sp_key = SP_KEY_F2;
             } else if (temp_cmd == "\x1bOR") {
-                sp_key = SP_KEY_F3;
+                if (sp_key) *sp_key = SP_KEY_F3;
             } else if (temp_cmd == "\x1bOS") {
-                sp_key = SP_KEY_F4;
+                if (sp_key) *sp_key = SP_KEY_F4;
             } else if (temp_cmd == "\x1b[15~") {
-                sp_key = SP_KEY_F5;
+                if (sp_key) *sp_key = SP_KEY_F5;
             } else if (temp_cmd == "\x1b[17~") {
-                sp_key = SP_KEY_F6;
+                if (sp_key) *sp_key = SP_KEY_F6;
             } else if (temp_cmd == "\x1b[18~") {
-                sp_key = SP_KEY_F7;
+                if (sp_key) *sp_key = SP_KEY_F7;
             } else if (temp_cmd == "\x1b[19~") {
-                sp_key = SP_KEY_F8;
+                if (sp_key) *sp_key = SP_KEY_F8;
             } else if (temp_cmd == "\x1b[20~") {
-                sp_key = SP_KEY_F9;
+                if (sp_key) *sp_key = SP_KEY_F9;
             } else if (temp_cmd == "\x1b[21~") {
-                sp_key = SP_KEY_F10;
+                if (sp_key) *sp_key = SP_KEY_F10;
             } else if (temp_cmd == "\x1b[23~") {
-                sp_key = SP_KEY_F11;
+                if (sp_key) *sp_key = SP_KEY_F11;
             } else if (temp_cmd == "\x1b[24~") {
-                sp_key = SP_KEY_F12;
+                if (sp_key) *sp_key = SP_KEY_F12;
             } else if (temp_cmd == "\x1b[2~") {
-                sp_key = SP_KEY_INSERT;
+                if (sp_key) *sp_key = SP_KEY_INSERT;
             } else if (temp_cmd == "\x1b[3~") {
-                sp_key = SP_KEY_DELETE;
+                if (sp_key) *sp_key = SP_KEY_DELETE;
             } else if (temp_cmd == "\x1b[H") {
-                sp_key = SP_KEY_HOME;
+                if (sp_key) *sp_key = SP_KEY_HOME;
             } else if (temp_cmd == "\x1b[F") {
-                sp_key = SP_KEY_END;
+                if (sp_key) *sp_key = SP_KEY_END;
             } else if (temp_cmd == "\x1b[5~") {
-                sp_key = SP_KEY_PAGE_UP;
+                if (sp_key) *sp_key = SP_KEY_PAGE_UP;
             } else if (temp_cmd == "\x1b[6~") {
-                sp_key = SP_KEY_PAGE_DOWN;
+                if (sp_key) *sp_key = SP_KEY_PAGE_DOWN;
             } else if (temp_cmd == "\x1b[A") {
-                sp_key = SP_KEY_UP;
+                if (sp_key) *sp_key = SP_KEY_UP;
             } else if (temp_cmd == "\x1b[D") {
-                sp_key = SP_KEY_LEFT;
+                if (sp_key) *sp_key = SP_KEY_LEFT;
             } else if (temp_cmd == "\x1b[B") {
-                sp_key = SP_KEY_DOWN;
+                if (sp_key) *sp_key = SP_KEY_DOWN;
             } else if (temp_cmd == "\x1b[C") {
-                sp_key = SP_KEY_RIGHT;
+                if (sp_key) *sp_key = SP_KEY_RIGHT;
             } else if (temp_cmd == "\x1b[E") {
-                sp_key = SP_KEY_CENTER;
+                if (sp_key) *sp_key = SP_KEY_CENTER;
             } else {
-                key = KEY_UNKNOWN;
+                if (sp_key) *sp_key = SP_KEY_UNKNOWN;
+                return KEY_UNKNOWN;
             }
         } else {
-            key = buf[0];
+            return buf[0];
         }
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         DWORD read_count = 0;
         HANDLE console = GetStdHandle(STD_INPUT_HANDLE);
-        if (console == INVALID_HANDLE_VALUE) return;
+        if (console == INVALID_HANDLE_VALUE) return KEY_NONE;
         INPUT_RECORD input;
         while (ReadConsoleInputA(console, &input, 1, &read_count)) {
-            if (input.EventType != KEY_EVENT) continue;
-            if (!input.Event.KeyEvent.bKeyDown) continue;
-            auto& ev = input.Event.KeyEvent;
-            auto v_keycode = ev.wVirtualKeyCode;
-            auto ch = ev.uChar.AsciiChar;
-            key = KEY_SPECIAL;
-            switch (v_keycode) {
-                case VK_F1:
-                    sp_key = SP_KEY_F1;
-                    break;
-                case VK_F2:
-                    sp_key = SP_KEY_F2;
-                    break;
-                case VK_F3:
-                    sp_key = SP_KEY_F3;
-                    break;
-                case VK_F4:
-                    sp_key = SP_KEY_F4;
-                    break;
-                case VK_F5:
-                    sp_key = SP_KEY_F5;
-                    break;
-                case VK_F6:
-                    sp_key = SP_KEY_F6;
-                    break;
-                case VK_F7:
-                    sp_key = SP_KEY_F7;
-                    break;
-                case VK_F8:
-                    sp_key = SP_KEY_F8;
-                    break;
-                case VK_F9:
-                    sp_key = SP_KEY_F9;
-                    break;
-                case VK_F10:
-                    sp_key = SP_KEY_F10;
-                    break;
-                case VK_F11:
-                    sp_key = SP_KEY_F11;
-                    break;
-                case VK_F12:
-                    sp_key = SP_KEY_F12;
-                    break;
-                case VK_INSERT:
-                    sp_key = SP_KEY_INSERT;
-                    break;
-                case VK_DELETE:
-                    sp_key = SP_KEY_DELETE;
-                    break;
-                case VK_HOME:
-                    sp_key = SP_KEY_HOME;
-                    break;
-                case VK_END:
-                    sp_key = SP_KEY_END;
-                    break;
-                case VK_PRIOR:
-                    sp_key = SP_KEY_PAGE_UP;
-                    break;
-                case VK_NEXT:
-                    sp_key = SP_KEY_PAGE_DOWN;
-                    break;
-                case VK_CLEAR:
-                    sp_key = SP_KEY_CENTER;
-                    break;
-                case VK_UP:
-                    sp_key = SP_KEY_UP;
-                    break;
-                case VK_LEFT:
-                    sp_key = SP_KEY_LEFT;
-                    break;
-                case VK_DOWN:
-                    sp_key = SP_KEY_DOWN;
-                    break;
-                case VK_RIGHT:
-                    sp_key = SP_KEY_RIGHT;
-                    break;
-                default:
-                    if (ch > 0) {
-                        key = ch;
-                    } else {
-                        key = KEY_UNKNOWN;
-                    }
-                    break;
-            }
-            break;
+            auto input_handle = parseInputRecord(&input);
+            if (input_handle.type != InputEvent::Keyboard || !input_handle.input.keyboard.is_pressed) continue;
+            if (sp_key) *sp_key = input_handle.input.keyboard.sp_key;
+            return input_handle.input.keyboard.key;
         }
 #endif
+        return 0;
     }
 
     bool TUI::Terminal::setMouseEnabled(bool enabled) {
@@ -816,36 +721,38 @@ namespace Tiny {
         INPUT_RECORD input;
         DWORD read_count = 0;
         while (ReadConsoleInput(console, &input, 1, &read_count)) {
-            if (input.EventType != MOUSE_EVENT) continue;
-            if (read_count == 0) return SP_MOUSE_UNKNOWN;
-            auto mouse_event = input.Event.MouseEvent;
-            if (mouse_pos) {
-                mouse_pos->row = mouse_event.dwMousePosition.Y;
-                mouse_pos->column = mouse_event.dwMousePosition.X;
-            }
-            if (mouse_event.dwEventFlags == MOUSE_WHEELED) {
-                auto high = mouse_event.dwButtonState >> 24;
-                if (high == 0) {
-                    return SP_MOUSE_WHEEL_UP;
-                }
-                return SP_MOUSE_WHEEL_DOWN;
-            }
-            if (mouse_event.dwEventFlags == MOUSE_MOVED) return SP_MOUSE_MOVED;
-            if (mouse_event.dwEventFlags == 0) {
-                if (is_pressed) *is_pressed = true;
-                if (mouse_event.dwButtonState & FROM_LEFT_1ST_BUTTON_PRESSED) {
-                    return SP_MOUSE_LEFT_BUTTON;
-                } else if (mouse_event.dwButtonState & RIGHTMOST_BUTTON_PRESSED) {
-                    return SP_MOUSE_RIGHT_BUTTON;
-                } else if (mouse_event.dwButtonState & FROM_LEFT_2ND_BUTTON_PRESSED) {
-                    return SP_MOUSE_MIDDLE_BUTTON;
-                } else if (is_pressed) {
-                    *is_pressed = false;
-                }
-            }
+            auto input_handle = parseInputRecord(&input);
+            if (input_handle.type != InputEvent::Mouse) continue;
+            if (mouse_pos) *mouse_pos = input_handle.input.mouse.position;
+            if (is_pressed) *is_pressed = input_handle.input.mouse.is_pressed;
+            return input_handle.input.mouse.button;
         }
 #endif
         return SP_MOUSE_UNKNOWN;
+    }
+
+    TUI::InputEvent TUI::Terminal::getInput() {
+        InputEvent ev{};
+#ifdef TINY_CPP_MY_OS_UNIX
+        if (!isReady(STDIN_FILENO)) {
+            ev.type = InputEvent::None;
+            ev.keyboard = {};
+            ev.mouse = {};
+            return ev;
+        }
+
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        HANDLE console = GetStdHandle(STD_INPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) {
+            return ev;
+        }
+        Sleep(50);
+        INPUT_RECORD input;
+        DWORD length = 0;
+        ReadConsoleInput(console, &input, 1, &length);
+        ev = parseInputRecord(&input);
+#endif
+        return ev;
     }
 
     void TUI::Terminal::setBackgroundColor(Color color, bool intensity) {
@@ -1158,6 +1065,126 @@ namespace Tiny {
 #endif
     }
 
+#ifdef TINY_CPP_MY_OS_WINDOWS
+    TUI::InputEvent TUI::Terminal::parseInputRecord(void *input_record) {
+        auto input = static_cast<PINPUT_RECORD>(input_record);
+        InputEvent result{};
+        if (input->EventType == KEY_EVENT) {
+            result.type = InputEvent::Keyboard;
+            result.input.keyboard.is_pressed = input->Event.KeyEvent.bKeyDown;
+            SP_Keys sp_key{};
+            auto& ev = input->Event.KeyEvent;
+            auto v_keycode = ev.wVirtualKeyCode;
+            uint8_t ch = ev.uChar.AsciiChar;
+            result.input.keyboard.key = KEY_SPECIAL;
+            switch (v_keycode) {
+                case VK_F1:
+                    sp_key = SP_KEY_F1;
+                    break;
+                case VK_F2:
+                    sp_key = SP_KEY_F2;
+                    break;
+                case VK_F3:
+                    sp_key = SP_KEY_F3;
+                    break;
+                case VK_F4:
+                    sp_key = SP_KEY_F4;
+                    break;
+                case VK_F5:
+                    sp_key = SP_KEY_F5;
+                    break;
+                case VK_F6:
+                    sp_key = SP_KEY_F6;
+                    break;
+                case VK_F7:
+                    sp_key = SP_KEY_F7;
+                    break;
+                case VK_F8:
+                    sp_key = SP_KEY_F8;
+                    break;
+                case VK_F9:
+                    sp_key = SP_KEY_F9;
+                    break;
+                case VK_F10:
+                    sp_key = SP_KEY_F10;
+                    break;
+                case VK_F11:
+                    sp_key = SP_KEY_F11;
+                    break;
+                case VK_F12:
+                    sp_key = SP_KEY_F12;
+                    break;
+                case VK_INSERT:
+                    sp_key = SP_KEY_INSERT;
+                    break;
+                case VK_DELETE:
+                    sp_key = SP_KEY_DELETE;
+                    break;
+                case VK_HOME:
+                    sp_key = SP_KEY_HOME;
+                    break;
+                case VK_END:
+                    sp_key = SP_KEY_END;
+                    break;
+                case VK_PRIOR:
+                    sp_key = SP_KEY_PAGE_UP;
+                    break;
+                case VK_NEXT:
+                    sp_key = SP_KEY_PAGE_DOWN;
+                    break;
+                case VK_CLEAR:
+                    sp_key = SP_KEY_CENTER;
+                    break;
+                case VK_UP:
+                    sp_key = SP_KEY_UP;
+                    break;
+                case VK_LEFT:
+                    sp_key = SP_KEY_LEFT;
+                    break;
+                case VK_DOWN:
+                    sp_key = SP_KEY_DOWN;
+                    break;
+                case VK_RIGHT:
+                    sp_key = SP_KEY_RIGHT;
+                    break;
+                default:
+                    result.input.keyboard.key = ch > 0 ? ch : KEY_NONE;
+            }
+            result.input.keyboard.sp_key = sp_key;
+        } else if (input->EventType == MOUSE_EVENT) {
+            result.type = InputEvent::Mouse;
+            auto mouse_event = input->Event.MouseEvent;
+            result.input.mouse.position.row = mouse_event.dwMousePosition.Y;
+            result.input.mouse.position.column = mouse_event.dwMousePosition.X;
+            result.input.mouse.is_pressed = false;
+            if (mouse_event.dwEventFlags == MOUSE_WHEELED) {
+                auto high = mouse_event.dwButtonState >> 24;
+                if (high == 0) {
+                    result.input.mouse.button = SP_MOUSE_WHEEL_UP;
+                } else {
+                    result.input.mouse.button = SP_MOUSE_WHEEL_DOWN;
+                }
+            } else if (mouse_event.dwEventFlags == MOUSE_MOVED) {
+                result.input.mouse.button = SP_MOUSE_MOVED;
+                result.input.mouse.is_pressed = mouse_event.dwButtonState > 0;
+            } else if (mouse_event.dwEventFlags == 0) {
+                result.input.mouse.is_pressed = true;
+                if (mouse_event.dwButtonState & FROM_LEFT_1ST_BUTTON_PRESSED) {
+                    result.input.mouse.button = SP_MOUSE_LEFT_BUTTON;
+                } else if (mouse_event.dwButtonState & RIGHTMOST_BUTTON_PRESSED) {
+                    result.input.mouse.button = SP_MOUSE_RIGHT_BUTTON;
+                } else if (mouse_event.dwButtonState & FROM_LEFT_2ND_BUTTON_PRESSED) {
+                    result.input.mouse.button = SP_MOUSE_MIDDLE_BUTTON;
+                } else {
+                    result.input.mouse.button = SP_MOUSE_RELEASE;
+                    result.input.mouse.is_pressed = false;
+                }
+            }
+        }
+        return result;
+    }
+#endif
+
 #ifdef TINY_CPP_MY_OS_UNIX
     std::string TUI::Terminal::readLineOnRaw() {
         std::string result;
@@ -1189,6 +1216,18 @@ namespace Tiny {
         } while (read_bytes > 0);
 
         return result;
+    }
+
+    bool TUI::Terminal::isReady(int fd, size_t delay = 50) {
+        fd_set sets;
+        FD_ZERO(&sets);
+        FD_SET(fd, &sets);
+
+        timeval internal;
+        internal.tv_sec = delay / 1000;
+        internal.tv_usec = (delay % 1000) * 1000;
+        auto ret = select(fd + 1, &sets, nullptr, nullptr, &internal);
+        return ret > 0;
     }
 
     ssize_t TUI::Terminal::readAfterDelay(int fd, void* buffer, size_t size, size_t delay) {

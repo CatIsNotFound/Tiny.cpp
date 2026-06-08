@@ -483,6 +483,45 @@ namespace Tiny {
         }
 #endif
     }
+
+    TUI::InputBus & TUI::InputBus::self() {
+        static InputBus input_bus;
+        return input_bus;
+    }
+
+    TUI::InputBus::~InputBus() {
+
+    }
+
+    void TUI::InputBus::poll(InputEvent &event) {
+    }
+
+    TUI::InputBus::InputBus() {
+        {
+            _is_loaded.store(true);
+            _is_running.store(false);
+            _cond_var.notify_all();
+        }
+        _input_signal = std::thread(&InputBus::loop, this);
+    }
+
+    void TUI::InputBus::loop() {
+
+        while (true) {
+            {
+                std::unique_lock<std::mutex> lock(_mutex);
+                _cond_var.wait(lock, [this] {
+                    return _is_loaded.load() && _is_running.load();
+                });
+                if (!_is_loaded.load()) break;
+            }
+
+            while (_is_running.load()) {
+
+
+            }
+        }
+    }
 }
 
 /*************************************************************************************

@@ -33,7 +33,9 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
+#include <future>
 #include <functional>
+#include <map>
 
 namespace Tiny {
     namespace TUI {
@@ -238,17 +240,31 @@ namespace Tiny {
             setChars(pos, f_text, style);
         }
 
-        class EventListener {
-        public:
-            static EventListener& self();
-            ~EventListener();
 
-            EventListener(const EventListener&) = delete;
-            EventListener(EventListener&&) = delete;
-            EventListener& operator=(const EventListener&) = delete;
-            EventListener& operator=(EventListener&&) = delete;
+
+        class InputBus {
+        public:
+            static InputBus& self();
+            ~InputBus();
+
+            void poll(InputEvent& event);
+
+            InputBus(const InputBus&) = delete;
+            InputBus(InputBus&&) = delete;
+            InputBus& operator=(const InputBus&) = delete;
+            InputBus& operator=(InputBus&&) = delete;
+        protected:
+            InputBus();
+            void loop();
         private:
-            EventListener();
+            std::thread _input_signal{};
+            std::mutex _mutex{};
+            std::condition_variable _cond_var{};
+            std::atomic<bool> _is_loaded{}, _is_running{};
+            std::future<uint8_t> _f_input_key{}, _f_mouse_button{};
+            std::future<SP_Keys> _f_sp_key{};
+            std::future<Position> _f_mouse_pos{};
+            std::future<bool> _f_is_mouse_btn_pressed{};
         };
 
         class AbstractWidget {

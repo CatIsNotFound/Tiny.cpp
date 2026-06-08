@@ -281,13 +281,15 @@ namespace Tiny {
     }
     
     template<typename T, typename... Args>
-    void TUI::Terminal::parseFormatSpec(std::ostringstream &ostream, const char*& format,
+    void TUI::Terminal::parseFormatSpec(std::ostringstream &ostream, const char *fmt,
                                         T arg, Args... args) {
-        format += 2; 
+        std::string old_str = fmt, my_str = fmt;
+        auto format = old_str.c_str();
+        format += 2;
         int intPart = 0, decPart = 0;
+        size_t fpos = 2;
         bool addIntPart = true, isRightAlign = true;
-        std::string spec;
-        spec += "{:";
+        std::string spec = "{:";
         
         while (*format && *format != '}') {
             if (*format == '.') {
@@ -308,7 +310,30 @@ namespace Tiny {
                 spec += *format;
                 handleAlternateForm<T, Args...>(ostream, format, spec, arg, std::forward<Args>(args)...);
                 return;
-            } else if (std::isdigit(*format)) {
+            } else if (*format == '{' && *(format + 1) != '{') {
+                std::string tokens = format;
+                uint8_t bk = 0;
+                size_t dis = 0;
+                for (auto& t : tokens) {
+                    if (t == '{') bk++;
+                    else if (t == '}') bk--;
+                    if (!bk) break;
+                    dis++;
+                }
+                if (bk == 0) {
+                    std::ostringstream oss;
+                    formatImpl(oss, tokens.substr(0, dis + 1).c_str(), arg, std::forward<Args>(args)...);
+                    my_str = old_str.substr(0, fpos);
+                    my_str += oss.str();
+                    my_str += old_str.substr(fpos + dis + 1);
+                    formatImpl(ostream, my_str.c_str(), std::forward<Args>(args)...);
+                    return;
+                } else {
+                    ostream << spec;
+                    formatImpl(ostream, format, arg, std::forward<Args>(args)...);
+                    return;
+                }
+            } else if (isdigit(*format)) {
                 if (addIntPart) {
                     if (intPart > 0) intPart *= 10;
                     intPart += *format - '0';
@@ -343,6 +368,7 @@ namespace Tiny {
                 return;
             }
             format++;
+            fpos++;
         }
         
         
