@@ -163,6 +163,7 @@ namespace Tiny {
     TUI::Renderer::~Renderer() {
 #ifdef TINY_CPP_MY_OS_WINDOWS
         _is_running.store(false);
+        if (_resize_win_signal.joinable()) _resize_win_signal.join();
 #endif
         Terminal::setMouseEnabled(false);
         Terminal::reset();
@@ -453,7 +454,7 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_WINDOWS
         _is_running.store(true);
         _resize_win_signal = std::thread(&Renderer::resizeWindow, 0);
-        _resize_win_signal.detach();
+        // _resize_win_signal.detach();
 #else
         signal(SIGWINCH, Renderer::resizeWindow);
 
