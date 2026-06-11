@@ -1,17 +1,34 @@
 cmake_minimum_required(VERSION 3.24)
-project(Tiny LANGUAGES CXX VERSION 1.0.1)
+project(Tiny LANGUAGES CXX VERSION 1.0.0)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(TINY_BUILD_TEST "Build test module" ON)
 option(TINY_GTEST_SRC "Include Source code from local." ON)
+option(TINY_USE_GPM "Include gpm library for project (Only for linux)." OFF)
 message("-- Tiny.cpp is configuring...")
 message("-- Build Test Module: ${TINY_BUILD_TEST}")
 message("-- Installation path: ${CMAKE_INSTALL_PREFIX}")
 message("-- P.S: To disabled building test module, please set '-DTINY_BUILD_TEST=OFF' option.")
 message("--      If your GTest submodule is already installed by package manager, please set") 
 message("--      '-DTINY_GTEST_SRC=OFF' option.")
+
+if (TINY_USE_GPM)
+if (LINUX)
+    find_path(GPM_INCLUDE_DIR
+        NAMES gpm.h
+        PATH_SUFFIXES gpm
+    )
+
+    find_library(GPM_LIBRARY
+        NAMES gpm
+    )
+
+else()
+    message(FATAL_ERROR "-- Error: You are not using Linux system! Please disabled the option \"TINY_USE_GPM\".")
+endif()
+endif()
 
 add_library(${PROJECT_NAME} STATIC
         src/Tiny.hpp
@@ -34,6 +51,18 @@ add_library(${PROJECT_NAME} STATIC
 # Link Windows libraries
 if(WIN32)
     target_link_libraries(${PROJECT_NAME} PRIVATE pdh)
+endif()
+
+# Link Linux libraries
+if (TINY_USE_GPM)
+    if (GPM_INCLUDE_DIR AND GPM_LIBRARY)
+        message("-- Found library: libgpm")
+        target_link_libraries(${PROJECT_NAME} PRIVATE ${GPM_LIBRARY})
+        target_include_directories(${PROJECT_NAME} PRIVATE ${GPM_INCLUDE_DIR})
+        add_compile_definitions(TINY_CPP_USE_GPM=1)
+    else ()
+        message(FATAL_ERROR "-- Error: Can not found the libgpm package! Please install 'libgpm' package from package manager at first!")
+    endif ()
 endif()
 
 install(TARGETS ${PROJECT_NAME}

@@ -24,6 +24,7 @@
  *************************************************************************************/
 
 #include "Terminal.hpp"
+#include "../OS/File.hpp"
 
 #if defined(TINY_CPP_MY_OS_WINDOWS)
 #include <windows.h>
@@ -33,8 +34,14 @@
 #include <cwchar>
 #include <clocale>
 #include <unistd.h>
+#include <fcntl.h>
 #include <sys/ioctl.h>
 #include <termios.h>
+#ifdef TINY_CPP_USE_GPM
+#include <gpm.h>
+#define HAS_GPM
+#define NEED_USE_GPM() !strcmp(getenv("TERM"), "linux")
+#endif
 #endif
 
 #if defined(TINY_CPP_MY_OS_WINDOWS)
@@ -246,10 +253,25 @@ namespace Tiny {
         return -1;
     }
 
+    bool TUI::isPointInRect(const Position &point, Position &start_pos, Position &end_pos) {
+        if (comparePosition(start_pos, end_pos) == -1) {
+            auto t = start_pos;
+            start_pos = end_pos;
+            end_pos = t;
+        }
+        return (point.row >= start_pos.row && point.row <= end_pos.row) && 
+               (point.column >= start_pos.column && point.column <= end_pos.column);
+    }
+
 #ifdef TINY_CPP_MY_OS_UNIX
     termios TUI::Terminal::_old_terminal{};
     bool TUI::Terminal::_is_in_raw_mode{};
     TUI::Position TUI::Terminal::_last_cur_pos{0, 0};
+    std::string TUI::Terminal::_temp_buffers{};
+#ifdef TINY_CPP_USE_GPM
+    Gpm_Connect TUI::Terminal::_gpm_connector{};
+    int TUI::Terminal::_gpm_fd{};
+#endif
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
     void* TUI::Terminal::_old_console{};
     unsigned long TUI::Terminal::_old_console_handle{0};
@@ -262,7 +284,10 @@ namespace Tiny {
         struct termios new_raw = raw;
         _old_terminal = raw;
         cfmakeraw(&new_raw);
-        tcsetattr(STDIN_FILENO, TCIFLUSH, &new_raw);
+        if (tcsetattr(STDIN_FILENO, TCIFLUSH, &new_raw) == -1) {
+            _is_in_raw_mode = false;
+            return false;
+        }
         auto cmd = "\x1b[?1049h\x1b[2J\x1b[H";
         write(STDOUT_FILENO, cmd, strlen(cmd));
         _is_in_raw_mode = true;
@@ -299,9 +324,15 @@ namespace Tiny {
             return false;
         }
         _is_in_raw_mode = false;
+#ifdef TINY_CPP_USE_GPM
+        if (NEED_USE_GPM()) {
+            auto cmd = "\x1b[127E";
+            write(STDOUT_FILENO, cmd, strlen(cmd));
+            return true;
+        }
+#endif
         auto cmd = "\x1b[?1049l";
         write(STDOUT_FILENO, cmd, strlen(cmd));
-
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         if (_old_console != nullptr) {
             auto console = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -417,7 +448,7 @@ namespace Tiny {
 
     bool TUI::Terminal::clearScreen() {
 #ifdef TINY_CPP_MY_OS_UNIX
-        write(STDOUT_FILENO, "\x1b[2J", 8);
+        write(STDOUT_FILENO, "\x1b[2J", 5);
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return false;
@@ -528,11 +559,15 @@ namespace Tiny {
         if (_is_in_raw_mode) {
             out = readLineOnRaw();
         } else {
-            char buffer[2048] = {};
-            size_t read_count = readAfterDelay(STDIN_FILENO, buffer, 2048);
-            if (buffer[read_count - 1] == '\n') read_count -= 1;
-            out.resize(read_count);
-            strncpy(&out[0], buffer, read_count);
+            char buffer[1024] = {};
+            while (true) {
+                ssize_t read_count = readAfterDelay(STDIN_FILENO, buffer, 1024);
+                if (read_count <= 0) continue;
+                if (buffer[read_count - 1] == '\n') read_count -= 1;
+                out.resize(read_count);
+                strncpy(&out[0], buffer, read_count);
+                break;
+            }
         }
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         char buffer[2048] = {};
@@ -574,64 +609,23 @@ namespace Tiny {
 
     uint8_t TUI::Terminal::getKey(SP_Keys* sp_key) {
 #ifdef TINY_CPP_MY_OS_UNIX
-        char buf[16] = {};
-        std::string temp_cmd;
-        size_t keys_cnt = readAfterDelay(STDIN_FILENO, buf, 16);
-        temp_cmd = buf;
-        if (keys_cnt > 1) {
-            if (temp_cmd == "\x1bOP") {
-                if (sp_key) *sp_key = SP_KEY_F1;
-            } else if (temp_cmd == "\x1bOQ") {
-                if (sp_key) *sp_key = SP_KEY_F2;
-            } else if (temp_cmd == "\x1bOR") {
-                if (sp_key) *sp_key = SP_KEY_F3;
-            } else if (temp_cmd == "\x1bOS") {
-                if (sp_key) *sp_key = SP_KEY_F4;
-            } else if (temp_cmd == "\x1b[15~") {
-                if (sp_key) *sp_key = SP_KEY_F5;
-            } else if (temp_cmd == "\x1b[17~") {
-                if (sp_key) *sp_key = SP_KEY_F6;
-            } else if (temp_cmd == "\x1b[18~") {
-                if (sp_key) *sp_key = SP_KEY_F7;
-            } else if (temp_cmd == "\x1b[19~") {
-                if (sp_key) *sp_key = SP_KEY_F8;
-            } else if (temp_cmd == "\x1b[20~") {
-                if (sp_key) *sp_key = SP_KEY_F9;
-            } else if (temp_cmd == "\x1b[21~") {
-                if (sp_key) *sp_key = SP_KEY_F10;
-            } else if (temp_cmd == "\x1b[23~") {
-                if (sp_key) *sp_key = SP_KEY_F11;
-            } else if (temp_cmd == "\x1b[24~") {
-                if (sp_key) *sp_key = SP_KEY_F12;
-            } else if (temp_cmd == "\x1b[2~") {
-                if (sp_key) *sp_key = SP_KEY_INSERT;
-            } else if (temp_cmd == "\x1b[3~") {
-                if (sp_key) *sp_key = SP_KEY_DELETE;
-            } else if (temp_cmd == "\x1b[H") {
-                if (sp_key) *sp_key = SP_KEY_HOME;
-            } else if (temp_cmd == "\x1b[F") {
-                if (sp_key) *sp_key = SP_KEY_END;
-            } else if (temp_cmd == "\x1b[5~") {
-                if (sp_key) *sp_key = SP_KEY_PAGE_UP;
-            } else if (temp_cmd == "\x1b[6~") {
-                if (sp_key) *sp_key = SP_KEY_PAGE_DOWN;
-            } else if (temp_cmd == "\x1b[A") {
-                if (sp_key) *sp_key = SP_KEY_UP;
-            } else if (temp_cmd == "\x1b[D") {
-                if (sp_key) *sp_key = SP_KEY_LEFT;
-            } else if (temp_cmd == "\x1b[B") {
-                if (sp_key) *sp_key = SP_KEY_DOWN;
-            } else if (temp_cmd == "\x1b[C") {
-                if (sp_key) *sp_key = SP_KEY_RIGHT;
-            } else if (temp_cmd == "\x1b[E") {
-                if (sp_key) *sp_key = SP_KEY_CENTER;
-            } else {
-                if (sp_key) *sp_key = SP_KEY_UNKNOWN;
-                return KEY_UNKNOWN;
+        InputEvent ev{};
+        std::string buf;
+        
+        while (true) {
+            if (!pushBuffers(STDIN_FILENO, 10) && !nextBuffers(buf)) {
+                continue;
             }
-        } else {
-            return buf[0];
+            ev = parseInputEvent(buf.c_str());
+            if (ev.type == InputEvent::Keyboard) {
+                if (ev.input.keyboard.key == KEY_SPECIAL && sp_key) {
+                    *sp_key = ev.input.keyboard.sp_key;
+                }
+                _temp_buffers.clear();
+                break;
+            }
         }
+        return ev.input.keyboard.key;
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         DWORD read_count = 0;
         HANDLE console = GetStdHandle(STD_INPUT_HANDLE);
@@ -649,6 +643,23 @@ namespace Tiny {
 
     bool TUI::Terminal::setMouseEnabled(bool enabled) {
 #ifdef TINY_CPP_MY_OS_UNIX
+#ifdef HAS_GPM
+        if (NEED_USE_GPM()) {
+            int ret;
+            if (enabled) {
+                _gpm_connector.defaultMask = 0;
+                _gpm_connector.eventMask = ~GPM_HARD;
+                _gpm_connector.minMod = 0;
+                _gpm_connector.maxMod = 0;
+                ret = Gpm_Open(&_gpm_connector, 0);
+                _gpm_fd = ret;
+            } else {
+                ret = (Gpm_Close() == 0);
+                _gpm_fd = 0;
+            }
+            return ret > 0;
+        }
+#endif
         std::string cmd = enabled ? "\x1b[?1000;1003;1006h" : "\x1b[?1000;1003;1006l";
         write(STDIN_FILENO, cmd.data(), cmd.size());
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
@@ -669,52 +680,32 @@ namespace Tiny {
 
     uint8_t TUI::Terminal::getMouseButton(Position* mouse_pos, bool* is_pressed) {
 #ifdef TINY_CPP_MY_OS_UNIX
-        char buf[16] = {};
-        size_t read_bytes = readAfterDelay(STDIN_FILENO, buf, 16);
-        
-        uint32_t ev_type, row, col;
-        bool is_big_M = (buf[read_bytes - 1] == 'M');
-        if (sscanf(buf, "\x1b[<%d;%d;%d", &ev_type, &col, &row) != 3) {
-            if (sscanf(buf, "\x1b[%d;%dH", &row, &col) == 2) {
-                if (mouse_pos) {
-                    mouse_pos->row = row - 1;
-                    mouse_pos->column = col - 1;
+        InputEvent ev{};
+        std::string buf;
+        bool ok = false;
+        while (true) {
+#ifdef TINY_CPP_USE_GPM
+            if (NEED_USE_GPM()) {
+                while (true) {
+                    auto mouse = parseMouseEvent(buf, ok);
+                    if (ok) {
+                        if (mouse_pos) *mouse_pos = mouse.position;
+                        if (is_pressed) *is_pressed = mouse.is_pressed;
+                        return mouse.button;
+                    }
+                    usleep(10000);
                 }
-                return SP_MOUSE_MOVED;
             }
-            return SP_MOUSE_UNKNOWN;
-        }
-
-        if (is_pressed) {
-            if (is_big_M) {
-                *is_pressed = (ev_type != 35);
-            } else {
-                *is_pressed = false;
+#endif
+            if (!pushBuffers(STDIN_FILENO, 10) || !nextBuffers(buf)) {
+                continue;
             }
+            ev = parseInputEvent(buf.c_str());
+            if (ev.type == InputEvent::Mouse) break;
         }
-        if (mouse_pos) {
-            mouse_pos->row = row - 1;
-            mouse_pos->column = col - 1;
-        }
-
-        switch (ev_type) {
-        case 0:
-            return SP_MOUSE_LEFT_BUTTON;
-        case 1:
-            return SP_MOUSE_MIDDLE_BUTTON;
-        case 2:
-            return SP_MOUSE_RIGHT_BUTTON;
-        case 32:
-        case 33:
-        case 34:
-        case 35:
-            return SP_MOUSE_MOVED;
-        case 64:
-            return SP_MOUSE_WHEEL_UP;
-        case 65:
-            return SP_MOUSE_WHEEL_DOWN;
-        }
-
+        if (mouse_pos) *mouse_pos = ev.input.mouse.position;
+        if (is_pressed) *is_pressed = ev.input.mouse.is_pressed;
+        return ev.input.mouse.button;
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         HANDLE console = GetStdHandle(STD_INPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return '\0';
@@ -734,23 +725,45 @@ namespace Tiny {
     TUI::InputEvent TUI::Terminal::getInput() {
         InputEvent ev{};
 #ifdef TINY_CPP_MY_OS_UNIX
-        if (!isReady(STDIN_FILENO)) {
-            ev.type = InputEvent::None;
-            ev.keyboard = {};
-            ev.mouse = {};
+        std::string buf;
+#ifdef TINY_CPP_USE_GPM
+        if (NEED_USE_GPM()) {
+            bool ok = false;
+            auto mouse = parseMouseEvent(buf, ok);
+            if (ok) {
+                ev.type = InputEvent::Mouse;
+                ev.input.mouse = mouse;
+                return ev;
+            }
+            _temp_buffers.clear();
+            if (!pushBuffers(STDIN_FILENO, 50) || !nextBuffers(buf)) return ev;
+            auto keyboard = parseKeyboardEvent(buf, ok);
+            if (ok) {
+                ev.type = InputEvent::Keyboard;
+                ev.input.keyboard = keyboard;
+            } 
             return ev;
         }
-
+#endif
+        if (_temp_buffers.empty()) {
+            if (!pushBuffers(STDIN_FILENO, 50)) return ev;
+        }
+        if (!nextBuffers(buf)) return ev;
+        ev = parseInputEvent(buf.c_str());
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         HANDLE console = GetStdHandle(STD_INPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) {
             return ev;
         }
-        Sleep(50);
+        Sleep(10);
         INPUT_RECORD input;
+        DWORD get_length = 0;
         DWORD length = 0;
-        ReadConsoleInput(console, &input, 1, &length);
-        ev = parseInputRecord(&input);
+        GetNumberOfConsoleInputEvents(console, &get_length);
+        if (get_length > 0) {
+            ReadConsoleInput(console, &input, 1, &length);
+            ev = parseInputRecord(&input);
+        }
 #endif
         return ev;
     }
@@ -1218,16 +1231,95 @@ namespace Tiny {
         return result;
     }
 
-    bool TUI::Terminal::isReady(int fd, size_t delay = 50) {
+    bool TUI::Terminal::isReady(int fd) {
+        fd_set sets;
+        FD_ZERO(&sets);
+        FD_SET(fd, &sets);
+
+        timeval internal = {0, 0};
+        auto ret = select(fd + 1, &sets, nullptr, nullptr, &internal);
+        if (ret < 0) return false;
+        return FD_ISSET(fd, &sets);
+    }
+
+    bool TUI::Terminal::pushBuffers(int fd, size_t msecs) {
         fd_set sets;
         FD_ZERO(&sets);
         FD_SET(fd, &sets);
 
         timeval internal;
-        internal.tv_sec = delay / 1000;
-        internal.tv_usec = (delay % 1000) * 1000;
+        internal.tv_sec = msecs / 1000;
+        internal.tv_usec = (msecs % 1000) * 1000;
         auto ret = select(fd + 1, &sets, nullptr, nullptr, &internal);
-        return ret > 0;
+        if (ret < 0 || !FD_ISSET(fd, &sets)) {
+            return false;
+        }
+        size_t preread_cnt = 0;
+        ioctl(STDIN_FILENO, FIONREAD, &preread_cnt);
+        char buf[256] = {};
+        ssize_t read_cnt = 0;
+        
+        read_cnt = read(fd, buf, preread_cnt);
+        _temp_buffers.insert(_temp_buffers.end(), buf, buf + read_cnt);
+        
+        return true;
+    }
+
+    bool TUI::Terminal::nextBuffers(std::string& buffer) {
+        if (_temp_buffers.empty()) return false;
+        buffer.clear();
+        // If the first char is `ESC`, start parsing.
+        if (_temp_buffers[0] == '\x1b') {
+            // If getting the current cursor position, discard it.
+            int a = 0, b = 0;
+            if (sscanf(_temp_buffers.c_str(), "\x1b[%d;%dR", &a, &b) == 2) {
+                size_t del_cnt = 4 + std::to_string(a).size() + std::to_string(b).size();
+                _temp_buffers.erase(_temp_buffers.begin(), _temp_buffers.begin() + del_cnt);
+                
+                return true;
+            }
+            if (_temp_buffers.size() == 1 || _temp_buffers[1] != '[') {
+                buffer += _temp_buffers[0];
+                _temp_buffers.erase(_temp_buffers.begin());
+                return true;
+            }
+            // Parsing mouse
+            if (_temp_buffers[2] == '<') {
+                size_t dis = 1;
+                while (true) {
+                    if (_temp_buffers[2 + dis] == 'M' || _temp_buffers[2 + dis] == 'm') break;
+                    dis++;
+                }
+                buffer += _temp_buffers.substr(0, dis + 3);
+                _temp_buffers.erase(_temp_buffers.begin(), _temp_buffers.begin() + (dis + 3));
+                return true;
+            }
+            // Parsing Special Keys
+            if (_temp_buffers[1] == 'O') {
+                buffer += _temp_buffers.substr(0, 3);
+                _temp_buffers.erase(_temp_buffers.begin(), _temp_buffers.begin() + 3);
+                return true;
+            }
+            if (_temp_buffers[3] == '~') {
+                buffer += _temp_buffers.substr(0, 4);
+                _temp_buffers.erase(_temp_buffers.begin(), _temp_buffers.begin() + 4);
+                return true;
+            }
+            if (_temp_buffers[4] == '~') {
+                buffer += _temp_buffers.substr(0, 5);
+                _temp_buffers.erase(_temp_buffers.begin(), _temp_buffers.begin() + 5);
+                return true;
+            }
+            if (_temp_buffers[2] >= 'A' && _temp_buffers[2] <= 'H') {
+                buffer += _temp_buffers.substr(0, 3);
+                _temp_buffers.erase(_temp_buffers.begin(), _temp_buffers.begin() + 3);
+                return true;
+            }
+        }
+        // Only single char
+        buffer += *_temp_buffers.begin();
+        _temp_buffers.erase(_temp_buffers.begin());
+        return true;
     }
 
     ssize_t TUI::Terminal::readAfterDelay(int fd, void* buffer, size_t size, size_t delay) {
@@ -1267,6 +1359,200 @@ namespace Tiny {
             if (i == 0) break;
         }
         return cnt;
+    }
+
+    TUI::InputEvent TUI::Terminal::parseInputEvent(const char *signal) {
+        InputEvent result{};
+        std::string temp_cmd = signal;
+        bool sp_flag = false;
+        
+#ifdef TINY_CPP_USE_GPM
+        sp_flag = NEED_USE_GPM();
+#endif
+        if (!sp_flag && temp_cmd.empty()) return result;
+        bool ok = false;
+        auto mouse = parseMouseEvent(temp_cmd, ok);
+        if (ok) {
+            result.type = InputEvent::Mouse;
+            result.input.mouse = mouse;
+            return result;
+        }
+        auto keyboard = parseKeyboardEvent(temp_cmd, ok);
+        if (ok) {
+            result.type = InputEvent::Keyboard;
+            result.input.keyboard = keyboard;
+        }
+        return result;
+    }
+
+    TUI::KeyEvent TUI::Terminal::parseKeyboardEvent(const std::string& buf, bool& ok) {
+        InputEvent::Input::Keyboard keyboard{};
+        keyboard.is_pressed = true;
+        if (buf.size() > 1) {
+            if (buf.front() == '\x1b') {
+                if (buf == "\x1bOP") {
+                    keyboard.sp_key = SP_KEY_F1;
+                } else if (buf == "\x1bOQ") {
+                    keyboard.sp_key = SP_KEY_F2;
+                } else if (buf == "\x1bOR") {
+                    keyboard.sp_key = SP_KEY_F3;
+                } else if (buf == "\x1bOS") {
+                    keyboard.sp_key = SP_KEY_F4;
+                } else if (buf == "\x1b[15~") {
+                    keyboard.sp_key = SP_KEY_F5;
+                } else if (buf == "\x1b[17~") {
+                    keyboard.sp_key = SP_KEY_F6;
+                } else if (buf == "\x1b[18~") {
+                    keyboard.sp_key = SP_KEY_F7;
+                } else if (buf == "\x1b[19~") {
+                    keyboard.sp_key = SP_KEY_F8;
+                } else if (buf == "\x1b[20~") {
+                    keyboard.sp_key = SP_KEY_F9;
+                } else if (buf == "\x1b[21~") {
+                    keyboard.sp_key = SP_KEY_F10;
+                } else if (buf == "\x1b[23~") {
+                    keyboard.sp_key = SP_KEY_F11;
+                } else if (buf == "\x1b[24~") {
+                    keyboard.sp_key = SP_KEY_F12;
+                } else if (buf == "\x1b[2~") {
+                    keyboard.sp_key = SP_KEY_INSERT;
+                } else if (buf == "\x1b[3~") {
+                    keyboard.sp_key = SP_KEY_DELETE;
+                } else if (buf == "\x1b[H") {
+                    keyboard.sp_key = SP_KEY_HOME;
+                } else if (buf == "\x1b[F") {
+                    keyboard.sp_key = SP_KEY_END;
+                } else if (buf == "\x1b[5~") {
+                    keyboard.sp_key = SP_KEY_PAGE_UP;
+                } else if (buf == "\x1b[6~") {
+                    keyboard.sp_key = SP_KEY_PAGE_DOWN;
+                } else if (buf == "\x1b[A") {
+                    keyboard.sp_key = SP_KEY_UP;
+                } else if (buf == "\x1b[D") {
+                    keyboard.sp_key = SP_KEY_LEFT;
+                } else if (buf == "\x1b[B") {
+                    keyboard.sp_key = SP_KEY_DOWN;
+                } else if (buf == "\x1b[C") {
+                    keyboard.sp_key = SP_KEY_RIGHT;
+                } else if (buf == "\x1b[E") {
+                    keyboard.sp_key = SP_KEY_CENTER;
+                }
+            }
+            if (keyboard.sp_key != SP_KEY_UNKNOWN) {
+                keyboard.key = KEY_SPECIAL;
+                ok = true;
+                return keyboard;
+            }
+        } else if (buf.size() == 1) {
+            keyboard.key = buf.front();
+            keyboard.sp_key = SP_KEY_UNKNOWN;
+            ok = true;
+            return keyboard;
+        }
+        ok = false;
+        return keyboard;
+    }
+
+    TUI::MouseEvent TUI::Terminal::parseMouseEvent(const std::string& buf, bool& ok) {
+        MouseEvent mouse{};
+#ifdef TINY_CPP_USE_GPM
+        if (NEED_USE_GPM()) {
+            if (_gpm_fd == 0 || _gpm_connector.pid == 0) return mouse;
+            Gpm_Event event{};
+            fd_set read_set;
+            FD_ZERO(&read_set);
+            FD_SET(_gpm_fd, &read_set);
+            timeval internal;
+            internal.tv_sec = 0;
+            internal.tv_usec = 50000;
+            select(_gpm_fd + 1, &read_set, nullptr, nullptr, &internal);
+            if (FD_ISSET(gpm_fd, &read_set) && Gpm_GetEvent(&event) > 0) {
+                mouse.position.row = event.y;
+                mouse.position.column = event.x;
+                if (event.type & GPM_MOVE || event.type & GPM_DRAG) {
+                    mouse.button = SP_MOUSE_MOVED;
+                } else if (event.type & GPM_DOWN) {
+                    // Do nothing, and continue...
+                } else if (event.type & GPM_UP) {
+                    mouse.button = SP_MOUSE_RELEASE;
+                    ok = true;
+                    return mouse;
+                } else {
+                    ok = false;
+                    return mouse;
+                }
+                mouse.is_pressed = (event.buttons > 0);
+                if (mouse.is_pressed) {
+                    if (event.buttons & GPM_B_LEFT) {
+                        mouse.button = SP_MOUSE_LEFT_BUTTON;
+                    } else if (event.buttons & GPM_B_RIGHT) {
+                        mouse.button = SP_MOUSE_RIGHT_BUTTON;
+                    } else if (event.buttons & GPM_B_MIDDLE) {
+                        mouse.button = SP_MOUSE_MIDDLE_BUTTON;
+                    }
+                }
+                if (event.wdy > 0) mouse.button = SP_MOUSE_WHEEL_UP;
+                else if (event.wdy < 0) mouse.button = SP_MOUSE_WHEEL_DOWN;
+                ok = true;
+                return mouse;
+            }
+            ok = false;
+            return mouse;
+        }
+#endif
+        uint32_t ev_type, row, col;
+        bool is_big_M = (buf[buf.size() - 1] == 'M');
+        if (sscanf(buf.c_str(), "\x1b[<%d;%d;%d", &ev_type, &col, &row) != 3) {
+            mouse.button = SP_MOUSE_UNKNOWN;
+        } else { 
+            if (is_big_M) {
+                mouse.is_pressed = (ev_type != 35) && (ev_type != 64) && (ev_type != 65);
+            } else {
+                mouse.is_pressed = false;
+            }
+            
+            mouse.position.row = row - 1;
+            mouse.position.column = col - 1;
+
+            switch (ev_type) {
+            case 0:
+                mouse.button = SP_MOUSE_LEFT_BUTTON;
+                break;
+            case 1:
+                mouse.button = SP_MOUSE_MIDDLE_BUTTON;
+                break;
+            case 2:
+                mouse.button = SP_MOUSE_RIGHT_BUTTON;
+                break;
+            case 3:
+                mouse.button = SP_MOUSE_RELEASE;
+                break;
+            case 32:
+            case 33:
+            case 34:
+            case 35:
+                mouse.button = SP_MOUSE_MOVED;
+                break;
+            case 64:
+                mouse.button = SP_MOUSE_WHEEL_UP;
+                break;
+            case 65:
+                mouse.button = SP_MOUSE_WHEEL_DOWN;
+                break;
+            }
+            if (!mouse.is_pressed && 
+                 mouse.button >= SP_MOUSE_LEFT_BUTTON && mouse.button <= SP_MOUSE_RIGHT_BUTTON) {
+                mouse.button = SP_MOUSE_RELEASE;
+            }
+        }
+        
+        if (mouse.button != SP_MOUSE_UNKNOWN) {
+            ok = true;
+            return mouse;
+        }
+
+        ok = false;
+        return mouse;
     }
 #endif
 }

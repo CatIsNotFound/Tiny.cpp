@@ -213,6 +213,7 @@ namespace Tiny {
             void setChars(const Position& pos, const std::string& str, const Style& style = {});
             void setStyle(const Style& style);
             void fillBuffers();
+            bool isOutOfRange(uint32_t row, uint32_t col);
             void initSignal();
             static void resizeWindow(int);
 
@@ -230,12 +231,14 @@ namespace Tiny {
 
         template<typename ... Args>
         void Renderer::setStrF(const Position& pos, const char* format, Args... args) {
+            if (isOutOfRange(pos.row, pos.column)) return;
             auto f_text = Terminal::formatString(format, args...);
             setChars(pos, f_text);
         }
 
         template<typename ... Args>
         void Renderer::setSSF(const Position& pos, const char* format, const Style& style, Args... args) {
+            if (isOutOfRange(pos.row, pos.column)) return;
             std::string f_text = Terminal::formatString(format, args...);
             setChars(pos, f_text, style);
         }

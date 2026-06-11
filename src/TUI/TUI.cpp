@@ -93,9 +93,9 @@ namespace {
 
     size_t calcStrDisplayWidth(const std::string& data) {
 #ifdef TINY_CPP_MY_OS_UNIX
-        wchar_t* w_ch{};
+        wchar_t w_ch[8];
         std::mbtowc(w_ch, data.c_str(), data.size());
-        size_t width = wcwidth(w_ch);
+        size_t width = wcwidth(*w_ch);
         if (width == 0) width = 1;
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         size_t width = wcwidth(data);
@@ -262,6 +262,7 @@ namespace Tiny {
         char temp[2] = {static_cast<char>(ch), 0};
         for (uint32_t r = start_pos.row; r <= end_pos.row; r++) {
             for (uint32_t c = start_pos.column; c <= end_pos.column; c++) {
+                if (isOutOfRange(r, c)) break;
                 _front_buffer[r][c].set(temp, style);
             }
         }
@@ -271,12 +272,14 @@ namespace Tiny {
         Style style) {
         for (uint32_t r = start_pos.row; r <= end_pos.row; r++) {
             for (uint32_t c = start_pos.column; c <= end_pos.column; c++) {
+                if (isOutOfRange(r, c)) break;
                 _front_buffer[r][c].set(splitFront(ch.c_str()).c_str(), style);
             }
         }
     }
 
     void TUI::Renderer::drawBorder(const Position &start_pos, const Position &end_pos, Corner corner, Style style) {
+        if (isOutOfRange(start_pos.row, start_pos.column) || isOutOfRange(end_pos.row, end_pos.column)) return;
         // left top
         _front_buffer[start_pos.row][start_pos.column].set(corner.left_top.data().c_str(), style);
         // left bottom
@@ -298,11 +301,12 @@ namespace Tiny {
     }
 
     void TUI::Renderer::unset(const Position &pos) {
-        _front_buffer[pos.row][pos.column].reset();
+        if (!isOutOfRange(pos.row, pos.column))
+            _front_buffer[pos.row][pos.column].reset();
     }
 
     void TUI::Renderer::unset(uint32_t x, uint32_t y) {
-        _front_buffer[y][x].reset();
+        if (!isOutOfRange(y, x)) _front_buffer[y][x].reset();
     }
 
     void TUI::Renderer::unsetRow(uint32_t row) {
@@ -322,6 +326,7 @@ namespace Tiny {
     void TUI::Renderer::unsetRect(const Position &start_pos, const Position &end_pos) {
         for (uint32_t r = start_pos.row; r <= end_pos.row; r++) {
             for (uint32_t c = start_pos.column; c <= end_pos.column; c++) {
+                if (isOutOfRange(r, c)) continue;
                 _front_buffer[r][c].reset();
             }
         }
@@ -448,6 +453,10 @@ namespace Tiny {
                 _front_buffer[r][c].reset();
             }
         }
+    }
+
+    bool TUI::Renderer::isOutOfRange(uint32_t row, uint32_t col) {
+        return row >= _front_buffer.size() || col >= _front_buffer.front().size();
     }
 
     void TUI::Renderer::initSignal() {

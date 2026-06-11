@@ -187,17 +187,36 @@ void view_file(const char* exec_path) {
         }
     }
     ter::leaveRawMode();
+    ter::clearScreen();
 }
 
 void test_input_event() {
     ter::enterRawMode();
-    ter::setMouseEnabled(true);
-    ter::printLine("Press Ctrl+Z to quit.");
+    bool is_on = ter::setMouseEnabled(true);
+    ter::setBackgroundColor(TUI::Color::Blue);
+    ter::setForegroundColor(TUI::Color::Yellow);
+    ter::clearInRow(0);
+    ter::print("Press Ctrl+Z to quit.\r\n");
+#ifdef TINY_CPP_USE_GPM
+    if (!strcmp(getenv("TERM"), "linux")) {
+        if (is_on) {
+            ter::setBackgroundColor(TUI::Color::Yellow);
+            ter::setForegroundColor(TUI::Color::Blue);
+            ter::clearInRow(1);
+            ter::printLine("You are using GPM Lib!");
+            ter::reset();
+        }
+    }
+#endif
+    ter::reset();
+    ter::setScrollRegion(2, ter::screenSize().height - 1);
+    ter::moveCursor(2, 0);
     while (true) {
         auto ev = ter::getInput();
         if (ev.type == TUI::InputEvent::Keyboard && ev.input.keyboard.key == TUI::KEY_CTRL_Z) break;
         auto it = ev.type;
-        ter::printFormat("Input type: {}, ", it == 0 ? "None" : (it == 1 ? "Keyboard" : "Mouse"));
+        if (it == 0) continue;
+        ter::printFormat("Input type: {}, ", (it == 1 ? "Keyboard" : "Mouse"));
         if (it == TUI::InputEvent::Keyboard) {
             ter::printFormat("Key: {}, Is pressed: {:s}\r\n",
                 TUI::getKeyName(ev.input.keyboard.key, ev.input.keyboard.sp_key), ev.input.keyboard.is_pressed);
@@ -208,6 +227,7 @@ void test_input_event() {
             ter::printLine();
         }
     }
+    ter::resetScrollRegion();
     ter::setMouseEnabled(false);
     ter::leaveRawMode();
 }

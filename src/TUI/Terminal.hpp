@@ -50,6 +50,10 @@
 struct termios;
 #endif
 
+#if defined(TINY_CPP_USE_GPM) && defined(TINY_CPP_MY_OS_UNIX)
+struct Gpm_Connect;
+#endif
+
 namespace Tiny {
     namespace TUI {
         struct Size { uint32_t width, height; };
@@ -175,6 +179,7 @@ namespace Tiny {
         const char* getMouseName(const SP_Mouse &SP);
         int8_t comparePosition(const Position& pos1, const Position& pos2);
         int8_t compareSize(const Size& size1, const Size& size2);
+        bool   isPointInRect(const Position& point, Position& start_pos, Position& end_pos);
 
         struct InputEvent {
             enum Type : uint8_t {
@@ -186,7 +191,7 @@ namespace Tiny {
                 struct Keyboard {
                     uint8_t key;
                     SP_Keys sp_key;
-                    bool is_pressed;
+                    bool is_pressed;    // P.s: Only Windows can captured, otherwise it is always `true`!
                 } keyboard;
                 struct Mouse {
                     Position position;
@@ -195,6 +200,9 @@ namespace Tiny {
                 } mouse;
             } input;
         };
+
+        using KeyEvent = InputEvent::Input::Keyboard;
+        using MouseEvent = InputEvent::Input::Mouse;
 
         class Terminal {
         public:
@@ -259,13 +267,23 @@ namespace Tiny {
         };
 #elif defined(TINY_CPP_MY_OS_UNIX)
             static std::string readLineOnRaw();
-            static bool isReady(int fd, size_t delay = 50);
+            static bool isReady(int fd);
+            static bool pushBuffers(int fd, size_t msec);
+            static bool nextBuffers(std::string& buffer);
             static ssize_t readAfterDelay(int fd, void* buffer, size_t size, size_t delay = 50);
             static ssize_t writeAfterDelay(int fd, void* buffer, size_t size, size_t delay = 50);
             static size_t removeFrontCharCount(const std::string& buf);
+            static InputEvent parseInputEvent(const char* signal);
+            static KeyEvent parseKeyboardEvent(const std::string& buf, bool& ok);
+            static MouseEvent parseMouseEvent(const std::string& buf, bool& ok);    
             static struct termios _old_terminal;
             static bool _is_in_raw_mode;
             static Position _last_cur_pos;
+            static std::string _temp_buffers;
+#ifdef TINY_CPP_USE_GPM
+            static struct Gpm_Connect _gpm_connector;
+            static int _gpm_fd;
+#endif
         };
 #endif
 
