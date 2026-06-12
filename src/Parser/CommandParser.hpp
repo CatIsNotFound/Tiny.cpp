@@ -40,26 +40,14 @@ namespace Tiny {
             std::string description{};
             bool full_option_only{false};
             bool is_default_command{false};
+            bool is_need{false};
             bool has_value{false};
             std::string value{};
             std::string default_value{};
 
-            Command() {}
-            Command(const Command& other) : option_name(other.option_name), short_options(other.short_options), 
-                                            description(other.description), full_option_only(other.full_option_only),
-                                            is_default_command(other.is_default_command), has_value(other.has_value),
-                                            value(other.value), default_value(other.default_value) {}
-            Command& operator=(const Command& other) {
-                option_name = other.option_name;
-                short_options = other.short_options;
-                description = other.description;
-                full_option_only = other.full_option_only;
-                is_default_command = other.is_default_command;
-                has_value = other.has_value;
-                value = other.value;
-                default_value = other.default_value;
-                return *this;
-            }
+            Command() = default;
+            Command(const Command& other) = default;
+            Command& operator=(const Command& other) = default;
         };
 
         enum class ParseError : uint8_t {
@@ -68,7 +56,8 @@ namespace Tiny {
             FullOptionOnly,
             InvalidValue,
             MissingArgument,
-            FormatError
+            FormatError,
+            MissingDefaultCommand
         };
 
         static const char* getParseErrorName(ParseError error) {
@@ -85,6 +74,8 @@ namespace Tiny {
                     return "Missing argument";
                 case ParseError::FormatError:
                     return "Format error";
+                case ParseError::MissingDefaultCommand:
+                    return "Missing default command";
                 default:
                     return "Unknown error";
             }
@@ -95,15 +86,17 @@ namespace Tiny {
         
         CommandParser(int argc, char** argv);
         ~CommandParser() = default;
-        bool addCommand(const std::string& command_name, const std::string& short_options, const std::string& desciption = {}, 
-                 bool has_value = false, const std::string& default_value = {}, bool default_command = false);
+        bool addCommand(const std::string& command_name, const std::string& short_options, const std::string& description = {},
+                 bool has_value = false, const std::string& default_value = {},
+                 bool is_need = false, bool default_command = false);
         bool addFullCommand(const std::string& command_name, const std::string& description, 
-                 bool has_value = false, const std::string& default_value = {}, bool default_command = false);
+                 bool has_value = false, const std::string& default_value = {},
+                 bool is_need = false, bool default_command = false);
         bool remove(const std::string& command_name);
         void clear();
         ParseError exec(int* parsed_command_count = nullptr,
                         int* err_arg_n = nullptr,
-                        const char* err_cmd_name = nullptr);
+                        std::vector<std::string>* missing_command_list = nullptr);
         const std::vector<Command>& execCommandList() const;
 
         size_t size() const;
@@ -116,9 +109,12 @@ namespace Tiny {
         Command& get(const std::string& command_name);
         Command& operator[](const std::string& command_name);
     private:
-        ParseError parseUserCommand(int& err_pos);
+        ParseError parseUserCommand(int& err_pos, std::vector<std::string> &missing_command_list);
+        bool checkAndRemoveRequiredCommand(std::vector<std::string>& required_cmd_list, const std::string& command_name);
         std::unordered_map<std::string, Command> _commands;
         std::vector<Command> _exec_cmd_list;
+        std::vector<std::string> _required_cmd_list;
+        std::string _default_cmd;
         char** _argv;
         int _argc;
     };
