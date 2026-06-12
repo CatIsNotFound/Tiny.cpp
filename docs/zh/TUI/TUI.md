@@ -15,7 +15,7 @@
 7. [AbstractWidget 类](#7-abstractwidget-类)
 8. [使用示例](#8-使用示例)
 9. [注意事项](#9-注意事项)
-10. [如何在 Linux 控制台下使用 GPM 库](#10-如何在-linux 控制台下使用-GPM-库)
+10. [如何在 Linux 控制台下使用 GPM 库](#10-如何在-Linux-控制台下使用-GPM-库)
 
 ---
 
@@ -1111,6 +1111,6 @@ int main() {
 - 批量绘制后统一呈现
 - 使用脏标记减少不必要的重绘
 
-# 10. 如何在 Linux 控制台下使用 GPM 库
+## 10. 如何在 Linux 控制台下使用 GPM 库
 
 见文章 [GPM_In_Linux.md](GPM_In_Linux.md)，介绍了如何在 Linux 无桌面环境下使用 GPM 库以解决 TTY 模式下的鼠标事件处理问题。
