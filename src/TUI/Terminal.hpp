@@ -161,7 +161,15 @@ namespace Tiny {
             SP_KEY_UP,
             SP_KEY_LEFT,
             SP_KEY_DOWN,
-            SP_KEY_RIGHT
+            SP_KEY_RIGHT,
+            /////////////////////////
+            SP_KEY_PRINTSCR,
+            SP_KEY_CTRL,
+            SP_KEY_SHIFT,
+            SP_KEY_ALT,
+            SP_KEY_CAPSLOCK,
+            SP_KEY_NUMLOCK,
+            SP_KEY_SCROLLLOCK
         };
 
         enum SP_Mouse : uint8_t {

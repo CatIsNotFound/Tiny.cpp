@@ -86,8 +86,8 @@ void mouse_test() {
         auto mouse_btn = static_cast<TUI::SP_Mouse>(ter::getMouseButton(&mouse_pos, &is_pressed));
         auto scr_height = ter::screenSize().height - 1;
         ter::moveCursor(scr_height, 0);
-        ter::setBackgroundColor(24, 80, 243);
-        ter::setForegroundColor(243, 248, 32);
+        ter::setBackgroundColor(TUI::Color::Yellow, true);
+        ter::setForegroundColor(TUI::Color::Blue);
         ter::reverseColor(true);
         ter::clearInRow(scr_height);
         ter::printFormat("Pos: (R {}, C {}), M: {}, Is pressed: {}, Click this line to quit.", mouse_pos.row, mouse_pos.column, 
@@ -194,13 +194,13 @@ void test_input_event() {
     ter::enterRawMode();
     bool is_on = ter::setMouseEnabled(true);
     ter::setBackgroundColor(TUI::Color::Blue);
-    ter::setForegroundColor(TUI::Color::Yellow);
+    ter::setForegroundColor(TUI::Color::Yellow, true);
     ter::clearInRow(0);
     ter::print("Press Ctrl+Z to quit.\r\n");
 #ifdef TINY_CPP_USE_GPM
     if (!strcmp(getenv("TERM"), "linux")) {
         if (is_on) {
-            ter::setBackgroundColor(TUI::Color::Yellow);
+            ter::setBackgroundColor(TUI::Color::Yellow, true);
             ter::setForegroundColor(TUI::Color::Blue);
             ter::clearInRow(1);
             ter::printLine("You are using GPM Lib!");

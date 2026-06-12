@@ -144,6 +144,20 @@ namespace Tiny {
                 return "Down";
             case SP_KEY_RIGHT:
                 return "Right";
+            case SP_KEY_PRINTSCR:
+                return "PrintScreen";
+            case SP_KEY_CTRL:
+                return "Control";
+            case SP_KEY_ALT:
+                return "Alter";
+            case SP_KEY_SHIFT:
+                return "Shift";
+            case SP_KEY_CAPSLOCK:
+                return "CapsLock";
+            case SP_KEY_NUMLOCK:
+                return "NumLock";
+            case SP_KEY_SCROLLLOCK:
+                return "ScrollLock";
             default:
                 return "Unknown";
             }
@@ -1160,6 +1174,27 @@ namespace Tiny {
                 case VK_RIGHT:
                     sp_key = SP_KEY_RIGHT;
                     break;
+                case VK_SNAPSHOT:
+                    sp_key = SP_KEY_PRINTSCR;
+                    break;
+                case VK_CONTROL:
+                    sp_key = SP_KEY_CTRL;
+                    break;
+                case VK_SHIFT:
+                    sp_key = SP_KEY_SHIFT;
+                    break;
+                case VK_MENU:
+                    sp_key = SP_KEY_ALT;
+                    break;
+                case VK_CAPITAL:
+                    sp_key = SP_KEY_CAPSLOCK;
+                    break;
+                case VK_NUMLOCK:
+                    sp_key = SP_KEY_NUMLOCK;
+                    break;
+                case VK_SCROLL:
+                    sp_key = SP_KEY_SCROLLLOCK;
+                    break;
                 default:
                     result.input.keyboard.key = ch > 0 ? ch : KEY_NONE;
             }
@@ -1180,7 +1215,7 @@ namespace Tiny {
             } else if (mouse_event.dwEventFlags == MOUSE_MOVED) {
                 result.input.mouse.button = SP_MOUSE_MOVED;
                 result.input.mouse.is_pressed = mouse_event.dwButtonState > 0;
-            } else if (mouse_event.dwEventFlags == 0) {
+            } else {
                 result.input.mouse.is_pressed = true;
                 if (mouse_event.dwButtonState & FROM_LEFT_1ST_BUTTON_PRESSED) {
                     result.input.mouse.button = SP_MOUSE_LEFT_BUTTON;
