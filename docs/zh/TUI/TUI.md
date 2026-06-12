@@ -15,6 +15,7 @@
 7. [AbstractWidget 类](#7-abstractwidget-类)
 8. [使用示例](#8-使用示例)
 9. [注意事项](#9-注意事项)
+10. [如何在 Linux 控制台下使用 GPM 库](#10-如何在-linux 控制台下使用-GPM-库)
 
 ---
 
@@ -109,6 +110,18 @@ int8_t compareSize(const Size& size1, const Size& size2);
   - `0` - 尺寸相同
   - `1` - size1 大于 size2
 
+### 3.7 isPointInRect
+
+```cpp
+bool isPointInRect(const Position& point, Position& start_pos, Position& end_pos);
+```
+- **功能**: 检查点是否在矩形内
+- **参数**: 
+  - `point` - 要检查的点
+  - `start_pos` - 矩形左上角
+  - `end_pos` - 矩形右下角
+- **返回值**: `true` 表示点在矩形内
+
 ---
 
 ## 4. 数据结构
@@ -152,13 +165,64 @@ enum class Color : uint8_t {
 ```cpp
 enum Keys : uint8_t {
     KEY_NONE        = 0,
+    KEY_NULL        = 0,
+    KEY_SOH         = 1,
+    KEY_STX         = 2,
+    KEY_ETX         = 3,
+    KEY_EOT         = 4,
+    KEY_ENQ         = 5,
+    KEY_ACK         = 6,
+    KEY_BELL        = 7,
+    KEY_BK          = 8,
     KEY_TAB         = 9,
+    KEY_LF          = 10,
+    KEY_VT          = 11,
+    KEY_FF          = 12,
     KEY_CR          = 13,
+    KEY_SO          = 14,
+    KEY_SI          = 15,
+    KEY_DLE         = 16,
+    KEY_DC1         = 17,
+    KEY_DC2         = 18,
+    KEY_DC3         = 19,
+    KEY_DC4         = 20,
+    KEY_NAK         = 21,
+    KEY_SYN         = 22,
+    KEY_ETB         = 23,
+    KEY_CAN         = 24,
     KEY_ESC         = 27,
+    KEY_FS          = 28,
+    KEY_GS          = 29,
+    KEY_RS          = 30,
+    KEY_US          = 31,
     KEY_SPACE       = 32,
     KEY_BACKSPACE   = 127,
     KEY_CTRL_A      = 1,
-    // ... CTRL_B ~ CTRL_Z
+    KEY_CTRL_B      = 2,
+    KEY_CTRL_C      = 3,
+    KEY_CTRL_D      = 4,
+    KEY_CTRL_E      = 5,
+    KEY_CTRL_F      = 6,
+    KEY_CTRL_G      = 7,
+    KEY_CTRL_H      = 8,
+    KEY_CTRL_I      = 9,
+    KEY_CTRL_J      = 10,
+    KEY_CTRL_K      = 11,
+    KEY_CTRL_L      = 12,
+    KEY_CTRL_M      = 13,
+    KEY_CTRL_N      = 14,
+    KEY_CTRL_O      = 15,
+    KEY_CTRL_P      = 16,
+    KEY_CTRL_Q      = 17,
+    KEY_CTRL_R      = 18,
+    KEY_CTRL_S      = 19,
+    KEY_CTRL_T      = 20,
+    KEY_CTRL_U      = 21,
+    KEY_CTRL_V      = 22,
+    KEY_CTRL_W      = 23,
+    KEY_CTRL_X      = 24,
+    KEY_CTRL_Y      = 25,
+    KEY_CTRL_Z      = 26,
     KEY_SPECIAL     = 254,
     KEY_UNKNOWN     = 255
 };
@@ -185,7 +249,14 @@ enum SP_Keys : uint8_t {
     SP_KEY_UP,
     SP_KEY_LEFT,
     SP_KEY_DOWN,
-    SP_KEY_RIGHT
+    SP_KEY_RIGHT,
+    SP_KEY_PRINTSCR,
+    SP_KEY_CTRL,
+    SP_KEY_SHIFT,
+    SP_KEY_ALT,
+    SP_KEY_CAPSLOCK,
+    SP_KEY_NUMLOCK,
+    SP_KEY_SCROLLLOCK
 };
 ```
 
@@ -199,8 +270,50 @@ enum SP_Mouse : uint8_t {
     SP_MOUSE_RIGHT_BUTTON,   // 右键
     SP_MOUSE_WHEEL_UP,       // 滚轮上
     SP_MOUSE_WHEEL_DOWN,     // 滚轮下
-    SP_MOUSE_MOVED           // 鼠标移动
+    SP_MOUSE_MOVED,          // 鼠标移动
+    SP_MOUSE_RELEASE         // 鼠标释放
 };
+```
+
+### 4.7 InputEvent 结构体
+
+```cpp
+struct InputEvent {
+    enum Type : uint8_t {
+        None,
+        Keyboard,
+        Mouse
+    } type;
+    union Input {
+        struct Keyboard {
+            uint8_t key;
+            SP_Keys sp_key;
+            bool is_pressed;    // P.s: 仅 Windows 可捕获，其他平台始终为 `true`!
+        } keyboard;
+        struct Mouse {
+            Position position;
+            SP_Mouse button;
+            bool is_pressed;
+        } mouse;
+    } input;
+};
+```
+
+| 成员 | 类型 | 说明 |
+|------|------|------|
+| `type` | `Type` | 事件类型：None、Keyboard 或 Mouse |
+| `input.keyboard.key` | `uint8_t` | 按键码 |
+| `input.keyboard.sp_key` | `SP_Keys` | 特殊键类型 |
+| `input.keyboard.is_pressed` | `bool` | 按键是否按下（仅 Windows） |
+| `input.mouse.position` | `Position` | 鼠标位置 |
+| `input.mouse.button` | `SP_Mouse` | 鼠标按钮/事件 |
+| `input.mouse.is_pressed` | `bool` | 鼠标按钮是否按下 |
+
+### 4.8 类型别名
+
+```cpp
+using KeyEvent = InputEvent::Input::Keyboard;
+using MouseEvent = InputEvent::Input::Mouse;
 ```
 
 ---
@@ -274,10 +387,10 @@ static bool print(const std::string& text);
 #### printLine
 
 ```cpp
-static bool printLine(const std::string& text);
+static bool printLine(const std::string& text = {});
 ```
 - **功能**: 输出文本并换行
-- **参数**: `text` - 要输出的文本
+- **参数**: `text` - 要输出的文本（可选，默认为空行）
 - **返回值**: `true` 表示成功
 
 #### printFormat
@@ -380,14 +493,12 @@ static std::wstring readLineW();
 #### getKey
 
 ```cpp
-static uint8_t getKey();
-static void getKey(uint8_t& key, SP_Keys& sp_key);
+static uint8_t getKey(SP_Keys* sp_key = nullptr);
 ```
 - **功能**: 读取按键
-- **参数**（重载2）: 
-  - `key` - 输出按键码
-  - `sp_key` - 输出特殊键类型
-- **返回值**: 按键码（重载1）
+- **参数**: 
+  - `sp_key` - 输出特殊键类型（可选）
+- **返回值**: 按键码
 
 ### 5.7 鼠标控制
 
@@ -410,6 +521,14 @@ static uint8_t getMouseButton(Position* mouse_pos = nullptr, bool* is_pressed = 
   - `mouse_pos` - 输出鼠标位置（可选）
   - `is_pressed` - 输出是否按下（可选）
 - **返回值**: 鼠标事件码
+
+#### getInput
+
+```cpp
+static InputEvent getInput();
+```
+- **功能**: 获取统一的输入事件（键盘或鼠标）
+- **返回值**: `InputEvent` 结构体，包含事件类型和数据
 
 ### 5.8 颜色与样式函数
 
@@ -608,7 +727,7 @@ void fillCols(uint32_t start_col, uint32_t end_col, const std::string& ch, Style
 #### fillRect
 
 ```cpp
-void fillRect(const Position& start_pos, const Position& end_pos, uint8_t ch, Style style = {});
+void fillRect(const Position& start_pos, const Position& end_pos, uint8_t ch = ' ', Style style = {});
 void fillRect(const Position& start_pos, const Position& end_pos, const std::string& str, Style style = {});
 ```
 - **功能**: 填充矩形区域
@@ -673,13 +792,6 @@ void setResizeEvent(const std::function<void(Renderer&)>& event);
 - **功能**: 设置终端尺寸变化事件回调
 - **参数**: `event` - 回调函数，接收 Renderer 引用
 - **说明**: 当终端窗口大小变化时触发
-
-#### refresh
-
-```cpp
-void refresh();
-```
-- **功能**: 刷新缓冲区大小（响应终端尺寸变化）
 
 #### clear
 
@@ -998,3 +1110,7 @@ int main() {
 - 避免频繁调用 `present()`
 - 批量绘制后统一呈现
 - 使用脏标记减少不必要的重绘
+
+# 10. 如何在 Linux 控制台下使用 GPM 库
+
+见文章 [GPM_In_Linux.md](GPM_In_Linux.md)，介绍了如何在 Linux 无桌面环境下使用 GPM 库以解决 TTY 模式下的鼠标事件处理问题。

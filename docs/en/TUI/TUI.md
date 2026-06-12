@@ -109,6 +109,18 @@ int8_t compareSize(const Size& size1, const Size& size2);
   - `0` - Same size
   - `1` - size1 is larger than size2
 
+### 3.7 isPointInRect
+
+```cpp
+bool isPointInRect(const Position& point, Position& start_pos, Position& end_pos);
+```
+- **Function**: Check if a point is inside a rectangle
+- **Parameters**: 
+  - `point` - Point to check
+  - `start_pos` - Top-left corner of rectangle
+  - `end_pos` - Bottom-right corner of rectangle
+- **Return Value**: `true` if point is inside the rectangle
+
 ---
 
 ## 4. Data Structures
@@ -152,13 +164,64 @@ enum class Color : uint8_t {
 ```cpp
 enum Keys : uint8_t {
     KEY_NONE        = 0,
+    KEY_NULL        = 0,
+    KEY_SOH         = 1,
+    KEY_STX         = 2,
+    KEY_ETX         = 3,
+    KEY_EOT         = 4,
+    KEY_ENQ         = 5,
+    KEY_ACK         = 6,
+    KEY_BELL        = 7,
+    KEY_BK          = 8,
     KEY_TAB         = 9,
+    KEY_LF          = 10,
+    KEY_VT          = 11,
+    KEY_FF          = 12,
     KEY_CR          = 13,
+    KEY_SO          = 14,
+    KEY_SI          = 15,
+    KEY_DLE         = 16,
+    KEY_DC1         = 17,
+    KEY_DC2         = 18,
+    KEY_DC3         = 19,
+    KEY_DC4         = 20,
+    KEY_NAK         = 21,
+    KEY_SYN         = 22,
+    KEY_ETB         = 23,
+    KEY_CAN         = 24,
     KEY_ESC         = 27,
+    KEY_FS          = 28,
+    KEY_GS          = 29,
+    KEY_RS          = 30,
+    KEY_US          = 31,
     KEY_SPACE       = 32,
     KEY_BACKSPACE   = 127,
     KEY_CTRL_A      = 1,
-    // ... CTRL_B ~ CTRL_Z
+    KEY_CTRL_B      = 2,
+    KEY_CTRL_C      = 3,
+    KEY_CTRL_D      = 4,
+    KEY_CTRL_E      = 5,
+    KEY_CTRL_F      = 6,
+    KEY_CTRL_G      = 7,
+    KEY_CTRL_H      = 8,
+    KEY_CTRL_I      = 9,
+    KEY_CTRL_J      = 10,
+    KEY_CTRL_K      = 11,
+    KEY_CTRL_L      = 12,
+    KEY_CTRL_M      = 13,
+    KEY_CTRL_N      = 14,
+    KEY_CTRL_O      = 15,
+    KEY_CTRL_P      = 16,
+    KEY_CTRL_Q      = 17,
+    KEY_CTRL_R      = 18,
+    KEY_CTRL_S      = 19,
+    KEY_CTRL_T      = 20,
+    KEY_CTRL_U      = 21,
+    KEY_CTRL_V      = 22,
+    KEY_CTRL_W      = 23,
+    KEY_CTRL_X      = 24,
+    KEY_CTRL_Y      = 25,
+    KEY_CTRL_Z      = 26,
     KEY_SPECIAL     = 254,
     KEY_UNKNOWN     = 255
 };
@@ -185,7 +248,14 @@ enum SP_Keys : uint8_t {
     SP_KEY_UP,
     SP_KEY_LEFT,
     SP_KEY_DOWN,
-    SP_KEY_RIGHT
+    SP_KEY_RIGHT,
+    SP_KEY_PRINTSCR,
+    SP_KEY_CTRL,
+    SP_KEY_SHIFT,
+    SP_KEY_ALT,
+    SP_KEY_CAPSLOCK,
+    SP_KEY_NUMLOCK,
+    SP_KEY_SCROLLLOCK
 };
 ```
 
@@ -199,8 +269,50 @@ enum SP_Mouse : uint8_t {
     SP_MOUSE_RIGHT_BUTTON,   // Right button
     SP_MOUSE_WHEEL_UP,       // Wheel up
     SP_MOUSE_WHEEL_DOWN,     // Wheel down
-    SP_MOUSE_MOVED           // Mouse moved
+    SP_MOUSE_MOVED,          // Mouse moved
+    SP_MOUSE_RELEASE         // Mouse button released
 };
+```
+
+### 4.7 InputEvent Structure
+
+```cpp
+struct InputEvent {
+    enum Type : uint8_t {
+        None,
+        Keyboard,
+        Mouse
+    } type;
+    union Input {
+        struct Keyboard {
+            uint8_t key;
+            SP_Keys sp_key;
+            bool is_pressed;    // P.s: Only Windows can captured, otherwise it is always `true`!
+        } keyboard;
+        struct Mouse {
+            Position position;
+            SP_Mouse button;
+            bool is_pressed;
+        } mouse;
+    } input;
+};
+```
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `type` | `Type` | Event type: None, Keyboard, or Mouse |
+| `input.keyboard.key` | `uint8_t` | Key code |
+| `input.keyboard.sp_key` | `SP_Keys` | Special key type |
+| `input.keyboard.is_pressed` | `bool` | Whether key is pressed (Windows only) |
+| `input.mouse.position` | `Position` | Mouse position |
+| `input.mouse.button` | `SP_Mouse` | Mouse button/event |
+| `input.mouse.is_pressed` | `bool` | Whether mouse button is pressed |
+
+### 4.8 Type Aliases
+
+```cpp
+using KeyEvent = InputEvent::Input::Keyboard;
+using MouseEvent = InputEvent::Input::Mouse;
 ```
 
 ---
@@ -274,10 +386,10 @@ static bool print(const std::string& text);
 #### printLine
 
 ```cpp
-static bool printLine(const std::string& text);
+static bool printLine(const std::string& text = {});
 ```
 - **Function**: Output text with newline
-- **Parameter**: `text` - Text to output
+- **Parameter**: `text` - Text to output (optional, defaults to empty line)
 - **Return Value**: `true` means success
 
 #### printFormat
@@ -380,14 +492,12 @@ static std::wstring readLineW();
 #### getKey
 
 ```cpp
-static uint8_t getKey();
-static void getKey(uint8_t& key, SP_Keys& sp_key);
+static uint8_t getKey(SP_Keys* sp_key = nullptr);
 ```
 - **Function**: Read key press
-- **Parameters** (overload 2): 
-  - `key` - Output key code
-  - `sp_key` - Output special key type
-- **Return Value**: Key code (overload 1)
+- **Parameter**: 
+  - `sp_key` - Output special key type (optional)
+- **Return Value**: Key code
 
 ### 5.7 Mouse Control
 
@@ -410,6 +520,14 @@ static uint8_t getMouseButton(Position* mouse_pos = nullptr, bool* is_pressed = 
   - `mouse_pos` - Output mouse position (optional)
   - `is_pressed` - Output whether pressed (optional)
 - **Return Value**: Mouse event code
+
+#### getInput
+
+```cpp
+static InputEvent getInput();
+```
+- **Function**: Get unified input event (keyboard or mouse)
+- **Return Value**: `InputEvent` structure containing event type and data
 
 ### 5.8 Color and Style Functions
 
@@ -608,7 +726,7 @@ void fillCols(uint32_t start_col, uint32_t end_col, const std::string& ch, Style
 #### fillRect
 
 ```cpp
-void fillRect(const Position& start_pos, const Position& end_pos, uint8_t ch, Style style = {});
+void fillRect(const Position& start_pos, const Position& end_pos, uint8_t ch = ' ', Style style = {});
 void fillRect(const Position& start_pos, const Position& end_pos, const std::string& str, Style style = {});
 ```
 - **Function**: Fill rectangular region
@@ -673,13 +791,6 @@ void setResizeEvent(const std::function<void(Renderer&)>& event);
 - **Function**: Set terminal resize event callback
 - **Parameter**: `event` - Callback function, receives Renderer reference
 - **Note**: Triggered when terminal window size changes
-
-#### refresh
-
-```cpp
-void refresh();
-```
-- **Function**: Refresh buffer size (respond to terminal size changes)
 
 #### clear
 

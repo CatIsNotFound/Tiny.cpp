@@ -63,6 +63,7 @@ struct Command {
     std::string description;       // Option description
     bool full_option_only;         // Whether only long option is supported
     bool is_default_command;       // Whether it is a default command
+    bool is_need;                  // Whether it is a required command
     bool has_value;                // Whether it accepts a value
     std::string value;             // Actual passed value
     std::string default_value;     // Default value
@@ -76,6 +77,7 @@ struct Command {
 | `description` | `std::string` | Option description text |
 | `full_option_only` | `bool` | true means short option not supported |
 | `is_default_command` | `bool` | Whether it is a default execution command |
+| `is_need` | `bool` | Whether this option is required |
 | `has_value` | `bool` | Whether this option requires a parameter value |
 | `value` | `std::string` | Actual value obtained after parsing |
 | `default_value` | `std::string` | Default value when not provided |
@@ -84,12 +86,13 @@ struct Command {
 
 ```cpp
 enum class ParseError : uint8_t {
-    NoError,           // No error
-    UnknownOption,     // Unknown option
-    FullOptionOnly,    // Long option only but short option was used
-    InvalidValue,      // Invalid value
-    MissingArgument,   // Missing argument
-    FormatError        // Format error
+    NoError,              // No error
+    UnknownOption,        // Unknown option
+    FullOptionOnly,       // Long option only but short option was used
+    InvalidValue,         // Invalid value
+    MissingArgument,      // Missing argument
+    FormatError,          // Format error
+    MissingDefaultCommand // Missing default command
 };
 ```
 
@@ -101,6 +104,7 @@ enum class ParseError : uint8_t {
 | `InvalidValue` | 3 | Parameter value invalid or empty |
 | `MissingArgument` | 4 | Required parameter value missing |
 | `FormatError` | 5 | Parameter format error |
+| `MissingDefaultCommand` | 6 | Missing default command |
 
 ---
 
@@ -137,6 +141,7 @@ bool addCommand(const std::string& command_name,
                 const std::string& description = {}, 
                 bool has_value = false, 
                 const std::string& default_value = {}, 
+                bool is_need = false,
                 bool default_command = false);
 ```
 - **Function**: Add command option
@@ -146,6 +151,7 @@ bool addCommand(const std::string& command_name,
   - `description` - Description text
   - `has_value` - Whether it accepts a value
   - `default_value` - Default value
+  - `is_need` - Whether this option is required
   - `default_command` - Whether it is a default command
 - **Return Value**: `true` means success (name not duplicate)
 
@@ -156,6 +162,7 @@ bool addFullCommand(const std::string& command_name,
                     const std::string& description, 
                     bool has_value = false, 
                     const std::string& default_value = {}, 
+                    bool is_need = false,
                     bool default_command = false);
 ```
 - **Function**: Add long-format only command
@@ -188,13 +195,13 @@ void clear();
 ```cpp
 ParseError exec(int* parsed_command_count = nullptr,
                 int* err_arg_n = nullptr,
-                const char* err_cmd_name = nullptr);
+                std::vector<std::string>* missing_command_list = nullptr);
 ```
 - **Function**: Execute parameter parsing
 - **Parameter**: 
   - `parsed_command_count` - Output number of successfully parsed commands
   - `err_arg_n` - Output error argument position
-  - `err_cmd_name` - Output error command name
+  - `missing_command_list` - Output list of missing required commands
 - **Return Value**: `ParseError` enum value
 
 #### execCommandList
@@ -479,6 +486,7 @@ myapp verbose
 | `InvalidValue` | Parameter value invalid or empty | Check parameter value format, provide valid value |
 | `MissingArgument` | Required parameter value missing | Provide parameter for options requiring values |
 | `FormatError` | Parameter format error | Check parameter format, ensure it starts with `-` |
+| `MissingDefaultCommand` | Missing default command | Ensure a default command is provided when required |
 
 ### 9.3 Default Value Handling
 

@@ -1,6 +1,6 @@
-# Tiny.cpp API 参考手册
+# Tiny.cpp 手册
 
-![C++11](https://img.shields.io/badge/C++-17-blue.svg)
+![C++11](https://img.shields.io/badge/C++-11-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Branch](https://img.shields.io/badge/branch-main-green.svg)
 
@@ -15,10 +15,8 @@
 5. [快速开始](#5-快速开始)
 6. [全局配置与宏定义](#6-全局配置与宏定义)
 7. [模块文档](#7-模块文档)
-8. [错误码与异常说明](#8-错误码与异常说明)
-9. [常见问题 FAQ](#9-常见问题-faq)
-10. [版本与兼容性说明](#10-版本与兼容性说明)
-11. [许可证说明](#11-许可证说明)
+8. [版本与兼容性说明](#8-版本与兼容性说明)
+9. [许可证说明](#9-许可证说明)
 
 ---
 
@@ -32,7 +30,7 @@
 
 - **模块化架构**: 可独立复用 `src` 目录下的任一模块，无需任何配置
 - **零依赖**: 不依赖任何第三方库，仅使用跨平台架构设计
-- **简单易用**: 采用现代 C++ 标准（最低支持 C++17 标准）
+- **简单易用**: 采用现代 C++ 标准（最低支持 C++ 11 标准）
 
 ---
 
@@ -207,7 +205,7 @@ g++ -std=c++17 -I./src main.cpp src/*.cpp src/*/*.cpp -o myapp.exe
 
 ### 6.3 运行环境
 
-- **C++ 标准**: C++17 或更高版本
+- **C++ 标准**: C++11 或更高版本
 - **操作系统**: Windows (Windows 7+)、Linux、macOS、Unix-like 系统
 - **编译器**: GCC 7+、Clang 5+、MSVC 2017+
 
@@ -219,7 +217,7 @@ g++ -std=c++17 -I./src main.cpp src/*.cpp src/*/*.cpp -o myapp.exe
 
 ---
 
-## 7. 模块文档
+## 7. API 文档
 
 ### 7.1 Events 模块
 
@@ -248,146 +246,16 @@ g++ -std=c++17 -I./src main.cpp src/*.cpp src/*/*.cpp -o myapp.exe
 
 ---
 
-## 8. 错误码与异常说明
+## 8. 版本与兼容性说明
 
-### 8.1 CommandParser 错误码
+### 8.1 版本信息
 
-| 错误码 | 枚举值 | 触发场景 | 解决方案 |
-|--------|--------|----------|----------|
-| `NoError` | 0 | 解析成功 | 无 |
-| `UnknownOption` | 1 | 遇到未定义的选项 | 检查命令定义，确认选项名称正确 |
-| `FullOptionOnly` | 2 | 仅支持长选项但使用了短选项 | 使用 `--option` 而非 `-o` |
-| `InvalidValue` | 3 | 参数值无效或为空 | 检查参数值格式，提供有效值 |
-| `MissingArgument` | 4 | 缺少必需的参数值 | 为需要值的选项提供参数 |
-| `FormatError` | 5 | 参数格式错误 | 检查参数格式，确保以 `-` 开头 |
-
-### 8.2 文件操作错误
-
-文件操作类（`File`、`Path`）不抛出异常，通过返回值指示错误：
-
-| 场景 | 返回值 | 说明 |
-|------|--------|------|
-| 路径无效 | `isValid()` 返回 false | 路径不存在或无法访问 |
-| 文件打开失败 | `open()` 返回 false | 权限不足或文件被占用 |
-| 读取失败 | 返回空数据 | 文件未打开或已到末尾 |
-| 写入失败 | 返回 false | 文件未以写模式打开 |
-
-### 8.3 事件系统错误处理
-
-事件回调中的异常会被捕获并输出到 stderr：
-
-```cpp
-Event event(1, "Test", [](const std::atomic<bool>&) {
-    throw std::runtime_error("Error!");
-});
-// 异常会被捕获，输出: "Tiny::Event: An error has occurred: Error!"
-```
-
----
-
-## 9. 常见问题 FAQ
-
-### Q1: 如何正确处理 UTF-8 字符串？
-
-**A:** 库内部已处理 UTF-8 编码，使用 `splitUTF8()` 函数可将字符串分割为字符数组：
-
-```cpp
-auto chars = Tiny::TUI::splitUTF8("中文字符串");
-for (const auto& ch : chars) {
-    std::cout << ch << std::endl;
-}
-```
-
-### Q2: 为什么 `File` 类禁止拷贝？
-
-**A:** 文件句柄是系统资源，拷贝会导致重复关闭问题。请使用移动语义：
-
-```cpp
-Tiny::OS::File file1("test.txt", Tiny::OS::ReadOnly);
-Tiny::OS::File file2 = std::move(file1);  // 正确
-// Tiny::OS::File file3 = file1;  // 错误：拷贝构造函数已删除
-```
-
-### Q3: 如何获取准确的 CPU 使用率？
-
-**A:** `getCPUInfo()` 需要采样间隔（默认 50ms），调用会有短暂阻塞：
-
-```cpp
-Tiny::OS::CPU cpu;
-Tiny::OS::getCPUInfo(cpu, 100);  // 采样 100ms，结果更准确
-```
-
-### Q4: 原始模式下如何退出程序？
-
-**A:** 确保在程序退出前调用 `leaveRawMode()`，或使用 RAII 模式：
-
-```cpp
-{
-    Tiny::TUI::Terminal::enterRawMode();
-    // ... 程序逻辑
-    Tiny::TUI::Terminal::leaveRawMode();
-}
-// 或使用 Renderer，其析构函数会自动退出原始模式
-```
-
-### Q5: 命令解析器如何处理带等号的参数？
-
-**A:** 支持 `--option=value` 和 `--option value` 两种格式：
-
-```bash
-myapp --output=file.txt   # 格式1
-myapp --output file.txt   # 格式2
-myapp -o file.txt         # 短选项格式
-```
-
-### Q6: 如何遍历目录及其子目录？
-
-**A:** 使用 `listPath()` 的递归参数：
-
-```cpp
-// 递归深度 255（实际无限制）
-auto all_files = Tiny::OS::FileSystem::listPath("./src", 255);
-
-// 仅遍历一层
-auto current_files = Tiny::OS::FileSystem::listPath("./src", 1);
-```
-
-### Q7: Windows 和 Unix 的路径分隔符如何处理？
-
-**A:** 库内部自动处理，统一使用 `/` 或 `\` 均可：
-
-```cpp
-Tiny::OS::Path path1("C:/Users/name/file.txt");   // 正确
-Tiny::OS::Path path2("C:\\Users\\name\\file.txt"); // 正确
-```
-
-### Q8: 事件如何安全停止？
-
-**A:** 使用 `stop()` 方法设置停止标志，事件会在下一次循环检查：
-
-```cpp
-Tiny::Event event(1, "Loop", [](const std::atomic<bool>& running) {
-    while (running) {  // 检查停止标志
-        // 执行任务
-    }
-});
-event.run();
-// ...
-event.stop();  // 请求停止
-```
-
----
-
-## 10. 版本与兼容性说明
-
-### 10.1 版本信息
-
-- **当前版本**: 1.0.0
+- **当前版本**: 暂未发布
 - **发布日期**: 2026
 - **许可证**: MIT License
 - **作者**: CatIsNotFound
 
-### 10.2 平台兼容性
+### 8.2 平台兼容性
 
 | 平台 | 支持状态 | 测试版本 |
 |------|----------|----------|
@@ -398,7 +266,7 @@ event.stop();  // 请求停止
 | macOS (Intel) | 完全支持 | 未测试 |
 | macOS (Apple Silicon) | 完全支持 | 未测试 |
 
-### 10.3 编译器兼容性
+### 8.3 编译器兼容性
 
 | 编译器 | 最低版本 | 支持状态 |
 |--------|----------|----------|
@@ -407,32 +275,22 @@ event.stop();  // 请求停止
 | MSVC | 2017 | 完全支持 |
 | MinGW-w64 | 8.0 | 完全支持 |
 
-### 10.4 C++ 标准
+### 8.4 C++ 标准
 
 - **要求**: C++11 或更高版本
 - **推荐**: C++20
 - **测试标准**: C++11, C++20
 
-### 10.5 已知限制
+### 8.5 已知限制
 
 1. **Windows 7**: 部分系统信息获取 API 可能不可用
 2. **macOS**: CPU 使用率计算方式与 Linux 略有不同
 3. **终端**: TUI 模块需要支持 ANSI 转义序列的终端
 4. **编码**: 文件路径在 Windows 上使用 UTF-8 编码
 
-### 10.6 更新日志
-
-#### v1.0.0 (2026)
-- 初始版本发布
-- 实现 Events、OS::File、OS::System、Parser、TUI 五大模块
-- 支持 Windows 和 Unix-like 系统
-- 提供完整的跨平台文件操作 API
-- 实现命令行参数解析器
-- 提供终端用户界面渲染功能
-
 ---
 
-## 11. 许可证说明
+## 9. 许可证说明
 
 `Tiny.cpp` 采用 [MIT 许可证](../LICENSE) 许可协议，您可以在 `LICENSE` 文件或其它任一头文件或源文件中查看详细信息。
 

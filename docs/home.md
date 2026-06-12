@@ -1,15 +1,14 @@
 # Tiny.cpp Documentation
 
-![C++17](https://img.shields.io/badge/C++-17-blue.svg)
+![C++11](https://img.shields.io/badge/C++-11-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Branch](https://img.shields.io/badge/branch-main-green.svg)
 
 ---
 
-## Languages
+## Look for other language documentation?
 
 - [中文文档](home_zh.md) - Chinese Documentation
-- [English Documentation](en/) - English Documentation
 
 ---
 
@@ -23,7 +22,7 @@
 
 - **Modular Architecture**: Each module in the `src` directory can be reused independently without any configuration
 - **Zero Dependencies**: No third-party library dependencies, only cross-platform architectural design
-- **Easy to Use**: Adopts modern C++ standards (minimum C++17 support)
+- **Easy to Use**: Adopts modern C++ standards (minimum C++11 support)
 
 ---
 
@@ -58,8 +57,8 @@ You can directly download the latest pre-built release from [Github Release](htt
 2. Configure project via CMake
     ```bash
     cd Tiny.cpp
-    mkdir build && cd build
-    cmake .. -DCMAKE_INSTALL_PREFIX=/path/to/Tiny.cpp -DCMAKE_BUILD_TYPE=Release -DTINY_BUILD_TEST=OFF
+    mkdir build ; cd build
+    cmake .. -DCMAKE_INSTALL_PREFIX=/path/to/Tiny.cpp -DCMAKE_BUILD_TYPE=Release -DTINY_BUILD_TEST=OFF 
     ```
     **Note: Please replace `/path/to/Tiny.cpp` with your actual installation path.**
 
@@ -198,7 +197,7 @@ g++ -std=c++17 -I./src main.cpp src/*.cpp src/*/*.cpp -o myapp.exe
 
 ### Runtime Environment
 
-- **C++ Standard**: C++17 or higher
+- **C++ Standard**: C++ 11 or higher
 - **Operating Systems**: Windows (Windows 7+), Linux, macOS, Unix-like systems
 - **Compilers**: GCC 7+, Clang 5+, MSVC 2017+
 
@@ -239,141 +238,11 @@ Terminal user interface.
 
 ---
 
-## Error Codes and Exception Handling
-
-### CommandParser Error Codes
-
-| Error Code | Enum Value | Trigger Scenario | Solution |
-|------------|------------|------------------|----------|
-| `NoError` | 0 | Parse successful | None |
-| `UnknownOption` | 1 | Encountered undefined option | Check command definitions, confirm option name is correct |
-| `FullOptionOnly` | 2 | Short option used for long-only option | Use `--option` instead of `-o` |
-| `InvalidValue` | 3 | Parameter value invalid or empty | Check parameter value format, provide valid value |
-| `MissingArgument` | 4 | Missing required parameter value | Provide parameter for options requiring values |
-| `FormatError` | 5 | Parameter format error | Check parameter format, ensure it starts with `-` |
-
-### File Operation Errors
-
-File operation classes (`File`, `Path`) do not throw exceptions, indicating errors through return values:
-
-| Scenario | Return Value | Description |
-|----------|--------------|-------------|
-| Invalid path | `isValid()` returns false | Path does not exist or is inaccessible |
-| File open failure | `open()` returns false | Insufficient permissions or file in use |
-| Read failure | Returns empty data | File not open or at end |
-| Write failure | Returns false | File not opened in write mode |
-
-### Event System Error Handling
-
-Exceptions in event callbacks are caught and output to stderr:
-
-```cpp
-Event event(1, "Test", [](const std::atomic<bool>&) {
-    throw std::runtime_error("Error!");
-});
-// Exception is caught, outputs: "Tiny::Event: An error has occurred: Error!"
-```
-
----
-
-## FAQ
-
-### Q1: How to properly handle UTF-8 strings?
-
-**A:** The library internally handles UTF-8 encoding. Use the `splitUTF8()` function to split strings into character arrays:
-
-```cpp
-auto chars = Tiny::TUI::splitUTF8("Chinese String");
-for (const auto& ch : chars) {
-    std::cout << ch << std::endl;
-}
-```
-
-### Q2: Why does the `File` class prohibit copying?
-
-**A:** File handles are system resources; copying would cause duplicate close issues. Please use move semantics:
-
-```cpp
-Tiny::OS::File file1("test.txt", Tiny::OS::ReadOnly);
-Tiny::OS::File file2 = std::move(file1);  // Correct
-// Tiny::OS::File file3 = file1;  // Error: copy constructor deleted
-```
-
-### Q3: How to get accurate CPU usage?
-
-**A:** `getCPUInfo()` requires a sampling interval (default 50ms), calling will briefly block:
-
-```cpp
-Tiny::OS::CPU cpu;
-Tiny::OS::getCPUInfo(cpu, 100);  // Sample 100ms, more accurate results
-```
-
-### Q4: How to exit program in raw mode?
-
-**A:** Ensure `leaveRawMode()` is called before program exit, or use RAII pattern:
-
-```cpp
-{
-    Tiny::TUI::Terminal::enterRawMode();
-    // ... program logic
-    Tiny::TUI::Terminal::leaveRawMode();
-}
-// Or use Renderer, whose destructor automatically exits raw mode
-```
-
-### Q5: How does the command parser handle parameters with equals signs?
-
-**A:** Supports both `--option=value` and `--option value` formats:
-
-```bash
-myapp --output=file.txt   # Format 1
-myapp --output file.txt   # Format 2
-myapp -o file.txt         # Short option format
-```
-
-### Q6: How to traverse directories and subdirectories?
-
-**A:** Use the recursion parameter of `listPath()`:
-
-```cpp
-// Recursion depth 255 (actually unlimited)
-auto all_files = Tiny::OS::FileSystem::listPath("./src", 255);
-
-// Traverse only one level
-auto current_files = Tiny::OS::FileSystem::listPath("./src", 1);
-```
-
-### Q7: How are Windows and Unix path separators handled?
-
-**A:** The library internally handles them automatically; both `/` and `\` work uniformly:
-
-```cpp
-Tiny::OS::Path path1("C:/Users/name/file.txt");   // Correct
-Tiny::OS::Path path2("C:\\Users\\name\\file.txt"); // Correct
-```
-
-### Q8: How to safely stop events?
-
-**A:** Use the `stop()` method to set the stop flag; the event will check on the next loop iteration:
-
-```cpp
-Tiny::Event event(1, "Loop", [](const std::atomic<bool>& running) {
-    while (running) {  // Check stop flag
-        // Execute task
-    }
-});
-event.run();
-// ...
-event.stop();  // Request stop
-```
-
----
-
 ## Version and Compatibility
 
 ### Version Information
 
-- **Current Version**: 1.0.0
+- **Current Version**: Unreleased
 - **Release Date**: 2026
 - **License**: MIT License
 - **Author**: CatIsNotFound
@@ -400,9 +269,9 @@ event.stop();  // Request stop
 
 ### C++ Standard
 
-- **Required**: C++17 or higher
+- **Required**: C++11 or higher
 - **Recommended**: C++20
-- **Tested Standards**: C++17, C++20
+- **Tested Standards**: C++11, C++20
 
 ### Known Limitations
 
@@ -410,18 +279,6 @@ event.stop();  // Request stop
 2. **macOS**: CPU usage calculation differs slightly from Linux
 3. **Terminal**: TUI module requires terminal supporting ANSI escape sequences
 4. **Encoding**: File paths use UTF-8 encoding on Windows
-
-### Changelog
-
-#### v1.0.0 (2026)
-- Initial release
-- Implemented five modules: Events, OS::File, OS::System, Parser, TUI
-- Support for Windows and Unix-like systems
-- Complete cross-platform file operation API
-- Command-line parameter parser implementation
-- Terminal user interface rendering functionality
-
----
 
 ## License
 

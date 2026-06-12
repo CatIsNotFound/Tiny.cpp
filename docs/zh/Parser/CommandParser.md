@@ -63,6 +63,7 @@ struct Command {
     std::string description;       // 选项描述
     bool full_option_only;         // 是否仅支持长选项
     bool is_default_command;       // 是否为默认命令
+    bool is_need;                  // 是否为必需命令
     bool has_value;                // 是否接受值
     std::string value;             // 实际传入的值
     std::string default_value;     // 默认值
@@ -76,6 +77,7 @@ struct Command {
 | `description` | `std::string` | 选项说明文本 |
 | `full_option_only` | `bool` | true 表示不支持短选项 |
 | `is_default_command` | `bool` | 是否为默认执行命令 |
+| `is_need` | `bool` | 该选项是否为必需 |
 | `has_value` | `bool` | 该选项是否需要参数值 |
 | `value` | `std::string` | 解析后获得的实际值 |
 | `default_value` | `std::string` | 未提供值时的默认值 |
@@ -84,12 +86,13 @@ struct Command {
 
 ```cpp
 enum class ParseError : uint8_t {
-    NoError,           // 无错误
-    UnknownOption,     // 未知选项
-    FullOptionOnly,    // 仅支持长选项但使用了短选项
-    InvalidValue,      // 无效值
-    MissingArgument,   // 缺少参数
-    FormatError        // 格式错误
+    NoError,              // 无错误
+    UnknownOption,        // 未知选项
+    FullOptionOnly,       // 仅支持长选项但使用了短选项
+    InvalidValue,         // 无效值
+    MissingArgument,      // 缺少参数
+    FormatError,          // 格式错误
+    MissingDefaultCommand // 缺少默认命令
 };
 ```
 
@@ -101,6 +104,7 @@ enum class ParseError : uint8_t {
 | `InvalidValue` | 3 | 参数值无效或为空 |
 | `MissingArgument` | 4 | 缺少必需的参数值 |
 | `FormatError` | 5 | 参数格式错误 |
+| `MissingDefaultCommand` | 6 | 缺少默认命令 |
 
 ---
 
@@ -137,6 +141,7 @@ bool addCommand(const std::string& command_name,
                 const std::string& description = {}, 
                 bool has_value = false, 
                 const std::string& default_value = {}, 
+                bool is_need = false,
                 bool default_command = false);
 ```
 - **功能**: 添加命令选项
@@ -146,6 +151,7 @@ bool addCommand(const std::string& command_name,
   - `description` - 描述信息
   - `has_value` - 是否接受值
   - `default_value` - 默认值
+  - `is_need` - 该选项是否为必需
   - `default_command` - 是否为默认命令
 - **返回值**: `true` 表示成功（名称不重复）
 
@@ -156,6 +162,7 @@ bool addFullCommand(const std::string& command_name,
                     const std::string& description, 
                     bool has_value = false, 
                     const std::string& default_value = {}, 
+                    bool is_need = false,
                     bool default_command = false);
 ```
 - **功能**: 添加仅支持长格式的命令
@@ -188,13 +195,13 @@ void clear();
 ```cpp
 ParseError exec(int* parsed_command_count = nullptr,
                 int* err_arg_n = nullptr,
-                const char* err_cmd_name = nullptr);
+                std::vector<std::string>* missing_command_list = nullptr);
 ```
 - **功能**: 执行参数解析
 - **参数**: 
   - `parsed_command_count` - 输出解析成功的命令数
   - `err_arg_n` - 输出错误参数位置
-  - `err_cmd_name` - 输出错误命令名称
+  - `missing_command_list` - 输出缺少的必需命令列表
 - **返回值**: `ParseError` 枚举值
 
 #### execCommandList
@@ -479,6 +486,7 @@ myapp verbose
 | `InvalidValue` | 参数值无效或为空 | 检查参数值格式，提供有效值 |
 | `MissingArgument` | 缺少必需的参数值 | 为需要值的选项提供参数 |
 | `FormatError` | 参数格式错误 | 检查参数格式，确保以 `-` 开头 |
+| `MissingDefaultCommand` | 缺少默认命令 | 确保在需要时提供默认命令 |
 
 ### 9.3 默认值处理
 
