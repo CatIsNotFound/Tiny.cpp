@@ -15,6 +15,7 @@ endfunction()
 
 addModule(Msgbox MY_MODULE
     DemoMessagebox.cpp
+    Misc/Misc.hpp
 )
 
 
