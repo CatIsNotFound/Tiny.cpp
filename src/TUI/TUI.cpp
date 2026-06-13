@@ -438,6 +438,7 @@ namespace Tiny {
         Style old_style{};
         for (size_t r = 0; r < _win_size.height; r++) {
             for (size_t c = 0; c < _win_size.width; c++) {
+                if (r >= _buffer.size() || c >= _buffer.front().size()) continue;
                 if (!_buffer[r][c].is_dirty) {
                     Terminal::moveCursor(r, c);
                     if (_buffer[r][c].style != old_style) {

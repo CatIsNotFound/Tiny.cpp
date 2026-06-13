@@ -35,7 +35,6 @@
 #include <mutex>
 #include <future>
 #include <functional>
-#include <map>
 
 namespace Tiny {
     namespace TUI {
@@ -102,7 +101,6 @@ namespace Tiny {
                 bool used_rgb_color{};  // If set `true`, need set `bg_rgb_color` and `fg_rgb_color` members.
                 RGBColor bg_rgb_color;
                 RGBColor fg_rgb_color;
-
 
                 enum Property : uint8_t {
                     Bolder            = 1,
@@ -242,8 +240,6 @@ namespace Tiny {
             std::string f_text = Terminal::formatString(format, args...);
             setChars(pos, f_text, style);
         }
-
-
 
         class InputBus {
         public:

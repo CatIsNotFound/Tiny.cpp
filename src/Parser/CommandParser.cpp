@@ -32,7 +32,7 @@ namespace Tiny {
 
     bool CommandParser::addCommand(const std::string &command_name, const std::string &short_options,
                                    const std::string &description, bool has_value, const std::string &default_value,
-                                   bool is_need, bool default_command) {
+                                   bool is_required, bool default_command) {
         if (exist(command_name)) return false;
         Command command;
         command.option_name = command_name;
@@ -40,8 +40,8 @@ namespace Tiny {
         command.description = description;
         command.has_value = has_value;
         command.default_value = default_value;
-        command.is_need = is_need;
-        if (is_need) {
+        command.is_required = is_required;
+        if (is_required) {
             _required_cmd_list.push_back(command_name);
             if (default_command && _default_cmd.empty()) {
                 command.is_default_command = default_command;
@@ -55,15 +55,15 @@ namespace Tiny {
 
     bool CommandParser::addFullCommand(const std::string &command_name, const std::string &description,
                                        bool has_value, const std::string &default_value,
-                                       bool is_need, bool default_command) {
+                                       bool is_required, bool default_command) {
         if (exist(command_name)) return false;
         Command command;
         command.option_name = command_name;
         command.description = description;
         command.has_value = has_value;
         command.default_value = default_value;
-        command.is_need = is_need;
-        if (is_need) {
+        command.is_required = is_required;
+        if (is_required) {
             _required_cmd_list.push_back(command_name);
             if (default_command && _default_cmd.empty()) {
                 command.is_default_command = default_command;
@@ -73,11 +73,39 @@ namespace Tiny {
         command.full_option_only = true;
         _commands.emplace(command_name, command);
         return true;
-    }   
+    }
+
+    bool CommandParser::addLastCommand(const std::string &command_name, const std::string &short_options,
+            const std::string &description, bool has_value, const std::string &default_value) {
+        if (exist(command_name)) return false;
+        Command new_cmd;
+        new_cmd.option_name = command_name;
+        new_cmd.short_options = short_options;
+        new_cmd.description = description;
+        new_cmd.has_value = has_value;
+        new_cmd.default_value = default_value;
+        new_cmd.is_last_command = true;
+        _commands.emplace(command_name, new_cmd);
+        return true;
+    }
+
+    bool CommandParser::addFullLastCommand(const std::string &command_name, const std::string &description,
+            bool has_value, const std::string &default_value) {
+        if (exist(command_name)) return false;
+        Command new_cmd;
+        new_cmd.option_name = command_name;
+        new_cmd.description = description;
+        new_cmd.full_option_only = true;
+        new_cmd.has_value = has_value;
+        new_cmd.default_value = default_value;
+        new_cmd.is_last_command = true;
+        _commands.emplace(command_name, new_cmd);
+        return true;
+    }
 
     bool CommandParser::remove(const std::string &command_name) {
         if (_commands.find(command_name) != _commands.end()) {
-            if (_commands.at(command_name).is_need) {
+            if (_commands.at(command_name).is_required) {
                 for (int64_t p = 0; p < _required_cmd_list.size(); ++p) {
                     if (_required_cmd_list[p] == command_name) {
                         _required_cmd_list.erase(_required_cmd_list.begin() + p);
@@ -101,8 +129,7 @@ namespace Tiny {
     CommandParser::ParseError CommandParser::exec(int* parsed_command_count, int* err_arg_n,
                                                   std::vector<std::string> *missing_command_list) {
         // Parsed all the arguments and convert the commands.
-
-        int err_pos;
+        int err_pos = 0;
         std::vector<std::string> missing_cmd_list;
         auto err = parseUserCommand(err_pos, missing_cmd_list);
         if (err != ParseError::NoError) {
@@ -172,10 +199,11 @@ namespace Tiny {
         std::string filling_option;
         bool is_parsing = false;
         std::vector<std::string> required_cmds = _required_cmd_list;
+        bool parse_last_command = false;
         for (size_t i = 1; i < _argc; ++i) {
             std::string arg = _argv[i];
             // Parse the default command at first.
-            if (i == 1 && !_default_cmd.empty()) {
+            if (i == 1 && arg[0] != '-' && !_default_cmd.empty()) {
                 if (!checkAndRemoveRequiredCommand(required_cmds, _default_cmd)) {
                     err_pos = 1;
                     missing_command_list.push_back(_default_cmd);
@@ -191,7 +219,6 @@ namespace Tiny {
                     }
                 }
             }
-
             // Parse the first argument.
             if (i == 1 && arg[0] != '-') {
                 bool is_ok = false;
@@ -203,9 +230,15 @@ namespace Tiny {
                             is_parsing = true;
                             filling_option = arg;
                             checkAndRemoveRequiredCommand(required_cmds, command.second.option_name);
+                            if (!parse_last_command && command.second.is_last_command) {
+                                parse_last_command = true;
+                            }
                             _exec_cmd_list.push_back(command.second);
                         } else {
                             checkAndRemoveRequiredCommand(required_cmds, command.second.option_name);
+                            if (!parse_last_command && command.second.is_last_command) {
+                                parse_last_command = true;
+                            }
                             _exec_cmd_list.push_back(command.second);
                         }
                         break;
@@ -254,6 +287,9 @@ namespace Tiny {
                         filling_option = key_arg->second.option_name;
                     }
                     checkAndRemoveRequiredCommand(required_cmds, key_arg->second.option_name);
+                    if (!parse_last_command && key_arg->second.is_last_command) {
+                        parse_last_command = true;
+                    }
                     _exec_cmd_list.push_back(_commands[arg]);
                 } else {
                     // Parsing "--option=value"
@@ -270,6 +306,9 @@ namespace Tiny {
                         return ParseError::FullOptionOnly;
                     }
                     checkAndRemoveRequiredCommand(required_cmds, found_cmd->second.option_name);
+                    if (!parse_last_command && found_cmd->second.is_last_command) {
+                        parse_last_command = true;
+                    }
                     _exec_cmd_list.push_back(_commands[key_option]);
                     _exec_cmd_list.back().value = value;
                 }
@@ -288,6 +327,9 @@ namespace Tiny {
                             is_match_opt = true;
                             filling_option = cmd.option_name;
                             checkAndRemoveRequiredCommand(required_cmds, cmd.option_name);
+                            if (!parse_last_command && cmd.is_last_command) {
+                                parse_last_command = true;
+                            }
                             _exec_cmd_list.push_back(cmd);
                             if (j == arg.size() - 1 && cmd.has_value) {
                                 if (i == _argc - 1) {
@@ -318,6 +360,10 @@ namespace Tiny {
             } else {
                 err_pos = i;
                 return ParseError::FormatError;
+            }
+            if (parse_last_command && !is_parsing) {
+                required_cmds.clear();
+                break;
             }
         }
 

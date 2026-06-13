@@ -40,8 +40,10 @@ namespace Tiny {
             std::string description{};
             bool full_option_only{false};
             bool is_default_command{false};
-            bool is_need{false};
+            bool is_required{false};
             bool has_value{false};
+            // If set to `true`, all parsing will stop (ignore all the required commands) after this command is parsed.
+            bool is_last_command{false};
             std::string value{};
             std::string default_value{};
 
@@ -88,10 +90,14 @@ namespace Tiny {
         ~CommandParser() = default;
         bool addCommand(const std::string& command_name, const std::string& short_options, const std::string& description = {},
                  bool has_value = false, const std::string& default_value = {},
-                 bool is_need = false, bool default_command = false);
+                 bool is_required = false, bool default_command = false);
         bool addFullCommand(const std::string& command_name, const std::string& description, 
                  bool has_value = false, const std::string& default_value = {},
-                 bool is_need = false, bool default_command = false);
+                 bool is_required = false, bool default_command = false);
+        bool addLastCommand(const std::string& command_name, const std::string& short_options, const std::string& description = {},
+                 bool has_value = false, const std::string& default_value = {});
+        bool addFullLastCommand(const std::string& command_name, const std::string& description = {},
+                 bool has_value = false, const std::string& default_value = {});
         bool remove(const std::string& command_name);
         void clear();
         ParseError exec(int* parsed_command_count = nullptr,

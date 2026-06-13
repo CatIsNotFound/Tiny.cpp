@@ -5,10 +5,12 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(TINY_BUILD_TEST "Build test module" ON)
+option(TINY_BUILD_DEMO "Build demo module" ON)
 option(TINY_GTEST_SRC "Include Source code from local." ON)
 option(TINY_USE_GPM "Include gpm library for project (Only for linux)." OFF)
 message("-- Tiny.cpp is configuring...")
 message("-- Build Test Module: ${TINY_BUILD_TEST}")
+message("-- Build Demo Module: ${TINY_BUILD_DEMO}")
 message("-- Installation path: ${CMAKE_INSTALL_PREFIX}")
 message("-- P.S: To disabled building test module, please set '-DTINY_BUILD_TEST=OFF' option.")
 message("--      If your GTest submodule is already installed by package manager, please set") 
@@ -46,6 +48,7 @@ add_library(${PROJECT_NAME} STATIC
         src/TUI/TUI.cpp
         src/Parser/CommandParser.hpp
         src/Parser/CommandParser.cpp
+        src/Misc/Misc.hpp
 )
 
 # Link Windows libraries
@@ -134,3 +137,6 @@ if (TINY_BUILD_TEST)
     )
 endif ()
 
+if (TINY_BUILD_DEMO)
+    add_subdirectory(demos)
+endif ()

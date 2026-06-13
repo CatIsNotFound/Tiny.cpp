@@ -32,6 +32,7 @@
 #include "TUI/Terminal.hpp"
 #include "TUI/TUI.hpp"
 #include "Parser/CommandParser.hpp"
+#include "Misc/Misc.hpp"
 
 #endif //TINY_HPP
 

@@ -1,0 +1,6 @@
+title = "My Message Box"
+message = "Please select the button. \n- Use ← and → key to select, \n- use Enter key to confirm, \n- use Esc key to cancel."
+type = "custom"
+color = "cyan"
+buttons = "Ok;Yes;No;Cancel;Retry;Ignore"
+default_index = 6
