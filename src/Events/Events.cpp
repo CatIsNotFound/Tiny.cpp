@@ -25,8 +25,6 @@
 
 #include "Events.hpp"
 
-#include <utility>
-
 namespace Tiny {
     Event::Event(uint32_t id, std::string name,
                  const std::function<bool()> &condition, const std::function<void(const std::atomic<bool>&)> &event)
@@ -174,6 +172,144 @@ namespace Tiny {
                 _con_var.wait_for(lock, std::chrono::milliseconds(_delay.load()));
             }
         }
+    }
+
+    EventsMap::EventsMap() = default;
+
+    EventsMap::~EventsMap() {
+        waitAllEvents();
+    }
+
+    bool EventsMap::execEvent(const Event &event) {
+        if (exist(event.eventID())) return false;
+        _event_map.try_emplace(event.eventID(), event);
+        _event_map.at(event.eventID()).run();
+        while (!_event_map.at(event.eventID()).isRunning()) {}
+        return true;
+    }
+
+    bool EventsMap::execEvent(size_t event_id) {
+        if (!exist(event_id)) return false;
+        _event_map.at(event_id).run();
+        while (!_event_map.at(event_id).isRunning()) {}
+        return true;
+    }
+
+    bool EventsMap::addEvent(const Event &event) {
+        if (exist(event.eventID())) return false;
+        _event_map.try_emplace(event.eventID(), event);
+        return true;
+    }
+
+    bool EventsMap::removeEvent(size_t event_id) {
+        if (!exist(event_id)) return false;
+        waitEvent(event_id);
+        _event_map.erase(event_id);
+        return true;
+    }
+
+    bool EventsMap::removeAllFreeEvents() {
+        std::vector<size_t> rm_event_ids;
+        for (auto& ev : _event_map) {
+            if (!ev.second.isRunning()) {
+                rm_event_ids.push_back(ev.first);
+            }
+        }
+        for (auto& id : rm_event_ids) {
+            _event_map.erase(id);
+        }
+        return true;
+    }
+
+    void EventsMap::stopEvent(size_t event_id) {
+        if (!exist(event_id)) return;
+        _event_map.at(event_id).stop();
+    }
+
+    void EventsMap::waitEvent(size_t event_id) {
+        if (!exist(event_id)) return;
+        _event_map.at(event_id).stop();
+        while (_event_map.at(event_id).isRunning()) {}
+    }
+
+    void EventsMap::stopAllEvents() {
+        for (auto& ev : _event_map) {
+            if (!ev.second.isRunning()) ev.second.stop();
+        }
+    }
+
+    void EventsMap::waitAllEvents() {
+        for (auto& ev : _event_map) {
+            if (ev.second.isRunning()) {
+                ev.second.stop();
+                while (ev.second.isRunning()) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                }
+            }
+        }
+    }
+
+    bool EventsMap::setConditionByID(size_t event_id, const std::function<bool()> &condition) {
+        if (!exist(event_id)) return false;
+        _event_map.at(event_id).setCondition(condition);
+        return true;
+    }
+
+    bool EventsMap::setEventByID(size_t event_id, const std::function<void(const std::atomic<bool> &)> &event) {
+        if (!exist(event_id)) return false;
+        _event_map.at(event_id).setEvent(event);
+        return true;
+    }
+
+    bool EventsMap::setDelayByID(size_t event_id, uint32_t delay_ms) {
+        if (!exist(event_id)) return false;
+        _event_map.at(event_id).setDelayMS(delay_ms);
+        return true;
+    }
+
+    bool EventsMap::setRepeatByID(size_t event_id, uint32_t repeat_count) {
+        if (!exist(event_id)) return false;
+        _event_map.at(event_id).setRepeatCount(repeat_count);
+        return true;
+    }
+
+    bool EventsMap::exist(size_t event_id) const {
+        return _event_map.find(event_id) != _event_map.end();
+    }
+
+    const Event & EventsMap::event(size_t event_id) const {
+        if (exist(event_id)) return _event_map.at(event_id);
+        throw std::out_of_range("Tiny::EventsMap: The specified event id is not found!");
+    }
+
+    bool EventsMap::event(const Event &find_event, const Event *found_event) const {
+        if (!exist(find_event.eventID())) return false;
+        size_t id = find_event.eventID();
+        if (_event_map.at(id).eventName() != find_event.eventName() ||
+            _event_map.at(id).eventDelayMS() != find_event.eventDelayMS() ||
+            _event_map.at(id).eventRepeatCount() != find_event.eventRepeatCount()) return false;
+        if (found_event) found_event = &_event_map.at(id);
+        return true;
+    }
+
+    EventsMap::constIter EventsMap::cbegin() const {
+        return _event_map.cbegin();
+    }
+
+    EventsMap::constIter EventsMap::cend() const {
+        return _event_map.cend();
+    }
+
+    size_t EventsMap::size() const {
+        return _event_map.size();
+    }
+
+    std::vector<size_t> EventsMap::eventIDList() const {
+        std::vector<size_t> event_ids;
+        for (auto& ev : _event_map) {
+            event_ids.push_back(ev.first);
+        }
+        return event_ids;
     }
 }
 

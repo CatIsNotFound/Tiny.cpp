@@ -32,6 +32,7 @@
 #include <thread>
 #include <atomic>
 #include <condition_variable>
+#include <unordered_map>
 #include <cstdint>
 
 namespace Tiny {
@@ -64,7 +65,7 @@ namespace Tiny {
         void loop();
         uint32_t _id{};
         std::atomic<bool> _is_load_event{}, _needs_destroy{};
-        std::atomic<bool> _is_running{false};
+        std::atomic<bool> _is_running{};
         std::string _name{};
         std::function<void(const std::atomic<bool>&)> _event{};
         std::function<bool()> _condition{[] { return true; }};
@@ -73,6 +74,43 @@ namespace Tiny {
         std::atomic<uint32_t> _exec_count{1}, _now_cnt{0};
         std::mutex _mutex{};
         std::condition_variable _con_var{}, _run_var{};
+    };
+
+    class EventsMap {
+    public:
+        using constIter = std::unordered_map<size_t, Event>::const_iterator;
+
+        EventsMap();
+        ~EventsMap();
+
+        bool execEvent(const Event& event);
+        bool execEvent(size_t event_id);
+        bool addEvent(const Event& event);
+        bool removeEvent(size_t event_id);
+        bool removeAllFreeEvents();
+
+        void stopEvent(size_t event_id);
+        void waitEvent(size_t event_id);
+        void stopAllEvents();
+        void waitAllEvents();
+
+        bool setConditionByID(size_t event_id, const std::function<bool()>& condition);
+        bool setEventByID(size_t event_id, const std::function<void(const std::atomic<bool>&)>& event);
+        bool setDelayByID(size_t event_id, uint32_t delay_ms);
+        bool setRepeatByID(size_t event_id, uint32_t repeat_count);
+
+        bool exist(size_t event_id) const;
+        const Event& event(size_t event_id) const;
+        bool event(const Event& find_event, const Event* found_event = nullptr) const;
+
+        constIter cbegin() const;
+        constIter cend() const;
+        size_t size() const;
+
+        std::vector<size_t> eventIDList() const;
+
+    private:
+        std::unordered_map<size_t, Event> _event_map{};
     };
 }
 

@@ -246,10 +246,10 @@ void drawMessageBox(Messagebox& msg_box) {
         color = tui::Color::Yellow;
         intense = true;
     } else if (msg_box.type == Messagebox::Information) {
-        color = tui::Color::Green;
+        color = tui::Color::Blue;
         intense = true;
     } else if (msg_box.type == Messagebox::Question) {
-        color = tui::Color::Blue;
+        color = tui::Color::Green;
         intense = true;
     } else {
         color = msg_box.color;
@@ -291,8 +291,8 @@ void drawMessageBox(Messagebox& msg_box) {
 
     TUI::Size scr_size = ter::screenSize();
     TUI::Position win_pos = {};
-    win_pos.row = scr_size.height / 2 - window_size.height / 2;
-    win_pos.column = scr_size.width / 2 - window_size.width / 2;
+    win_pos.row = scr_size.height / 2 - window_size.height / 2 - 1;
+    win_pos.column = scr_size.width / 2 - window_size.width / 2 - 1;
     TUI::Position shadow_win_pos = win_pos;
     shadow_win_pos.row += 1;
     shadow_win_pos.column += 1;
@@ -463,7 +463,7 @@ int main(int argc, char** argv) {
         def_buttons.emplace_back("Ok");
         msg_box.default_option = 1;
     }
-    msg_box.buttons = def_buttons;
+    if (msg_box.buttons.empty()) msg_box.buttons = def_buttons;
 
     if (file_mode) {
         OS::File file(file_name, OS::ReadOnly);

@@ -23,6 +23,10 @@ addModule(TestEvent MY_MODULE
         TestEvent.cpp
 )
 
+addModule(TestEventMap MY_MODULE
+        TestEventMap.cpp
+)
+
 addModule(TestCommandParser MY_MODULE
         TestCmdParser.cpp
 )
