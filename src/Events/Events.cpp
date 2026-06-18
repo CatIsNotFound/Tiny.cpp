@@ -182,7 +182,7 @@ namespace Tiny {
 
     bool EventsMap::execEvent(const Event &event) {
         if (exist(event.eventID())) return false;
-        _event_map.try_emplace(event.eventID(), event);
+        _event_map.emplace(event.eventID(), event);
         _event_map.at(event.eventID()).run();
         while (!_event_map.at(event.eventID()).isRunning()) {}
         return true;
@@ -197,7 +197,7 @@ namespace Tiny {
 
     bool EventsMap::addEvent(const Event &event) {
         if (exist(event.eventID())) return false;
-        _event_map.try_emplace(event.eventID(), event);
+        _event_map.emplace(event.eventID(), event);
         return true;
     }
 

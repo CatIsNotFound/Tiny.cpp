@@ -32,7 +32,9 @@
 #include <thread>
 #include <atomic>
 #include <condition_variable>
+#include <vector>
 #include <unordered_map>
+#include <stdexcept>
 #include <cstdint>
 
 namespace Tiny {
