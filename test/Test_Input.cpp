@@ -56,9 +56,9 @@ void test_input() {
     ter::enterRawMode();
     uint8_t ch = 0;
     ter::moveCursor(ter::screenSize().height - 1, 0);
-    ter::reverseColor(true);
+    ter::setReverseColor(true);
     ter::print("Press Ctrl+C or Ctrl+Z to exit...");
-    ter::reverseColor(false);
+    ter::setReverseColor(false);
     ter::moveCursor(0, 0);
     while (true) {
         TUI::SP_Keys sp{};
@@ -74,9 +74,9 @@ void test_input() {
             ter::printFormat("{:#d} ({}){:50c}\r\n", ch, key_name, ' ');
         }
         ter::moveCursor(ter::screenSize().height - 1, 0);
-        ter::reverseColor(true);
+        ter::setReverseColor(true);
         ter::print("Press Ctrl+C or Ctrl+Z to exit...");
-        ter::reverseColor(false);
+        ter::setReverseColor(false);
         old_pos.row += 1;
         old_pos.column = 0;
         ter::moveCursor(old_pos);
@@ -87,9 +87,9 @@ void test_input() {
 void input_text() {
     ter::enterRawMode();
     ter::moveCursor(ter::screenSize().height - 1, 0);
-    ter::reverseColor(true);
+    ter::setReverseColor(true);
     ter::print("Press Enter without any text to exit...");
-    ter::reverseColor(false);
+    ter::setReverseColor(false);
     ter::moveCursor(0, 0);
     while (true) {
         auto text = ter::readLineW();
@@ -102,9 +102,9 @@ void mouse_test() {
     ter::enterRawMode();
     ter::setMouseEnabled(true);
     ter::moveCursor(ter::screenSize().height - 1, 0);
-    ter::reverseColor(true);
+    ter::setReverseColor(true);
     ter::print("Press any mouse button, and click this line to quit.");
-    ter::reverseColor(false);
+    ter::setReverseColor(false);
     TUI::Position mouse_pos{};
     bool is_pressed{};
     while (true) {
@@ -113,11 +113,11 @@ void mouse_test() {
         ter::moveCursor(scr_height, 0);
         ter::setBackgroundColor(TUI::Color::Yellow, true);
         ter::setForegroundColor(TUI::Color::Blue);
-        ter::reverseColor(true);
+        ter::setReverseColor(true);
         ter::clearInRow(scr_height);
         ter::printFormat("Pos: (R {}, C {}), M: {}, Is pressed: {}, Click this line to quit.", mouse_pos.row, mouse_pos.column, 
                                                                                                TUI::getMouseName(mouse_btn), is_pressed);
-        ter::reverseColor(false);
+        ter::setReverseColor(false);
         ter::setBackgroundColor(TUI::Color::Default, false);
         ter::moveCursor(mouse_pos);
         if (mouse_btn != TUI::SP_MOUSE_MOVED && mouse_btn != TUI::SP_MOUSE_UNKNOWN && mouse_pos.row >= scr_height) break;
@@ -133,10 +133,10 @@ void view_file(const char* exec_path) {
     std::string split(width, '-');
 
     ter::moveCursor(ter::screenSize().height - 1, 0);
-    ter::reverseColor(true);
+    ter::setReverseColor(true);
     ter::clearInRow(ter::screenSize().height - 1);
     ter::print("Ctrl+Z: Quit, Home: 1st page, End: Last page, PgUp: Page up, PgDn: Page down");
-    ter::reverseColor(false);
+    ter::setReverseColor(false);
 
     auto e_path = OS::Path(exec_path).parent().join("assets/TUI/book.txt");
     OS::File file(e_path, OS::ReadOnly);

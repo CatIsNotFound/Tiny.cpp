@@ -354,7 +354,7 @@ TEST(FileTest, Constructor_String_ReadOnly) {
     FileSystem::mkFile(testFile, content);
     
     File file(testFile, ReadOnly);
-    EXPECT_TRUE(file.isValid());
+    EXPECT_TRUE(file.isFile());
     EXPECT_TRUE(file.isOpen());
     
     file.close();
@@ -371,7 +371,7 @@ TEST(FileTest, Constructor_String_WriteOnly) {
     FileSystem::mkFile(testFile);
     
     File file(testFile, WriteOnly);
-    EXPECT_TRUE(file.isValid());
+    EXPECT_TRUE(file.isFile());
     EXPECT_TRUE(file.isOpen());
     
     file.close();
@@ -388,7 +388,7 @@ TEST(FileTest, Constructor_String_ReadWrite) {
     FileSystem::mkFile(testFile);
     
     File file(testFile, ReadWrite);
-    EXPECT_TRUE(file.isValid());
+    EXPECT_TRUE(file.isFile());
     EXPECT_TRUE(file.isOpen());
     
     file.close();
@@ -406,7 +406,7 @@ TEST(FileTest, Constructor_String_Unknown) {
     FileSystem::mkFile(testFile, content);
     
     File file(testFile, Unknown);
-    EXPECT_TRUE(file.isValid());
+    EXPECT_TRUE(file.isFile());
     EXPECT_FALSE(file.isOpen());
     
     FileSystem::rmFile(testFile);
@@ -424,7 +424,7 @@ TEST(FileTest, Constructor_Path_ReadOnly) {
     
     Path filePath(testFile);
     File file(filePath, ReadOnly);
-    EXPECT_TRUE(file.isValid());
+    EXPECT_TRUE(file.isFile());
     EXPECT_TRUE(file.isOpen());
     
     file.close();
@@ -442,7 +442,7 @@ TEST(FileTest, Constructor_Path_WriteOnly) {
     
     Path filePath(testFile);
     File file(filePath, WriteOnly);
-    EXPECT_TRUE(file.isValid());
+    EXPECT_TRUE(file.isFile());
     EXPECT_TRUE(file.isOpen());
     
     file.close();
@@ -461,7 +461,7 @@ TEST(FileTest, Constructor_Path_Unknown) {
     
     Path filePath(testFile);
     File file(filePath, Unknown);
-    EXPECT_TRUE(file.isValid());
+    EXPECT_TRUE(file.isFile());
     EXPECT_FALSE(file.isOpen());
     
     FileSystem::rmFile(testFile);
@@ -470,14 +470,14 @@ TEST(FileTest, Constructor_Path_Unknown) {
 // 测试 File 构造函数 - 无效文件路径
 TEST(FileTest, Constructor_InvalidPath) {
     File file("/this/path/does/not/exist.txt", ReadOnly);
-    EXPECT_FALSE(file.isValid());
+    EXPECT_FALSE(file.isFile());
     EXPECT_FALSE(file.isOpen());
 }
 
 // 测试 File 构造函数 - 目录路径（不是文件）
 TEST(FileTest, Constructor_DirectoryPath) {
     File file(".", ReadOnly);
-    EXPECT_FALSE(file.isValid());
+    EXPECT_FALSE(file.isFile());
 }
 
 // 测试移动构造函数 - 资源转移
@@ -497,11 +497,11 @@ TEST(FileTest, MoveConstructor_Transfer) {
     
     // 源对象被重置
     EXPECT_FALSE(file1.isOpen());
-    EXPECT_FALSE(file1.isValid());
+    EXPECT_FALSE(file1.isFile());
     
     // 目标对象获得资源
     EXPECT_TRUE(file2.isOpen());
-    EXPECT_TRUE(file2.isValid());
+    EXPECT_TRUE(file2.isFile());
     
     file2.close();
     FileSystem::rmFile(testFile);
@@ -550,11 +550,11 @@ TEST(FileTest, MoveAssignment_Transfer) {
     
     // 源对象被重置
     EXPECT_FALSE(file1.isOpen());
-    EXPECT_FALSE(file1.isValid());
+    EXPECT_FALSE(file1.isFile());
     
     // 目标对象获得资源
     EXPECT_TRUE(file2.isOpen());
-    EXPECT_TRUE(file2.isValid());
+    EXPECT_TRUE(file2.isFile());
     
     file2.close();
     FileSystem::rmFile(testFile1);
@@ -579,7 +579,7 @@ TEST(FileTest, MoveAssignment_Self) {
     
     // 自赋值后仍保持有效
     EXPECT_TRUE(file.isOpen());
-    EXPECT_TRUE(file.isValid());
+    EXPECT_TRUE(file.isFile());
     
     file.close();
     FileSystem::rmFile(testFile);
@@ -596,7 +596,7 @@ TEST(FileTest, IsValid_True) {
     FileSystem::mkFile(testFile, content);
     
     File file(testFile, ReadOnly);
-    EXPECT_TRUE(file.isValid());
+    EXPECT_TRUE(file.isFile());
     
     file.close();
     FileSystem::rmFile(testFile);
@@ -605,13 +605,13 @@ TEST(FileTest, IsValid_True) {
 // 测试 isValid() - 无效文件返回 false（目录）
 TEST(FileTest, IsValid_False_Directory) {
     File file(".", ReadOnly);
-    EXPECT_FALSE(file.isValid());
+    EXPECT_FALSE(file.isFile());
 }
 
 // 测试 isValid() - 无效文件返回 false（不存在）
 TEST(FileTest, IsValid_False_NotExist) {
     File file("/nonexistent/path/file.txt", ReadOnly);
-    EXPECT_FALSE(file.isValid());
+    EXPECT_FALSE(file.isFile());
 }
 
 // 测试 isOpen() - 打开的文件返回 true
@@ -738,7 +738,7 @@ TEST(FileTest, SetPath_String_ClosesFile) {
     file.setPath(testFile2);
     // setPath 应该关闭原文件
     EXPECT_FALSE(file.isOpen());
-    EXPECT_TRUE(file.isValid());
+    EXPECT_TRUE(file.isFile());
     
     FileSystem::rmFile(testFile1);
     FileSystem::rmFile(testFile2);
@@ -764,7 +764,7 @@ TEST(FileTest, SetPath_Path_ClosesFile) {
     file.setPath(newPath);
     // setPath 应该关闭原文件
     EXPECT_FALSE(file.isOpen());
-    EXPECT_TRUE(file.isValid());
+    EXPECT_TRUE(file.isFile());
     
     FileSystem::rmFile(testFile1);
     FileSystem::rmFile(testFile2);
@@ -781,10 +781,10 @@ TEST(FileTest, SetPath_Invalid) {
     FileSystem::mkFile(testFile, content);
     
     File file(testFile, ReadOnly);
-    EXPECT_TRUE(file.isValid());
+    EXPECT_TRUE(file.isFile());
     
     file.setPath("/nonexistent/path/file.txt");
-    EXPECT_FALSE(file.isValid());
+    EXPECT_FALSE(file.isFile());
     
     file.close();
     FileSystem::rmFile(testFile);

@@ -191,7 +191,6 @@ namespace Tiny {
     bool EventsMap::execEvent(size_t event_id) {
         if (!exist(event_id)) return false;
         _event_map.at(event_id).run();
-        while (!_event_map.at(event_id).isRunning()) {}
         return true;
     }
 

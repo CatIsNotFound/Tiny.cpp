@@ -430,7 +430,7 @@ namespace Tiny {
         Terminal::setItalic(style.property & Style::Italic);
         Terminal::setUnderline(style.property & Style::Underline);
         Terminal::setBlinking(style.property & Style::Blinking);
-        Terminal::reverseColor(style.property & Style::Reverse);
+        Terminal::setReverseColor(style.property & Style::Reverse);
         Terminal::setStrikethrough(style.property & Style::Strikethrough);
     }
 
@@ -504,6 +504,7 @@ namespace Tiny {
     }
 
     void TUI::InputBus::poll(InputEvent &event) {
+
     }
 
     TUI::InputBus::InputBus() {

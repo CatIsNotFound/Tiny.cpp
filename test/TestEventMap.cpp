@@ -209,7 +209,7 @@ TEST(EventMapTest, StopEventNotFound) {
 
 TEST(EventMapTest, WaitEvent) {
     EventsMap map;
-    std::atomic<int> counter(0);
+    int counter(0);
 
     Event ev(1, "Waitable",
         []() { return true; },
@@ -223,9 +223,10 @@ TEST(EventMapTest, WaitEvent) {
 
     map.addEvent(ev);
     map.execEvent(1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     map.waitEvent(1);
 
-    EXPECT_EQ(counter.load(), 1);
+    EXPECT_EQ(counter, 1);
     EXPECT_FALSE(map.event(1).isRunning());
 }
 

@@ -431,6 +431,21 @@ namespace Tiny {
         return position;
     }
 
+    bool TUI::Terminal::print(char ch) {
+        char text[] = {ch, '\0'};
+#ifdef TINY_CPP_MY_OS_UNIX
+        write(STDOUT_FILENO, text, 1);
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return false;
+
+        if (!WriteConsoleA(console, text, 1, nullptr, nullptr)) {
+            return false;
+        }
+#endif
+        return true;
+    }
+
     bool TUI::Terminal::print(const std::string &text) {
 #ifdef TINY_CPP_MY_OS_UNIX
         write(STDOUT_FILENO, text.c_str(), text.length());
@@ -1014,7 +1029,7 @@ namespace Tiny {
 #endif
     }
 
-    void TUI::Terminal::reverseColor(bool enable) {
+    void TUI::Terminal::setReverseColor(bool enable) {
 #ifdef TINY_CPP_MY_OS_UNIX
         const char* cmd = enable ? "\x1b[7m" : "\x1b[27m";
         write(STDOUT_FILENO, cmd, strlen(cmd));

@@ -374,8 +374,12 @@ namespace Tiny {
         _path.setPath(path);
     }
 
-    bool OS::File::isValid() const {
+    bool OS::File::isFile() const {
         return _path.isValid() && _path.isFile();
+    }
+
+    bool OS::File::isNull() const {
+        return !_path.isValid();
     }
 
     bool OS::File::isOpen() const {
@@ -391,7 +395,7 @@ namespace Tiny {
     }
 
     OS::FileData OS::File::read(size_t length) {
-        if (!isValid() || !isOpen()) return {};
+        if (!isFile() || !isOpen()) return {};
         FileData out(length + 1);
 #ifdef TINY_CPP_MY_OS_WINDOWS
         DWORD bytes_read;
@@ -407,7 +411,7 @@ namespace Tiny {
     }
 
     OS::FileData OS::File::readAll() {
-        if (!isValid() || !isOpen()) return {};
+        if (!isFile() || !isOpen()) return {};
         FileData out(_file_size + 1);
         _position = 0;
 #ifdef TINY_CPP_MY_OS_WINDOWS
@@ -424,7 +428,7 @@ namespace Tiny {
     }
 
     std::string OS::File::readText(size_t length) {
-        if (!isValid() || !isOpen()) return {};
+        if (!isFile() || !isOpen()) return {};
         std::string out(length, 0);
 #ifdef TINY_CPP_MY_OS_WINDOWS
         DWORD bytes_read;
@@ -440,7 +444,7 @@ namespace Tiny {
     }
 
     std::string OS::File::readLine() {
-        if (!isValid() || !isOpen()) return {};
+        if (!isFile() || !isOpen()) return {};
         std::string out;
         char ch = '\0';
 #ifdef TINY_CPP_MY_OS_WINDOWS
@@ -468,7 +472,7 @@ namespace Tiny {
     }
 
     std::string OS::File::readAllText() {
-        if (!isValid() || !isOpen()) return {};
+        if (!isFile() || !isOpen()) return {};
         auto file_size = _path.fileSize();
         std::string out(file_size, 0);
         _position = 0;
@@ -486,7 +490,7 @@ namespace Tiny {
     }
 
     bool OS::File::write(const FileData &data, size_t length) {
-        if (!isValid() || !isOpen()) return false;
+        if (!isFile() || !isOpen()) return false;
 #ifdef TINY_CPP_MY_OS_WINDOWS
         DWORD written_bytes = 0;
         auto ok = WriteFile(_handler, data.data(), length, &written_bytes, nullptr);
@@ -504,7 +508,7 @@ namespace Tiny {
     }
 
     bool OS::File::write(const char *data, size_t length) {
-        if (!isValid() || !isOpen()) return false;
+        if (!isFile() || !isOpen()) return false;
 #ifdef TINY_CPP_MY_OS_WINDOWS
         DWORD written_bytes = 0;
         auto ok = WriteFile(_handler, data, length, &written_bytes, nullptr);
@@ -522,7 +526,7 @@ namespace Tiny {
     }
 
     bool OS::File::write(const std::string &string) {
-        if (!isValid() || !isOpen()) return false;
+        if (!isFile() || !isOpen()) return false;
 #ifdef TINY_CPP_MY_OS_WINDOWS
         DWORD written_bytes = 0;
         auto ok = WriteFile(_handler, string.data(), string.size(), &written_bytes, nullptr);
@@ -540,7 +544,7 @@ namespace Tiny {
     }
 
     bool OS::File::write(const FileData &data) {
-        if (!isValid() || !isOpen()) return false;
+        if (!isFile() || !isOpen()) return false;
 #ifdef TINY_CPP_MY_OS_WINDOWS
         auto ok = WriteFile(_handler, data.data(), data.size(), nullptr, nullptr);
         return ok == TRUE;
@@ -556,7 +560,7 @@ namespace Tiny {
     }
 
     bool OS::File::writeLine(const std::string &string) {
-        if (!isValid() || !isOpen()) return false;
+        if (!isFile() || !isOpen()) return false;
         std::string out = string + "\r\n";
 #ifdef TINY_CPP_MY_OS_WINDOWS
         auto ok = WriteFile(_handler, out.data(), out.size(), nullptr, nullptr);
@@ -591,6 +595,15 @@ namespace Tiny {
 
     void OS::File::moveToEnd() {
         _position = _file_size;
+    }
+
+    void OS::File::moveTo(int64_t pos) {
+        if (pos < 0) {
+            auto new_pos = _file_size + pos + 1;
+            _position = new_pos >= _file_size ? 0 : new_pos;
+        } else {
+            _position = pos >= _file_size ? _file_size : pos;
+        }
     }
 
     size_t OS::File::fileSize() const {

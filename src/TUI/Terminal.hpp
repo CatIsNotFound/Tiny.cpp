@@ -219,6 +219,7 @@ namespace Tiny {
             static bool isInRawMode();
             static Size screenSize();
             static Position cursorPosition();
+            static bool print(char ch);
             static bool print(const std::string &text);
             static bool printLine(const std::string &text = {});
             template<typename ... Args>
@@ -250,7 +251,7 @@ namespace Tiny {
             static void setItalic(bool enable);
             static void setUnderline(bool enable);
             static void setBlinking(bool enable);
-            static void reverseColor(bool enable);
+            static void setReverseColor(bool enable);
             static void setCursorVisible(bool enable);
             static void setStrikethrough(bool enable);
             static void reset();

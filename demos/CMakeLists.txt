@@ -18,6 +18,10 @@ addModule(Msgbox MY_MODULE
     Misc/Misc.hpp
 )
 
+addModule(Edit MY_MODULE
+    DemoTextEditor.cpp
+    Misc/Misc.hpp
+)
 
 
 #########################################################################################

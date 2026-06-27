@@ -133,7 +133,8 @@ namespace Tiny {
 
             void setPath(const std::string& path);
             void setPath(const Path& path);
-            bool isValid() const;
+            bool isFile() const;
+            bool isNull() const;
             bool isOpen() const;
             bool open(uint8_t open_mode);
             FileData read(size_t length);
@@ -150,6 +151,8 @@ namespace Tiny {
             bool isEOF() const;
             void moveToStart();
             void moveToEnd();
+            void moveTo(int64_t pos);
+
             [[nodiscard]] size_t fileSize() const;
             [[nodiscard]] std::string path() const;
             [[nodiscard]] std::string fileName() const;
