@@ -23,8 +23,8 @@
  *                                                                                   *
  *************************************************************************************/
 
-#include "../src/Tiny.hpp"
-#include "Misc/Misc.hpp"
+#include "../../src/Tiny.hpp"
+#include "../Misc/Misc.hpp"
 
 using namespace Tiny;
 using namespace Tiny::Misc;

@@ -23,67 +23,127 @@
  *                                                                                   *
  *************************************************************************************/
 
-#include "../src/Tiny.hpp"
-#include <iostream>
-using namespace Tiny;
-using SS = TUI::Renderer::Style;
-using ter = TUI::Terminal;
+#include "DateTime.hpp"
+#include <sstream>
+#include <ctime>
+#ifdef TINY_CPP_MY_OS_WINDOWS
+#include <windows.h>
+#elif defined(TINY_CPP_MY_OS_UNIX)
+#include <sys/time.h>
+#endif
 
-auto& renderer = TUI::Renderer::self();
+Tiny::OS::DateTime::DateTime(uint32_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second)
+        : _year(year), _month(month), _day(day), _hour(hour), _minute(minute), _second(second) {}
 
-SS style1, style2, win_shadow, btn_shadow, btn_fill;
+Tiny::OS::DateTime::DateTime(uint64_t timestamps) : _timestamps(timestamps) {
+    // TODO: Parsed timestamp
 
-void refresh(int) {
-    renderer.present();
 }
 
-void drawBox() {
-    renderer.fillScreen(style2);
-    renderer.fillRect({0, 0}, {20, 60}, ' ', style2);
-    renderer.fillRect({2, 2}, {16, 41}, ' ', win_shadow);
-    renderer.drawBorder({1, 1}, {15, 40}, {}, style1);
-    renderer.setSSF({1, 14}, " 无奖竞猜 ", style1);
-    renderer.fillRect({2, 2}, {14, 39}, ' ', style1);
-    renderer.setSSF({3, 3}, "你觉得顽石老师不错吗？", style1);
-    // renderer.fillRect({12, 8}, {14, 17}, ' ', btn_shadow);
-    renderer.drawBorder({11, 7}, {13, 16}, {}, style2);
-    renderer.fillRect({12, 8}, {12, 15}, ' ', style2);
-    renderer.setSSF({12, 10}, "🎹不错", style2);
-    renderer.drawBorder({11, 22}, {13, 31}, {}, style2);
-    renderer.fillRect({12, 23}, {12, 30}, ' ', btn_fill);
-    renderer.setSSF({12, 24}, "👍不错", btn_fill);
+uint64_t Tiny::OS::DateTime::timestamps() const {
+    return _timestamps;
 }
 
-int main() {
+uint32_t Tiny::OS::DateTime::year() const {
+    return _year;
+}
 
-    auto scr_size = TUI::Terminal::screenSize();
+uint8_t Tiny::OS::DateTime::month() const {
+    return _month;
+}
 
-    style1.bg_color = TUI::Color::White;
-    style1.fg_color = TUI::Color::Black;
-    style1.intensity = 1;
-    style2.bg_color = TUI::Color::Red;
-    style2.fg_color = TUI::Color::White;
-    style2.intensity = 2;
+uint8_t Tiny::OS::DateTime::day() const {
+    return _day;
+}
 
-    win_shadow.bg_color = TUI::Color::White;
-    btn_shadow.bg_color = TUI::Color::Black;
-    btn_fill.bg_color = TUI::Color::Red;
-    btn_fill.fg_color = TUI::Color::Yellow;
-    btn_fill.intensity = 2;
+uint8_t Tiny::OS::DateTime::hour() const {
+    return _hour;
+}
 
-    drawBox();
-    renderer.present();
-    renderer.setResizeEvent([&](TUI::Renderer&) {
-        drawBox();
-    });
-    while (TUI::Terminal::getKey() != TUI::KEY_CTRL_D) {
-        scr_size = TUI::Terminal::screenSize();
-        // drawBox();
-        renderer.setSSF({0, 0}, "Size: {:>3}x{:>3}", style2, scr_size.width, scr_size.height);
-        renderer.present();
-        renderer.clear();
-    }
-    return 0;
+uint8_t Tiny::OS::DateTime::minute() const {
+    return _minute;
+}
+
+uint8_t Tiny::OS::DateTime::second() const {
+    return _second;
+}
+
+uint16_t Tiny::OS::DateTime::millisecond() const {
+    return _milliseconds;
+}
+
+bool Tiny::OS::DateTime::operator==(const DateTime &date_time) const {
+    return _timestamps == date_time._timestamps;
+}
+
+bool Tiny::OS::DateTime::operator!=(const DateTime &date_time) const {
+    return _timestamps != date_time._timestamps;
+}
+
+bool Tiny::OS::DateTime::operator<(const DateTime &date_time) const {
+    return _timestamps < date_time._timestamps;
+}
+
+bool Tiny::OS::DateTime::operator<=(const DateTime &date_time) const {
+    return _timestamps <= date_time._timestamps;
+}
+
+bool Tiny::OS::DateTime::operator>(const DateTime &date_time) const {
+    return _timestamps > date_time._timestamps;
+}
+
+bool Tiny::OS::DateTime::operator>=(const DateTime &date_time) const {
+    return _timestamps >= date_time._timestamps;
+}
+
+Tiny::OS::DateTime Tiny::OS::DateTime::operator_ms(uint32_t milliseconds) noexcept {
+    return {milliseconds};
+}
+
+Tiny::OS::DateTime Tiny::OS::DateTime::operator_s(uint32_t seconds) noexcept {
+    return {seconds * 1000};
+}
+
+Tiny::OS::DateTime Tiny::OS::DateTime::operator_m(uint32_t minutes) noexcept {
+    return {minutes * 60000};
+}
+
+Tiny::OS::DateTime Tiny::OS::DateTime::operator_h(uint32_t hours) noexcept {
+    return {hours * 3600000};
+}
+
+Tiny::OS::DateTime Tiny::OS::DateTime::operator_d(uint32_t days) noexcept {
+    return {days * 86400000};
+}
+
+Tiny::OS::DateTime & Tiny::OS::DateTime::operator+(const DateTime &other) noexcept {
+    _timestamps += other._timestamps;
+    return *this;
+}
+
+Tiny::OS::DateTime & Tiny::OS::DateTime::operator-(const DateTime &other) noexcept {
+    _timestamps -= other._timestamps;
+    return *this;
+}
+
+Tiny::OS::DateTime Tiny::OS::DateTime::now(bool use_local_time) {
+    DateTime now_dt(0);
+
+
+    return now_dt;
+}
+
+uint64_t Tiny::OS::DateTime::currentLocalTimeTS() {
+
+}
+
+uint64_t Tiny::OS::DateTime::currentUTCTimeTS() {
+
+}
+
+std::string Tiny::OS::DateTime::formatDateTime(const char* format, const DateTime &date_time) {
+    std::ostringstream oss;
+
 }
 
 /*************************************************************************************
@@ -110,3 +170,4 @@ int main() {
  * SOFTWARE.                                                                         *
  *                                                                                   *
  *************************************************************************************/
+

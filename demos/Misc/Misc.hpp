@@ -29,6 +29,7 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <cstring>
 #include <cstdint>
 
 namespace Tiny {

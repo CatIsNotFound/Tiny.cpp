@@ -14,12 +14,12 @@ endfunction()
 #########################################################################################
 
 addModule(Msgbox MY_MODULE
-    DemoMessagebox.cpp
+    Msgbox/DemoMessagebox.cpp
     Misc/Misc.hpp
 )
 
 addModule(Edit MY_MODULE
-    DemoTextEditor.cpp
+    Edit/DemoTextEditor.cpp
     Misc/Misc.hpp
 )
 

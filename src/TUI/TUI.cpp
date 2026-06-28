@@ -345,6 +345,10 @@ namespace Tiny {
     }
 
     void TUI::Renderer::present() {
+        if (_is_resizing.exchange(false)) {
+            resizeEvent(true, {});
+            if (_resize_event) _resize_event(*this);
+        }
         renderEvent();
     }
 
@@ -364,16 +368,11 @@ namespace Tiny {
 
     void TUI::Renderer::renderEvent() {
         Terminal::reset();
-        Terminal::clearScreen();
         auto size = Terminal::screenSize();
         _win_size = size;
         if (size.height != _buffer.size() || size.width != _buffer.front().size()) {
             resizeEvent(false, size);
-            for (size_t r = 0; r < size.height; r++) {
-                for (size_t c = 0; c < size.width; c++) {
-                    Terminal::print(" ");
-                }
-            }
+            Terminal::clearScreen();
         }
         _buffer = _front_buffer;
         fillBuffers();
@@ -474,65 +473,58 @@ namespace Tiny {
     void TUI::Renderer::resizeWindow(int) {
 #ifdef TINY_CPP_MY_OS_WINDOWS
         while (self()._is_running.load()) {
+            Sleep(100);
             std::unique_lock<std::mutex> lock(self()._mutex);
-            Sleep(50);
             Size new_size = Terminal::screenSize();
             if (compareSize(new_size, self()._win_size) != 0) {
                 self()._is_resizing.store(true);
             }
-            if (self()._is_resizing.load()) {
-                self().renderEvent();
-                self()._is_resizing.store(false);
-            }
         }
 #else
         self()._is_resizing.store(true);
-        if (self()._is_resizing.load()) {
-            self().renderEvent();
-            self()._is_resizing.store(false);
-        }
 #endif
     }
 
-    TUI::InputBus & TUI::InputBus::self() {
-        static InputBus input_bus;
-        return input_bus;
+    TUI::AbstractWidget::AbstractWidget(const std::string &name, const Position &position, const Size &size)
+            :_name(name), _pos(position), _size(size) {}
+
+    TUI::AbstractWidget::~AbstractWidget() = default;
+
+    void TUI::AbstractWidget::rename(const std::string &name) {
+        _name = name;
     }
 
-    TUI::InputBus::~InputBus() {
-
+    void TUI::AbstractWidget::move(const Position &position) {
+        _pos = position;
     }
 
-    void TUI::InputBus::poll(InputEvent &event) {
-
+    void TUI::AbstractWidget::move(uint32_t x, uint32_t y) {
+        _pos.column = x;
+        _pos.row = y;
     }
 
-    TUI::InputBus::InputBus() {
-        {
-            _is_loaded.store(true);
-            _is_running.store(false);
-            _cond_var.notify_all();
-        }
-        _input_signal = std::thread(&InputBus::loop, this);
+    void TUI::AbstractWidget::resize(const Size &size) {
+        _size = size;
     }
 
-    void TUI::InputBus::loop() {
-
-        while (true) {
-            {
-                std::unique_lock<std::mutex> lock(_mutex);
-                _cond_var.wait(lock, [this] {
-                    return _is_loaded.load() && _is_running.load();
-                });
-                if (!_is_loaded.load()) break;
-            }
-
-            while (_is_running.load()) {
-
-
-            }
-        }
+    void TUI::AbstractWidget::resize(uint32_t w, uint32_t h) {
+        _size.width = w;
+        _size.height = h;
     }
+
+    const std::string & TUI::AbstractWidget::name() const {
+        return _name;
+    }
+
+    const TUI::Position & TUI::AbstractWidget::position() const {
+        return _pos;
+    }
+
+    const TUI::Size & TUI::AbstractWidget::size() const {
+        return _size;
+    }
+
+    void TUI::AbstractWidget::renderEvent() {}
 }
 
 /*************************************************************************************

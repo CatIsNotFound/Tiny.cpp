@@ -223,8 +223,8 @@ namespace Tiny {
             return "RS";
         } else if (KEY == KEY_US) {
             return "US";
-        } else if (KEY == KEY_BACKSPACE) {
-            return "Backspace";
+        } else if (KEY == KEY_DEL) {
+            return "DEL";
         } else {
             return "Unknown";
         }

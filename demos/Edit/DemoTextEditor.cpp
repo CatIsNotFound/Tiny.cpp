@@ -23,8 +23,8 @@
  *                                                                                   *
  *************************************************************************************/
 
-#include "../src/Tiny.hpp"
-#include "Misc/Misc.hpp"
+#include "../../src/Tiny.hpp"
+#include "../Misc/Misc.hpp"
 #include <cmath>
 #include <deque>
 #include <random>
@@ -61,7 +61,7 @@ void readFile(OS::File& file, int64_t pos, size_t count, std::string& destinatio
 bool saveFile(std::string& error) {
     OS::File write_file(current_edit_file, OS::WriteOnly);
     if (!write_file.isOpen()) {
-        error = "Failed to open file!";
+        error = "Failed to write file!";
         return false;
     }
     for (size_t r = 0; r < buffers.size(); ++r) {

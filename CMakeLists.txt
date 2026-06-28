@@ -39,6 +39,8 @@ add_library(${PROJECT_NAME} STATIC
         src/OS/File.cpp
         src/OS/System.cpp
         src/OS/System.hpp
+        src/OS/DateTime.hpp
+        src/OS/DateTime.cpp
         src/Events/Events.hpp
         src/Events/Events.cpp
         src/TUI/Terminal.hpp
@@ -48,7 +50,6 @@ add_library(${PROJECT_NAME} STATIC
         src/TUI/TUI.cpp
         src/Parser/CommandParser.hpp
         src/Parser/CommandParser.cpp
-        demos/DemoTextEditor.cpp
 )
 
 # Link Windows libraries
@@ -85,6 +86,10 @@ install(FILES
         README.md
         README_zh.md
         DESTINATION share/${PROJECT_NAME}
+)
+
+install(DIRECTORY docs/
+        DESTINATION share/${PROJECT_NAME}/docs
 )
 
 install(EXPORT ${PROJECT_NAME}Targets

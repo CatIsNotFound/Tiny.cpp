@@ -72,7 +72,7 @@ namespace Tiny {
 
         enum Keys : uint8_t {
             KEY_NONE        = 0,
-            KEY_NULL        = 0,     
+            KEY_NULL        = 0,
             KEY_SOH         = 1,
             KEY_STX         = 2,
             KEY_ETX         = 3,
@@ -81,11 +81,13 @@ namespace Tiny {
             KEY_ACK         = 6,
             KEY_BELL        = 7,
             KEY_BK          = 8,
+            KEY_BACKSPACE   = 8,
             KEY_TAB         = 9,
-            KEY_LF          = 10,    
+            KEY_LF          = 10,
             KEY_VT          = 11,
             KEY_FF          = 12,
             KEY_CR          = 13,
+            KEY_ENTER       = 13,
             KEY_SO          = 14,
             KEY_SI          = 15,
             KEY_DLE         = 16,
@@ -104,7 +106,7 @@ namespace Tiny {
             KEY_US          = 31,
             KEY_SPACE       = 32,
 
-            KEY_BACKSPACE   = 127,
+            KEY_DEL         = 127,
 
             KEY_CTRL_A      = 1,
             KEY_CTRL_B      = 2,
