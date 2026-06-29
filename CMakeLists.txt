@@ -39,8 +39,8 @@ add_library(${PROJECT_NAME} STATIC
         src/OS/File.cpp
         src/OS/System.cpp
         src/OS/System.hpp
-        src/OS/DateTime.hpp
-        src/OS/DateTime.cpp
+        src/DateTime/DateTime.hpp
+        src/DateTime/DateTime.cpp
         src/Events/Events.hpp
         src/Events/Events.cpp
         src/TUI/Terminal.hpp

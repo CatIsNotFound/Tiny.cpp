@@ -19,6 +19,10 @@ addModule(TestSystem MY_MODULE
         TestSystem.cpp
 )
 
+addModule(TestDateTime MY_MODULE
+        TestDateTime.cpp
+)
+
 addModule(TestEvent MY_MODULE
         TestEvent.cpp
 )

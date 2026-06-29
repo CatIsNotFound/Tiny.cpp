@@ -72,6 +72,42 @@ namespace Tiny {
             }
         }
 
+        inline size_t operator""_B(size_t n) noexcept {
+            return n;
+        }
+
+        inline size_t operator""_KB(size_t n) noexcept {
+            return n * 1000;
+        }
+
+        inline size_t operator""_KiB(size_t n) noexcept {
+            return n * 1024;
+        }
+
+        inline size_t operator""_MB(size_t n) noexcept {
+            return n * 1000000;
+        }
+
+        inline size_t operator""_MiB(size_t n) noexcept {
+            return n * 1048576;
+        }
+
+        inline size_t operator""_GB(size_t n) noexcept {
+            return n * 1000000000;
+        }
+
+        inline size_t operator""_GiB(size_t n) noexcept {
+            return n * 1073741824;
+        }
+
+        inline size_t operator""_TB(size_t n) noexcept {
+            return n * 1000000000000;
+        }
+
+        inline size_t operator""_TiB(size_t n) noexcept {
+            return n * 1099511627776;
+        }
+
         class Path {
             friend class File;
         public:
