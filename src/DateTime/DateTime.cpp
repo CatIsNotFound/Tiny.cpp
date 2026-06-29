@@ -121,13 +121,29 @@ inline SDT fromTimestamp(uint64_t timestamp, bool use_local_time, bool& ok) {
     ft.dwLowDateTime = ull.LowPart;
     ft.dwHighDateTime = ull.HighPart;
 
-    SYSTEMTIME utc{};
+    SYSTEMTIME utc{}, lc_tm{};
     if (FileTimeToSystemTime(&ft, &utc)) {
-        ok = true;
-        return {static_cast<uint32_t>(utc.wYear), static_cast<uint8_t>(utc.wMonth),
-            static_cast<uint8_t>(utc.wDay), static_cast<uint8_t>(utc.wHour),
-            static_cast<uint8_t>(utc.wMinute), static_cast<uint8_t>(utc.wSecond),
-            static_cast<uint16_t>(utc.wMilliseconds), static_cast<uint8_t>(utc.wDayOfWeek)};
+        if (use_local_time) {
+            FILETIME ft_utc{};
+            if (SystemTimeToFileTime(&utc, &ft_utc)) {
+                FILETIME ft_local{};
+                if (FileTimeToLocalFileTime(&ft_utc, &ft_local)) {
+                    if (FileTimeToSystemTime(&ft_local, &lc_tm)) {
+                        ok = true;
+                        return {static_cast<uint32_t>(lc_tm.wYear), static_cast<uint8_t>(lc_tm.wMonth),
+                                    static_cast<uint8_t>(lc_tm.wDay), static_cast<uint8_t>(lc_tm.wHour),
+                                    static_cast<uint8_t>(lc_tm.wMinute), static_cast<uint8_t>(lc_tm.wSecond),
+                                    lc_tm.wMilliseconds, static_cast<uint8_t>(lc_tm.wDayOfWeek)};
+                    }
+                }
+            }
+        } else {
+            ok = true;
+            return {static_cast<uint32_t>(utc.wYear), static_cast<uint8_t>(utc.wMonth),
+                static_cast<uint8_t>(utc.wDay), static_cast<uint8_t>(utc.wHour),
+                static_cast<uint8_t>(utc.wMinute), static_cast<uint8_t>(utc.wSecond),
+                static_cast<uint16_t>(utc.wMilliseconds), static_cast<uint8_t>(utc.wDayOfWeek)};
+        }
     }
 #elif defined(TINY_CPP_MY_OS_UNIX)
     uint64_t secs = (timestamp / 1000U);
@@ -160,16 +176,40 @@ inline uint64_t toTimestamp(SDT date_time, bool use_local_time, bool& ok) {
         (WORD)date_time.second, (WORD)date_time.millisecond
     };
 
-    FILETIME ftime = {};
-    if (SystemTimeToFileTime(&user_time, &ftime)) {
-        ULARGE_INTEGER ull = {};
-        ull.LowPart = ftime.dwLowDateTime;
-        ull.HighPart = ftime.dwHighDateTime;
 
-        const uint64_t EPOCH_DIFF = 116444736000000000;
-        ok = true;
-        if (ull.QuadPart > EPOCH_DIFF) return (ull.QuadPart - EPOCH_DIFF) / 10000;
-        return (EPOCH_DIFF - ull.QuadPart) / 10000;
+    FILETIME ftime = {};
+    const uint64_t EPOCH_DIFF = 116444736000000000;
+    if (SystemTimeToFileTime(&user_time, &ftime)) {
+        if (use_local_time) {
+            FILETIME ft_utc{};
+            if (LocalFileTimeToFileTime(&ftime, &ft_utc)) {
+                ULARGE_INTEGER ull = {};
+                ull.LowPart = ft_utc.dwLowDateTime;
+                ull.HighPart = ft_utc.dwHighDateTime;
+
+                ok = true;
+                if (ull.QuadPart > EPOCH_DIFF) return (ull.QuadPart - EPOCH_DIFF) / 10000;
+                return 0;
+            }
+        }
+        TIME_ZONE_INFORMATION tzi{};
+        DWORD res = GetTimeZoneInformation(&tzi);
+        if (res != TIME_ZONE_ID_INVALID) {
+            int64_t bias_mins = tzi.Bias;
+            if (res == TIME_ZONE_ID_STANDARD) {
+                bias_mins += tzi.StandardBias;
+            } else if (res == TIME_ZONE_ID_DAYLIGHT) {
+                bias_mins += tzi.DaylightBias;
+            }
+
+            ULARGE_INTEGER ull{};
+            ull.LowPart = ftime.dwLowDateTime;
+            ull.HighPart = ftime.dwHighDateTime;
+            int64_t bns = bias_mins * 60 * 10000000LL;
+            ull.QuadPart += bns;
+            if (ull.QuadPart > EPOCH_DIFF) return (ull.QuadPart - EPOCH_DIFF) / 10000;
+            return 0;
+        }
     }
 #elif defined(TINY_CPP_MY_OS_UNIX)
     struct tm tm_now{}, tm_start{};
@@ -189,7 +229,7 @@ inline uint64_t toTimestamp(SDT date_time, bool use_local_time, bool& ok) {
     time_t sec = mktime(&tm_now);
     uint64_t real = 0;
     if (sec != -1) {
-        if (use_local_time) {
+        if (!use_local_time) {
             time_t dis = mktime(&tm_start);
             real = abs(sec - dis);
         } else {
@@ -270,27 +310,27 @@ bool Tiny::DT::DateTime::isLocalTime() const {
 }
 
 bool Tiny::DT::DateTime::operator==(const DateTime &date_time) const {
-    return (_local_time - date_time._local_time) == 0 && (_timestamps == date_time._timestamps);
+    return (_local_time == date_time._local_time) && (_timestamps == date_time._timestamps);
 }
 
 bool Tiny::DT::DateTime::operator!=(const DateTime &date_time) const {
-    return (_local_time - date_time._local_time) == 0 || (_timestamps != date_time._timestamps);
+    return (_local_time != date_time._local_time) || (_timestamps != date_time._timestamps);
 }
 
 bool Tiny::DT::DateTime::operator<(const DateTime &date_time) const {
-    return (_local_time - date_time._local_time) == 0 && (_timestamps < date_time._timestamps);
+    return (_local_time == date_time._local_time) && (_timestamps < date_time._timestamps);
 }
 
 bool Tiny::DT::DateTime::operator<=(const DateTime &date_time) const {
-    return (_local_time - date_time._local_time) == 0 && (_timestamps <= date_time._timestamps);
+    return (_local_time == date_time._local_time) && (_timestamps <= date_time._timestamps);
 }
 
 bool Tiny::DT::DateTime::operator>(const DateTime &date_time) const {
-    return (_local_time - date_time._local_time) == 0 && (_timestamps > date_time._timestamps);
+    return (_local_time == date_time._local_time) && (_timestamps > date_time._timestamps);
 }
 
 bool Tiny::DT::DateTime::operator>=(const DateTime &date_time) const {
-    return (_local_time - date_time._local_time) == 0 && (_timestamps >= date_time._timestamps);
+    return (_local_time == date_time._local_time) && (_timestamps >= date_time._timestamps);
 }
 
 Tiny::DT::DateTime Tiny::DT::DateTime::operator+(const DateTime &other) const noexcept {
