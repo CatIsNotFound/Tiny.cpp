@@ -239,11 +239,9 @@ namespace Tiny {
 
     void EventsMap::waitAllEvents() {
         for (auto& ev : _event_map) {
-            if (ev.second.isRunning()) {
+            while (ev.second.isRunning()) {
                 ev.second.stop();
-                while (ev.second.isRunning()) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
             }
         }
     }

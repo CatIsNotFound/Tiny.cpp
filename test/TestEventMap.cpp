@@ -214,7 +214,6 @@ TEST(EventMapTest, WaitEvent) {
     Event ev(1, "Waitable",
         []() { return true; },
         [&counter](const std::atomic<bool>&) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             counter++;
         }
     );
@@ -443,6 +442,7 @@ TEST(EventMapTest, DestructorWaitsEvents) {
         if (map.addEvent(ev)) {
             map.execEvent(1);
         }
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
     EXPECT_EQ(counter.load(), 1);
 }
