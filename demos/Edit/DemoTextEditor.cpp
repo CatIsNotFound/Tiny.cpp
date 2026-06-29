@@ -329,14 +329,14 @@ void inputHandle() {
                 if (key.sp_key == SP_KEY_LEFT) {
                     current_edit_pos.column = Misc::max(current_edit_pos.column - 1, 1u);
                 } else if (key.sp_key == SP_KEY_RIGHT) {
-                    current_edit_pos.column = Misc::min(current_edit_pos.column + 1ull,
+                    current_edit_pos.column = Misc::min(static_cast<uint64_t>(current_edit_pos.column + 1),
                                                     buffers[current_edit_pos.row].size() + 1);
                 } else if (key.sp_key == SP_KEY_UP) {
                     current_edit_pos.row = Misc::max(current_edit_pos.row - 1, 1u);
                     current_edit_pos.column = Misc::min(static_cast<uint64_t>(current_edit_pos.column),
                                                         buffers[current_edit_pos.row].size() + 1);
                 } else if (key.sp_key == SP_KEY_DOWN) {
-                    current_edit_pos.row = Misc::min(current_edit_pos.row + 1ull, buffers.size());
+                    current_edit_pos.row = Misc::min(static_cast<uint64_t>(current_edit_pos.row + 1), buffers.size());
                     current_edit_pos.column = Misc::min(static_cast<uint64_t>(current_edit_pos.column),
                                                         buffers[current_edit_pos.row].size() + 1);
                 } else if (key.sp_key == SP_KEY_INSERT) {

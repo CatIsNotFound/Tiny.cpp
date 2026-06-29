@@ -142,8 +142,8 @@ namespace Tiny {
         class DateTime {
         public:
             DateTime(uint32_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second,
-                uint16_t millisecond = 0, uint8_t weekday = 0);
-            DateTime(uint64_t timestamps);
+                uint16_t millisecond = 0, uint8_t weekday = 0, bool use_local_time = true);
+            DateTime(uint64_t timestamps, bool use_local_time = true);
 
             uint64_t timestamps() const;
             uint32_t year() const;
@@ -156,6 +156,7 @@ namespace Tiny {
             uint8_t weekday() const;
 
             bool isValid() const;
+            bool isLocalTime() const;
 
             bool operator==(const DateTime &date_time) const;
             bool operator!=(const DateTime &date_time) const;
@@ -172,9 +173,9 @@ namespace Tiny {
             DateTime& operator+=(uint64_t other) noexcept;
             DateTime& operator-=(uint64_t other) noexcept;
 
-            bool reset(uint64_t timestamps);
+            bool reset(uint64_t timestamps, bool use_local_time = true);
             bool reset(uint32_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second,
-                uint16_t millisecond = 0, uint8_t weekday = 0);
+                uint16_t millisecond = 0, uint8_t weekday = 0, bool use_local_time = true);
 
             static DateTime now(bool use_local_time = true);
             static std::string formatString(const char* format, const DateTime &date_time);
@@ -188,17 +189,18 @@ namespace Tiny {
             uint8_t _minute{};
             uint8_t _second{};
             bool _valid{false};
+            bool _local_time{false};
             uint16_t _milliseconds{};
             uint8_t _w_day{};
             uint64_t _timestamps{};
         };
 
-        uint64_t operator""_ms(uint64_t milliseconds) noexcept;
-        uint64_t operator""_s(uint64_t seconds) noexcept;
-        uint64_t operator""_m(uint64_t minutes) noexcept;
-        uint64_t operator""_h(uint64_t hours) noexcept;
-        uint64_t operator""_d(uint64_t days) noexcept;
-        uint64_t operator""_w(uint64_t weeks) noexcept;
+        uint64_t operator""_ms(unsigned long long milliseconds) noexcept;
+        uint64_t operator""_s(unsigned long long seconds) noexcept;
+        uint64_t operator""_m(unsigned long long minutes) noexcept;
+        uint64_t operator""_h(unsigned long long hours) noexcept;
+        uint64_t operator""_d(unsigned long long days) noexcept;
+        uint64_t operator""_w(unsigned long long weeks) noexcept;
         uint64_t weeks(uint64_t timestamps) noexcept;
         uint64_t days(uint64_t timestamps) noexcept;
         uint64_t hours(uint64_t timestamps) noexcept;

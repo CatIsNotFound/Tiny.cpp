@@ -47,6 +47,10 @@ addModule(TestInput MY_MODULE_WITHOUT_GTEST
         Test_Input.cpp
 )
 
+addModule(TestDT MY_MODULE_WITHOUT_GTEST
+        Test_Dt.cpp
+)
+
 
 foreach (MODULE IN ITEMS ${MY_MODULE})
     set_target_properties(${MODULE} PROPERTIES
