@@ -25,6 +25,7 @@
 
 #include "../src/DateTime/DateTime.hpp"
 #include <gtest/gtest.h>
+#include <cstdint>
 using namespace Tiny::DT;
 
 // =============================================================================
@@ -129,16 +130,31 @@ TEST(DateTimeConstructorTest, DefaultMillisAndWeekday) {
     EXPECT_TRUE(dt.isValid());
     EXPECT_EQ(dt.millisecond(), 0);
     EXPECT_EQ(dt.weekday(), 0);
+    EXPECT_TRUE(dt.isLocalTime());
 }
 
 TEST(DateTimeConstructorTest, FromTimestamp) {
     DateTime dt(0);
     EXPECT_TRUE(dt.isValid());
+    EXPECT_TRUE(dt.isLocalTime());
 }
 
 TEST(DateTimeConstructorTest, EpochTimestamp) {
     DateTime dt(1000);
     EXPECT_TRUE(dt.isValid());
+    EXPECT_TRUE(dt.isLocalTime());
+}
+
+TEST(DateTimeConstructorTest, ExplicitUtcTime) {
+    DateTime dt(2026, 6, 29, 12, 30, 45, 500, 1, false);
+    EXPECT_TRUE(dt.isValid());
+    EXPECT_FALSE(dt.isLocalTime());
+}
+
+TEST(DateTimeConstructorTest, TimestampWithUtcFlag) {
+    DateTime dt(0, false);
+    EXPECT_TRUE(dt.isValid());
+    EXPECT_FALSE(dt.isLocalTime());
 }
 
 // =============================================================================
@@ -155,11 +171,30 @@ TEST(DateTimeGetterTest, AllGetters) {
     EXPECT_EQ(dt.second(), 45);
     EXPECT_EQ(dt.millisecond(), 123);
     EXPECT_EQ(dt.weekday(), 1);
+    EXPECT_TRUE(dt.isLocalTime());
 }
 
 TEST(DateTimeGetterTest, TimestampsPositive) {
     DateTime dt(2026, 6, 29, 12, 0, 0);
     EXPECT_GT(dt.timestamps(), 0);
+}
+
+TEST(DateTimeGetterTest, LocalVsUtcComponents) {
+    DateTime dt_local(2026, 6, 29, 12, 0, 0, 0, 1, true);
+    DateTime dt_utc(2026, 6, 29, 12, 0, 0, 0, 1, false);
+
+    EXPECT_TRUE(dt_local.isLocalTime());
+    EXPECT_FALSE(dt_utc.isLocalTime());
+
+    EXPECT_NE(dt_local.timestamps(), dt_utc.timestamps());
+}
+
+TEST(DateTimeGetterTest, NegativeTimestamp) {
+    DateTime dt(-86400000LL, false);
+    EXPECT_TRUE(dt.isValid());
+    EXPECT_EQ(dt.year(), 1969);
+    EXPECT_EQ(dt.month(), 12);
+    EXPECT_EQ(dt.day(), 31);
 }
 
 // =============================================================================
@@ -213,108 +248,209 @@ TEST(DateTimeComparisonTest, GreaterThanOrEqual) {
     EXPECT_FALSE(dt1 >= dt2);
 }
 
-// =============================================================================
-// DateTime Arithmetic Operator Tests (with DateTime)
-// =============================================================================
+TEST(DateTimeComparisonTest, LocalVsUtcEquality) {
+    DateTime dt_local(2026, 6, 29, 12, 0, 0, 0, 1, true);
+    DateTime dt_utc(2026, 6, 29, 12, 0, 0, 0, 1, false);
 
-TEST(DateTimeArithmeticTest, AddDateTime) {
-    DateTime dt1(1970, 1, 1, 0, 0, 0);
-    DateTime dt2(1970, 1, 1, 1, 0, 0);
-
-    DateTime result = dt1 + dt2;
-    EXPECT_GT(result.timestamps(), dt1.timestamps());
-    EXPECT_EQ(dt1.timestamps(), 0ULL);
+    EXPECT_FALSE(dt_local == dt_utc);
+    EXPECT_TRUE(dt_local != dt_utc);
 }
 
-TEST(DateTimeArithmeticTest, SubtractDateTime) {
-    DateTime dt1(1970, 1, 1, 2, 0, 0);
-    DateTime dt2(1970, 1, 1, 1, 0, 0);
+TEST(DateTimeComparisonTest, SameTimestampDifferentTimezone) {
+    DateTime dt1(0, true);
+    DateTime dt2(0, false);
 
-    DateTime result = dt1 - dt2;
-    EXPECT_EQ(result.timestamps(), 3600000ULL);
-}
-
-TEST(DateTimeArithmeticTest, SubtractDateTimeUnderflow) {
-    DateTime dt1(1970, 1, 1, 0, 0, 0);
-    DateTime dt2(1970, 1, 1, 1, 0, 0);
-
-    uint64_t ts1 = dt1.timestamps();
-    uint64_t ts2 = dt2.timestamps();
-    DateTime result = dt1 - dt2;
-    EXPECT_EQ(result.timestamps(), ts1 - ts2);
-}
-
-TEST(DateTimeArithmeticTest, AddAssignDateTime) {
-    DateTime dt1(1970, 1, 1, 0, 0, 0);
-    DateTime dt2(1970, 1, 1, 1, 0, 0);
-
-    dt1 += dt2;
-    EXPECT_EQ(dt1.timestamps(), 3600000ULL);
-}
-
-TEST(DateTimeArithmeticTest, SubtractAssignDateTime) {
-    DateTime dt1(1970, 1, 1, 2, 0, 0);
-    DateTime dt2(1970, 1, 1, 1, 0, 0);
-
-    dt1 -= dt2;
-    EXPECT_EQ(dt1.timestamps(), 3600000ULL);
-}
-
-TEST(DateTimeArithmeticTest, SubtractAssignDateTimeUnderflow) {
-    DateTime dt1(1970, 1, 1, 0, 0, 0);
-    DateTime dt2(1970, 1, 1, 1, 0, 0);
-
-    dt1 -= dt2;
-    EXPECT_EQ(dt1.timestamps(), 0ULL);
+    EXPECT_EQ(dt1.timestamps(), dt2.timestamps());
+    EXPECT_FALSE(dt1 == dt2);
 }
 
 // =============================================================================
-// DateTime Arithmetic Operator Tests (with uint64_t)
+// DateTime Arithmetic Operator Tests (with Duration)
 // =============================================================================
 
-TEST(DateTimeArithmeticTest, AddUint64) {
-    DateTime dt(1970, 1, 1, 0, 0, 0);
+TEST(DateTimeArithmeticTest, AddDurationLocal) {
+    DateTime dt(1970, 1, 1, 0, 0, 0, 0, 0, true);
+    Duration original_ts = dt.timestamps();
 
-    DateTime result = dt + 3600000ULL;
-    EXPECT_EQ(result.timestamps(), 3600000ULL);
-    EXPECT_EQ(dt.timestamps(), 0ULL);
-}
-
-TEST(DateTimeArithmeticTest, SubtractUint64) {
-    DateTime dt(1970, 1, 1, 2, 0, 0);
-
-    DateTime result = dt - 3600000ULL;
-    EXPECT_EQ(result.timestamps(), 3600000ULL);
-}
-
-TEST(DateTimeArithmeticTest, SubtractUint64Underflow) {
-    DateTime dt(1970, 1, 1, 0, 0, 0);
-    uint64_t original_ts = dt.timestamps();
-
-    DateTime result = dt - 3600000ULL;
+    DateTime result = dt + 3600000LL;
+    EXPECT_EQ(result.timestamps() - original_ts, 3600000LL);
     EXPECT_EQ(dt.timestamps(), original_ts);
-    EXPECT_EQ(result.timestamps(), original_ts - 3600000ULL);
 }
 
-TEST(DateTimeArithmeticTest, AddAssignUint64) {
-    DateTime dt(1970, 1, 1, 0, 0, 0);
+TEST(DateTimeArithmeticTest, AddDurationUtc) {
+    DateTime dt(1970, 1, 1, 0, 0, 0, 0, 0, false);
 
-    dt += 3600000ULL;
-    EXPECT_EQ(dt.timestamps(), 3600000ULL);
+    DateTime result = dt + 3600000LL;
+    EXPECT_EQ(result.timestamps(), 3600000LL);
+    EXPECT_EQ(dt.timestamps(), 0LL);
 }
 
-TEST(DateTimeArithmeticTest, SubtractAssignUint64) {
-    DateTime dt(1970, 1, 1, 2, 0, 0);
+TEST(DateTimeArithmeticTest, SubtractDurationLocal) {
+    DateTime dt(1970, 1, 1, 2, 0, 0, 0, 0, true);
+    Duration original_ts = dt.timestamps();
 
-    dt -= 3600000ULL;
-    EXPECT_EQ(dt.timestamps(), 3600000ULL);
+    DateTime result = dt - 3600000LL;
+    EXPECT_EQ(result.timestamps() - (original_ts - 3600000LL), 0);
 }
 
-TEST(DateTimeArithmeticTest, SubtractAssignUint64Underflow) {
-    DateTime dt(1970, 1, 1, 0, 0, 0);
+TEST(DateTimeArithmeticTest, SubtractDurationUtc) {
+    DateTime dt(1970, 1, 1, 2, 0, 0, 0, 0, false);
 
-    dt -= 3600000ULL;
-    EXPECT_EQ(dt.timestamps(), 0ULL);
+    DateTime result = dt - 3600000LL;
+    EXPECT_EQ(result.timestamps(), 3600000LL);
+}
+
+TEST(DateTimeArithmeticTest, SubtractDurationUnderflowLocal) {
+    DateTime dt(1970, 1, 1, 0, 0, 0, 0, 0, true);
+    Duration original_ts = dt.timestamps();
+
+    DateTime result = dt - 3600000LL;
+    EXPECT_EQ(dt.timestamps(), original_ts);
+    EXPECT_EQ(result.timestamps(), original_ts - 3600000LL);
+}
+
+TEST(DateTimeArithmeticTest, SubtractDurationUnderflowUtc) {
+    DateTime dt(1970, 1, 1, 0, 0, 0, 0, 0, false);
+    Duration original_ts = dt.timestamps();
+
+    DateTime result = dt - 3600000LL;
+    EXPECT_EQ(dt.timestamps(), original_ts);
+    EXPECT_EQ(result.timestamps(), original_ts - 3600000LL);
+}
+
+TEST(DateTimeArithmeticTest, AddAssignDurationLocal) {
+    DateTime dt(1970, 1, 1, 0, 0, 0, 0, 0, true);
+    Duration original_ts = dt.timestamps();
+
+    dt += 3600000LL;
+    EXPECT_EQ(dt.timestamps() - original_ts, 3600000LL);
+}
+
+TEST(DateTimeArithmeticTest, AddAssignDurationUtc) {
+    DateTime dt(1970, 1, 1, 0, 0, 0, 0, 0, false);
+
+    dt += 3600000LL;
+    EXPECT_EQ(dt.timestamps(), 3600000LL);
+}
+
+TEST(DateTimeArithmeticTest, SubtractAssignDurationLocal) {
+    DateTime dt(1970, 1, 1, 2, 0, 0, 0, 0, true);
+    Duration original_ts = dt.timestamps();
+
+    dt -= 3600000LL;
+    EXPECT_EQ(dt.timestamps() - (original_ts - 3600000LL), 0);
+}
+
+TEST(DateTimeArithmeticTest, SubtractAssignDurationUtc) {
+    DateTime dt(1970, 1, 1, 2, 0, 0, 0, 0, false);
+
+    dt -= 3600000LL;
+    EXPECT_EQ(dt.timestamps(), 3600000LL);
+}
+
+TEST(DateTimeArithmeticTest, SubtractAssignDurationUnderflowLocal) {
+    DateTime dt(1970, 1, 1, 0, 0, 0, 0, 0, true);
+    Duration original_ts = dt.timestamps();
+
+    dt -= 3600000LL;
+    EXPECT_EQ(dt.timestamps(), original_ts - 3600000LL);
+}
+
+TEST(DateTimeArithmeticTest, SubtractAssignDurationUnderflowUtc) {
+    DateTime dt(1970, 1, 1, 0, 0, 0, 0, 0, false);
+
+    dt -= 3600000LL;
+    EXPECT_EQ(dt.timestamps(), -3600000LL);
+}
+
+TEST(DateTimeArithmeticTest, DurationBetweenLocalDateTimes) {
+    DateTime dt1(1970, 1, 1, 8, 0, 0, 0, 0, true);
+    DateTime dt2(1970, 1, 1, 7, 0, 0, 0, 0, true);
+
+    Duration diff = dt1 - dt2;
+    EXPECT_EQ(diff, 3600000LL);
+}
+
+TEST(DateTimeArithmeticTest, DurationBetweenUtcDateTimes) {
+    DateTime dt1(1970, 1, 1, 8, 0, 0, 0, 0, false);
+    DateTime dt2(1970, 1, 1, 7, 0, 0, 0, 0, false);
+
+    Duration diff = dt1 - dt2;
+    EXPECT_EQ(diff, 3600000LL);
+}
+
+TEST(DateTimeArithmeticTest, DurationBetweenDateTimesNegative) {
+    DateTime dt1(1970, 1, 1, 7, 0, 0, 0, 0, true);
+    DateTime dt2(1970, 1, 1, 8, 0, 0, 0, 0, true);
+
+    Duration diff = dt1 - dt2;
+    EXPECT_EQ(diff, -3600000LL);
+}
+
+TEST(DateTimeArithmeticTest, DurationBetweenDifferentTimezones) {
+    DateTime dt_local(1970, 1, 1, 0, 0, 0, 0, 0, true);
+    DateTime dt_utc(1970, 1, 1, 0, 0, 0, 0, 0, false);
+
+    Duration diff = dt_local - dt_utc;
+    EXPECT_NE(diff, 0);
+    EXPECT_LT(std::abs(diff), 24 * 3600000LL);
+}
+
+TEST(DateTimeArithmeticTest, AddPreservesTimezone) {
+    DateTime dt_utc(1970, 1, 1, 0, 0, 0, 0, 0, false);
+    DateTime dt_local(1970, 1, 1, 0, 0, 0, 0, 0, true);
+
+    DateTime result_utc = dt_utc + 3600000LL;
+    DateTime result_local = dt_local + 3600000LL;
+
+    EXPECT_FALSE(result_utc.isLocalTime());
+    EXPECT_TRUE(result_local.isLocalTime());
+}
+
+TEST(DateTimeArithmeticTest, SubtractPreservesTimezone) {
+    DateTime dt_utc(1970, 1, 1, 2, 0, 0, 0, 0, false);
+    DateTime dt_local(1970, 1, 1, 2, 0, 0, 0, 0, true);
+
+    DateTime result_utc = dt_utc - 3600000LL;
+    DateTime result_local = dt_local - 3600000LL;
+
+    EXPECT_FALSE(result_utc.isLocalTime());
+    EXPECT_TRUE(result_local.isLocalTime());
+}
+
+TEST(DateTimeArithmeticTest, AddAssignPreservesTimezone) {
+    DateTime dt_utc(1970, 1, 1, 0, 0, 0, 0, 0, false);
+    DateTime dt_local(1970, 1, 1, 0, 0, 0, 0, 0, true);
+
+    dt_utc += 3600000LL;
+    dt_local += 3600000LL;
+
+    EXPECT_FALSE(dt_utc.isLocalTime());
+    EXPECT_TRUE(dt_local.isLocalTime());
+}
+
+TEST(DateTimeArithmeticTest, SubtractAssignPreservesTimezone) {
+    DateTime dt_utc(1970, 1, 1, 2, 0, 0, 0, 0, false);
+    DateTime dt_local(1970, 1, 1, 2, 0, 0, 0, 0, true);
+
+    dt_utc -= 3600000LL;
+    dt_local -= 3600000LL;
+
+    EXPECT_FALSE(dt_utc.isLocalTime());
+    EXPECT_TRUE(dt_local.isLocalTime());
+}
+
+TEST(DateTimeArithmeticTest, UtcLocalArithmeticResultsDiffer) {
+    DateTime dt_utc(1970, 1, 1, 0, 0, 0, 0, 0, false);
+    DateTime dt_local(1970, 1, 1, 0, 0, 0, 0, 0, true);
+
+    DateTime result_utc = dt_utc + 86400000LL;
+    DateTime result_local = dt_local + 86400000LL;
+
+    EXPECT_EQ(result_utc.day(), 2);
+    EXPECT_EQ(result_local.day(), 2);
+
+    EXPECT_NE(result_utc.timestamps(), result_local.timestamps());
 }
 
 // =============================================================================
@@ -327,6 +463,18 @@ TEST(DateTimeResetTest, ResetWithTimestamp) {
     bool result = dt.reset(0);
     EXPECT_TRUE(result);
     EXPECT_EQ(dt.timestamps(), 0);
+}
+
+TEST(DateTimeResetTest, ResetWithNegativeTimestamp) {
+    DateTime dt(2026, 6, 29, 12, 0, 0);
+
+    bool result = dt.reset(-86400000LL, false);
+    EXPECT_TRUE(result);
+    EXPECT_EQ(dt.timestamps(), -86400000LL);
+    EXPECT_FALSE(dt.isLocalTime());
+    EXPECT_EQ(dt.year(), 1969);
+    EXPECT_EQ(dt.month(), 12);
+    EXPECT_EQ(dt.day(), 31);
 }
 
 TEST(DateTimeResetTest, ResetWithComponents) {
@@ -350,6 +498,24 @@ TEST(DateTimeResetTest, ResetWithComponentsAndWeekday) {
     EXPECT_EQ(dt.weekday(), 3);
 }
 
+TEST(DateTimeResetTest, ResetWithTimestampUtc) {
+    DateTime dt(2026, 6, 29, 12, 0, 0);
+
+    bool result = dt.reset(0, false);
+    EXPECT_TRUE(result);
+    EXPECT_EQ(dt.timestamps(), 0);
+    EXPECT_FALSE(dt.isLocalTime());
+}
+
+TEST(DateTimeResetTest, ResetWithComponentsUtc) {
+    DateTime dt(2026, 6, 29, 12, 0, 0);
+
+    bool result = dt.reset(2025, 1, 1, 0, 0, 0, 0, 0, false);
+    EXPECT_TRUE(result);
+    EXPECT_EQ(dt.year(), 2025);
+    EXPECT_FALSE(dt.isLocalTime());
+}
+
 // =============================================================================
 // DateTime Static Method Tests
 // =============================================================================
@@ -359,6 +525,7 @@ TEST(DateTimeStaticTest, NowLocalTime) {
 
     EXPECT_TRUE(local_now.isValid());
     EXPECT_GT(local_now.year(), 2020);
+    EXPECT_TRUE(local_now.isLocalTime());
 }
 
 TEST(DateTimeStaticTest, NowUtcTime) {
@@ -366,6 +533,7 @@ TEST(DateTimeStaticTest, NowUtcTime) {
 
     EXPECT_TRUE(utc_now.isValid());
     EXPECT_GT(utc_now.year(), 2020);
+    EXPECT_FALSE(utc_now.isLocalTime());
 }
 
 TEST(DateTimeFormatTest, DateFormats) {
@@ -412,39 +580,39 @@ TEST(DateTimeFormatTest, WeekdayFormats) {
 // =============================================================================
 
 TEST(TimeLiteralTest, Milliseconds) {
-    EXPECT_EQ(100_ms, 100ULL);
-    EXPECT_EQ(0_ms, 0ULL);
-    EXPECT_EQ(1000_ms, 1000ULL);
+    EXPECT_EQ(100_ms, 100LL);
+    EXPECT_EQ(0_ms, 0LL);
+    EXPECT_EQ(1000_ms, 1000LL);
 }
 
 TEST(TimeLiteralTest, Seconds) {
-    EXPECT_EQ(1_s, 1000ULL);
-    EXPECT_EQ(60_s, 60000ULL);
-    EXPECT_EQ(0_s, 0ULL);
+    EXPECT_EQ(1_s, 1000LL);
+    EXPECT_EQ(60_s, 60000LL);
+    EXPECT_EQ(0_s, 0LL);
 }
 
 TEST(TimeLiteralTest, Minutes) {
-    EXPECT_EQ(1_m, 60000ULL);
-    EXPECT_EQ(5_m, 300000ULL);
-    EXPECT_EQ(0_m, 0ULL);
+    EXPECT_EQ(1_m, 60000LL);
+    EXPECT_EQ(5_m, 300000LL);
+    EXPECT_EQ(0_m, 0LL);
 }
 
 TEST(TimeLiteralTest, Hours) {
-    EXPECT_EQ(1_h, 3600000ULL);
-    EXPECT_EQ(24_h, 86400000ULL);
-    EXPECT_EQ(0_h, 0ULL);
+    EXPECT_EQ(1_h, 3600000LL);
+    EXPECT_EQ(24_h, 86400000LL);
+    EXPECT_EQ(0_h, 0LL);
 }
 
 TEST(TimeLiteralTest, Days) {
-    EXPECT_EQ(1_d, 86400000ULL);
-    EXPECT_EQ(7_d, 604800000ULL);
-    EXPECT_EQ(0_d, 0ULL);
+    EXPECT_EQ(1_d, 86400000LL);
+    EXPECT_EQ(7_d, 604800000LL);
+    EXPECT_EQ(0_d, 0LL);
 }
 
 TEST(TimeLiteralTest, Weeks) {
-    EXPECT_EQ(1_w, 604800000ULL);
-    EXPECT_EQ(2_w, 1209600000ULL);
-    EXPECT_EQ(0_w, 0ULL);
+    EXPECT_EQ(1_w, 604800000LL);
+    EXPECT_EQ(2_w, 1209600000LL);
+    EXPECT_EQ(0_w, 0LL);
 }
 
 // =============================================================================
@@ -452,38 +620,38 @@ TEST(TimeLiteralTest, Weeks) {
 // =============================================================================
 
 TEST(TimeConversionTest, Weeks) {
-    EXPECT_EQ(weeks(604800000ULL), 1ULL);
-    EXPECT_EQ(weeks(1209600000ULL), 2ULL);
-    EXPECT_EQ(weeks(1000ULL), 0ULL);
+    EXPECT_EQ(weeks(604800000LL), 1LL);
+    EXPECT_EQ(weeks(1209600000LL), 2LL);
+    EXPECT_EQ(weeks(1000LL), 0LL);
 }
 
 TEST(TimeConversionTest, Days) {
-    EXPECT_EQ(days(86400000ULL), 1ULL);
-    EXPECT_EQ(days(172800000ULL), 2ULL);
-    EXPECT_EQ(days(1000ULL), 0ULL);
+    EXPECT_EQ(days(86400000LL), 1LL);
+    EXPECT_EQ(days(172800000LL), 2LL);
+    EXPECT_EQ(days(1000LL), 0LL);
 }
 
 TEST(TimeConversionTest, Hours) {
-    EXPECT_EQ(hours(3600000ULL), 1ULL);
-    EXPECT_EQ(hours(7200000ULL), 2ULL);
-    EXPECT_EQ(hours(1000ULL), 0ULL);
+    EXPECT_EQ(hours(3600000LL), 1LL);
+    EXPECT_EQ(hours(7200000LL), 2LL);
+    EXPECT_EQ(hours(1000LL), 0LL);
 }
 
 TEST(TimeConversionTest, Minutes) {
-    EXPECT_EQ(minutes(60000ULL), 1ULL);
-    EXPECT_EQ(minutes(120000ULL), 2ULL);
-    EXPECT_EQ(minutes(1000ULL), 0ULL);
+    EXPECT_EQ(minutes(60000LL), 1LL);
+    EXPECT_EQ(minutes(120000LL), 2LL);
+    EXPECT_EQ(minutes(1000LL), 0LL);
 }
 
 TEST(TimeConversionTest, Seconds) {
-    EXPECT_EQ(seconds(1000ULL), 1ULL);
-    EXPECT_EQ(seconds(2000ULL), 2ULL);
-    EXPECT_EQ(seconds(500ULL), 0ULL);
+    EXPECT_EQ(seconds(1000LL), 1LL);
+    EXPECT_EQ(seconds(2000LL), 2LL);
+    EXPECT_EQ(seconds(500LL), 0LL);
 }
 
 TEST(TimeConversionTest, Milliseconds) {
-    EXPECT_EQ(milliseconds(1000ULL), 1000ULL);
-    EXPECT_EQ(milliseconds(0ULL), 0ULL);
+    EXPECT_EQ(milliseconds(1000LL), 1000LL);
+    EXPECT_EQ(milliseconds(0LL), 0LL);
 }
 
 // =============================================================================
@@ -491,13 +659,13 @@ TEST(TimeConversionTest, Milliseconds) {
 // =============================================================================
 
 TEST(CurrentTimestampsTest, ReturnsPositive) {
-    uint64_t ts = currentTimestamps();
-    EXPECT_GT(ts, 0ULL);
+    Duration ts = currentTimestamps();
+    EXPECT_GT(ts, 0LL);
 }
 
 TEST(CurrentTimestampsTest, MonotonicallyIncreasing) {
-    uint64_t ts1 = currentTimestamps();
-    uint64_t ts2 = currentTimestamps();
+    Duration ts1 = currentTimestamps();
+    Duration ts2 = currentTimestamps();
     EXPECT_GE(ts2, ts1);
 }
 
@@ -520,7 +688,7 @@ TEST(DateTimeIntegrationTest, LiteralsWithArithmetic) {
 
 TEST(DateTimeIntegrationTest, TimestampRoundTrip) {
     DateTime dt1(2026, 6, 29, 12, 30, 45, 500);
-    uint64_t ts = dt1.timestamps();
+    Duration ts = dt1.timestamps();
 
     DateTime dt2(ts);
     EXPECT_TRUE(dt2.isValid());
@@ -540,6 +708,56 @@ TEST(DateTimeIntegrationTest, FullDateTimeOperations) {
 
     dt -= 1_d;
     EXPECT_EQ(dt.day(), 2);
+}
+
+TEST(DateTimeIntegrationTest, LocalTimeRoundTrip) {
+    DateTime dt1(2026, 6, 29, 12, 30, 45, 500, 1, true);
+    Duration ts = dt1.timestamps();
+
+    DateTime dt2(ts, true);
+    EXPECT_TRUE(dt2.isValid());
+    EXPECT_TRUE(dt2.isLocalTime());
+    EXPECT_EQ(dt1.year(), dt2.year());
+    EXPECT_EQ(dt1.month(), dt2.month());
+    EXPECT_EQ(dt1.day(), dt2.day());
+    EXPECT_EQ(dt1.hour(), dt2.hour());
+    EXPECT_EQ(dt1.minute(), dt2.minute());
+    EXPECT_EQ(dt1.second(), dt2.second());
+}
+
+TEST(DateTimeIntegrationTest, UtcTimeRoundTrip) {
+    DateTime dt1(2026, 6, 29, 12, 30, 45, 500, 1, false);
+    Duration ts = dt1.timestamps();
+
+    DateTime dt2(ts, false);
+    EXPECT_TRUE(dt2.isValid());
+    EXPECT_FALSE(dt2.isLocalTime());
+    EXPECT_EQ(dt1.year(), dt2.year());
+    EXPECT_EQ(dt1.month(), dt2.month());
+    EXPECT_EQ(dt1.day(), dt2.day());
+    EXPECT_EQ(dt1.hour(), dt2.hour());
+    EXPECT_EQ(dt1.minute(), dt2.minute());
+    EXPECT_EQ(dt1.second(), dt2.second());
+}
+
+TEST(DateTimeIntegrationTest, NegativeTimestampRoundTrip) {
+    DateTime dt1(1969, 12, 31, 0, 0, 0, 0, 0, false);
+    Duration ts = dt1.timestamps();
+
+    DateTime dt2(ts, false);
+    EXPECT_TRUE(dt2.isValid());
+    EXPECT_EQ(dt1.year(), dt2.year());
+    EXPECT_EQ(dt1.month(), dt2.month());
+    EXPECT_EQ(dt1.day(), dt2.day());
+}
+
+TEST(DateTimeIntegrationTest, LocalUtcTimestampDifference) {
+    DateTime dt_local(2026, 6, 29, 12, 0, 0, 0, 1, true);
+    DateTime dt_utc(2026, 6, 29, 12, 0, 0, 0, 1, false);
+
+    Duration diff = dt_local.timestamps() - dt_utc.timestamps();
+    EXPECT_NE(diff, 0);
+    EXPECT_LT(std::abs(diff), 24 * 3600000LL);
 }
 
 int main(int argc, char **argv) {

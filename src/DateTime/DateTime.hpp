@@ -46,6 +46,8 @@
 
 namespace Tiny {
     namespace DT {
+        using Duration = std::int64_t;
+
         enum Month : uint8_t {
             January = 1,
             Jan = 1,
@@ -143,9 +145,9 @@ namespace Tiny {
         public:
             DateTime(uint32_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second,
                 uint16_t millisecond = 0, uint8_t weekday = 0, bool use_local_time = true);
-            DateTime(uint64_t timestamps, bool use_local_time = true);
+            DateTime(Duration timestamps, bool use_local_time = true);
 
-            uint64_t timestamps() const;
+            Duration timestamps() const;
             uint32_t year() const;
             uint8_t month() const;
             uint8_t day() const;
@@ -164,23 +166,21 @@ namespace Tiny {
             bool operator<=(const DateTime &date_time) const;
             bool operator>(const DateTime &date_time) const;
             bool operator>=(const DateTime &date_time) const;
-            DateTime operator+(const DateTime& other) const noexcept;
-            DateTime operator-(const DateTime& other) const noexcept;
-            DateTime operator+(uint64_t other) const noexcept;
-            DateTime operator-(uint64_t other) const noexcept;
-            DateTime& operator+=(const DateTime& other) noexcept;
-            DateTime& operator-=(const DateTime& other) noexcept;
-            DateTime& operator+=(uint64_t other) noexcept;
-            DateTime& operator-=(uint64_t other) noexcept;
+            DateTime operator+(Duration other) const noexcept;
+            DateTime operator-(Duration other) const noexcept;
+            DateTime& operator+=(Duration other) noexcept;
+            DateTime& operator-=(Duration other) noexcept;
+            Duration operator-(const DateTime& date_time) const noexcept;
 
-            bool reset(uint64_t timestamps, bool use_local_time = true);
+            bool reset(Duration timestamps, bool use_local_time = true);
             bool reset(uint32_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second,
                 uint16_t millisecond = 0, uint8_t weekday = 0, bool use_local_time = true);
 
             static DateTime now(bool use_local_time = true);
             static std::string formatString(const char* format, const DateTime &date_time);
         private:
-            void generateDateTime(uint64_t timestamps);
+            void generateDateTime(Duration timestamps);
+            Duration correctTS(const DateTime& other) const;
 
             uint32_t _year{1970};
             uint8_t _month{1};
@@ -192,22 +192,22 @@ namespace Tiny {
             bool _local_time{false};
             uint16_t _milliseconds{};
             uint8_t _w_day{};
-            uint64_t _timestamps{};
+            Duration _timestamps{};
         };
 
-        uint64_t operator""_ms(unsigned long long milliseconds) noexcept;
-        uint64_t operator""_s(unsigned long long seconds) noexcept;
-        uint64_t operator""_m(unsigned long long minutes) noexcept;
-        uint64_t operator""_h(unsigned long long hours) noexcept;
-        uint64_t operator""_d(unsigned long long days) noexcept;
-        uint64_t operator""_w(unsigned long long weeks) noexcept;
-        uint64_t weeks(uint64_t timestamps) noexcept;
-        uint64_t days(uint64_t timestamps) noexcept;
-        uint64_t hours(uint64_t timestamps) noexcept;
-        uint64_t minutes(uint64_t timestamps) noexcept;
-        uint64_t seconds(uint64_t timestamps) noexcept;
-        uint64_t milliseconds(uint64_t timestamps) noexcept;
-        uint64_t currentTimestamps() noexcept;
+        Duration operator""_ms(unsigned long long milliseconds) noexcept;
+        Duration operator""_s(unsigned long long seconds) noexcept;
+        Duration operator""_m(unsigned long long minutes) noexcept;
+        Duration operator""_h(unsigned long long hours) noexcept;
+        Duration operator""_d(unsigned long long days) noexcept;
+        Duration operator""_w(unsigned long long weeks) noexcept;
+        Duration weeks(Duration timestamps) noexcept;
+        Duration days(Duration timestamps) noexcept;
+        Duration hours(Duration timestamps) noexcept;
+        Duration minutes(Duration timestamps) noexcept;
+        Duration seconds(Duration timestamps) noexcept;
+        Duration milliseconds(Duration timestamps) noexcept;
+        Duration currentTimestamps() noexcept;
     }
 }
 

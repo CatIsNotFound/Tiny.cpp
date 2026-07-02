@@ -46,7 +46,7 @@ struct SDT {
     uint8_t weekday;
 };
 
-SDT fromTimestamp(uint64_t timestamp, bool use_local_time, bool& ok);
+SDT fromTimestamp(Tiny::DT::Duration timestamp, bool use_local_time, bool& ok);
 
 inline Tiny::DT::DateTime localTime() {
 #ifdef TINY_CPP_MY_OS_WINDOWS
@@ -85,7 +85,7 @@ inline Tiny::DT::DateTime systemTime() {
     return {static_cast<uint32_t>(sys.wYear), static_cast<uint8_t>(sys.wMonth),
         static_cast<uint8_t>(sys.wDay), static_cast<uint8_t>(sys.wHour),
         static_cast<uint8_t>(sys.wMinute), static_cast<uint8_t>(sys.wSecond),
-        static_cast<uint16_t>(sys.wMilliseconds), static_cast<uint8_t>(sys.wDayOfWeek)};
+        static_cast<uint16_t>(sys.wMilliseconds), static_cast<uint8_t>(sys.wDayOfWeek), false};
 #elif defined(TINY_CPP_MY_OS_UNIX)
     struct tm now_tm{};
     struct timespec tm_spec{};
@@ -109,17 +109,17 @@ inline Tiny::DT::DateTime systemTime() {
 #endif
 }
 
-inline SDT fromTimestamp(uint64_t timestamp, bool use_local_time, bool& ok) {
+inline SDT fromTimestamp(Tiny::DT::Duration timestamp, bool use_local_time, bool& ok) {
 #ifdef TINY_CPP_MY_OS_WINDOWS
-    const uint64_t EPOCH_DIFF = 116444736000000000;
-    uint64_t ts = timestamp * 10000 + EPOCH_DIFF;
+    const int64_t EPOCH_DIFF = 116444736000000000;
+    int64_t ts = timestamp * 10000 + EPOCH_DIFF;
 
-    ULARGE_INTEGER ull{};
-    ull.QuadPart = ts;
+    LARGE_INTEGER ll{};
+    ll.QuadPart = ts;
 
     FILETIME ft{};
-    ft.dwLowDateTime = ull.LowPart;
-    ft.dwHighDateTime = ull.HighPart;
+    ft.dwLowDateTime = ll.LowPart;
+    ft.dwHighDateTime = ll.HighPart;
 
     SYSTEMTIME utc{}, lc_tm{};
     if (FileTimeToSystemTime(&ft, &utc)) {
@@ -146,9 +146,9 @@ inline SDT fromTimestamp(uint64_t timestamp, bool use_local_time, bool& ok) {
         }
     }
 #elif defined(TINY_CPP_MY_OS_UNIX)
-    uint64_t secs = (timestamp / 1000U);
-    time_t sp_time = secs > 41024448000ULL ? 41024448000ULL : secs;
-    uint16_t milliseconds = timestamp % 1000U;
+    int64_t secs = (timestamp / 1000);
+    time_t sp_time = secs;
+    uint16_t milliseconds = timestamp % 1000;
     
     struct tm local;
     const tm* OK = use_local_time ? localtime_r(&sp_time, &local) : gmtime_r(&sp_time, &local);
@@ -168,7 +168,7 @@ inline SDT fromTimestamp(uint64_t timestamp, bool use_local_time, bool& ok) {
     return {};
 }
 
-inline uint64_t toTimestamp(SDT date_time, bool use_local_time, bool& ok) {
+inline Tiny::DT::Duration toTimestamp(SDT date_time, bool use_local_time, bool& ok) {
 #ifdef TINY_CPP_MY_OS_WINDOWS
     SYSTEMTIME user_time = {
         (WORD)date_time.year, (WORD)date_time.month, (WORD)date_time.weekday,
@@ -176,39 +176,35 @@ inline uint64_t toTimestamp(SDT date_time, bool use_local_time, bool& ok) {
         (WORD)date_time.second, (WORD)date_time.millisecond
     };
 
-
     FILETIME ftime = {};
-    const uint64_t EPOCH_DIFF = 116444736000000000;
+    const int64_t EPOCH_DIFF = 116444736000000000;
     if (SystemTimeToFileTime(&user_time, &ftime)) {
         if (use_local_time) {
             FILETIME ft_utc{};
             if (LocalFileTimeToFileTime(&ftime, &ft_utc)) {
-                ULARGE_INTEGER ull = {};
-                ull.LowPart = ft_utc.dwLowDateTime;
-                ull.HighPart = ft_utc.dwHighDateTime;
+                LARGE_INTEGER ll = {};
+                ll.LowPart = ft_utc.dwLowDateTime;
+                ll.HighPart = ft_utc.dwHighDateTime;
 
                 ok = true;
-                if (ull.QuadPart > EPOCH_DIFF) return (ull.QuadPart - EPOCH_DIFF) / 10000;
-                return 0;
+                return (ll.QuadPart - EPOCH_DIFF) / 10000;
             }
         }
         TIME_ZONE_INFORMATION tzi{};
         DWORD res = GetTimeZoneInformation(&tzi);
         if (res != TIME_ZONE_ID_INVALID) {
             int64_t bias_mins = tzi.Bias;
-            if (res == TIME_ZONE_ID_STANDARD) {
-                bias_mins += tzi.StandardBias;
-            } else if (res == TIME_ZONE_ID_DAYLIGHT) {
+            if (res == TIME_ZONE_ID_DAYLIGHT) {
                 bias_mins += tzi.DaylightBias;
+            } else {
+                bias_mins += tzi.StandardBias;
             }
 
-            ULARGE_INTEGER ull{};
-            ull.LowPart = ftime.dwLowDateTime;
-            ull.HighPart = ftime.dwHighDateTime;
-            int64_t bns = bias_mins * 60 * 10000000LL;
-            ull.QuadPart += bns;
-            if (ull.QuadPart > EPOCH_DIFF) return (ull.QuadPart - EPOCH_DIFF) / 10000;
-            return 0;
+            LARGE_INTEGER ll{};
+            ll.LowPart = ftime.dwLowDateTime;
+            ll.HighPart = ftime.dwHighDateTime;
+            ok = true;
+            return (ll.QuadPart - EPOCH_DIFF) / 10000;
         }
     }
 #elif defined(TINY_CPP_MY_OS_UNIX)
@@ -227,16 +223,25 @@ inline uint64_t toTimestamp(SDT date_time, bool use_local_time, bool& ok) {
     tm_start.tm_isdst = -1;
 
     time_t sec = mktime(&tm_now);
-    uint64_t real = 0;
+    int64_t real = 0;
     if (sec != -1) {
         if (!use_local_time) {
-            time_t dis = mktime(&tm_start);
-            real = abs(sec - dis);
+            time_t now = time(nullptr);
+            struct tm utc_tm{}, local_tm{};
+            gmtime_r(&now, &utc_tm);
+            localtime_r(&now, &local_tm);
+
+            time_t utc_as_local = mktime(&utc_tm);
+            time_t local_ts = mktime(&local_tm);
+            time_t offset = local_ts - utc_as_local;
+
+            sec -= offset;
+            real = sec;
         } else {
-            real = abs(sec);
+            real = sec;
         }
         ok = true;
-        return real * 1000ULL + date_time.millisecond;
+        return real * 1000LL + date_time.millisecond;
     }
 #endif
     ok = false;
@@ -246,12 +251,13 @@ inline uint64_t toTimestamp(SDT date_time, bool use_local_time, bool& ok) {
 Tiny::DT::DateTime::DateTime(uint32_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second,
     uint16_t millisecond, uint8_t weekday, bool use_local_time)
         : _year(year), _month(month), _day(day), _hour(hour), _minute(minute), _second(second),
-          _milliseconds(millisecond), _w_day(weekday), _local_time(use_local_time) {
+          _local_time(use_local_time), _milliseconds(millisecond), _w_day(weekday) {
     SDT dt = {year, month, day, hour, minute, second, millisecond, weekday};
     _timestamps = toTimestamp(dt, use_local_time, _valid);
 }
 
-Tiny::DT::DateTime::DateTime(uint64_t timestamps, bool use_local_time) : _timestamps(timestamps), _local_time(use_local_time) {
+Tiny::DT::DateTime::DateTime(Tiny::DT::Duration timestamps, bool use_local_time)
+        : _local_time(use_local_time), _timestamps(timestamps) {
     SDT dt = fromTimestamp(timestamps, use_local_time, _valid);
     if (_valid) {
         _year = dt.year;
@@ -265,7 +271,7 @@ Tiny::DT::DateTime::DateTime(uint64_t timestamps, bool use_local_time) : _timest
     }
 }
 
-uint64_t Tiny::DT::DateTime::timestamps() const {
+Tiny::DT::Duration Tiny::DT::DateTime::timestamps() const {
     return _timestamps;
 }
 
@@ -333,55 +339,31 @@ bool Tiny::DT::DateTime::operator>=(const DateTime &date_time) const {
     return (_local_time == date_time._local_time) && (_timestamps >= date_time._timestamps);
 }
 
-Tiny::DT::DateTime Tiny::DT::DateTime::operator+(const DateTime &other) const noexcept {
-    return {_timestamps + other._timestamps};
+Tiny::DT::DateTime Tiny::DT::DateTime::operator+(Tiny::DT::Duration other) const noexcept {
+    return {_timestamps + other, _local_time};
 }
 
-Tiny::DT::DateTime Tiny::DT::DateTime::operator-(const DateTime &other) const noexcept {
-    return {_timestamps - other._timestamps};
+Tiny::DT::DateTime Tiny::DT::DateTime::operator-(Tiny::DT::Duration other) const noexcept {
+    return {_timestamps - other, _local_time};
 }
 
-Tiny::DT::DateTime Tiny::DT::DateTime::operator+(uint64_t other) const noexcept {
-    return {_timestamps + other};
-}
-
-Tiny::DT::DateTime Tiny::DT::DateTime::operator-(uint64_t other) const noexcept {
-    return {_timestamps - other};
-}
-
-Tiny::DT::DateTime & Tiny::DT::DateTime::operator+=(const DateTime &other) noexcept {
-    _timestamps += other._timestamps;
-    generateDateTime(_timestamps);
-    return *this;
-}
-
-Tiny::DT::DateTime & Tiny::DT::DateTime::operator-=(const DateTime &other) noexcept {
-    if (_timestamps < other._timestamps) {
-        _timestamps = 0;
-    } else {
-        _timestamps -= other._timestamps;
-    }
-    generateDateTime(_timestamps);
-    return *this;
-}
-
-Tiny::DT::DateTime & Tiny::DT::DateTime::operator+=(uint64_t other) noexcept {
+Tiny::DT::DateTime & Tiny::DT::DateTime::operator+=(Tiny::DT::Duration other) noexcept {
     _timestamps += other;
     generateDateTime(_timestamps);
     return *this;
 }
 
-Tiny::DT::DateTime & Tiny::DT::DateTime::operator-=(uint64_t other) noexcept {
-    if (_timestamps < other) {
-        _timestamps = 0;
-    } else {
-        _timestamps -= other;
-    }
+Tiny::DT::DateTime & Tiny::DT::DateTime::operator-=(Tiny::DT::Duration other) noexcept {
+    _timestamps -= other;
     generateDateTime(_timestamps);
     return *this;
 }
 
-bool Tiny::DT::DateTime::reset(uint64_t timestamps, bool use_local_time) {
+Tiny::DT::Duration Tiny::DT::DateTime::operator-(const DateTime &date_time) const noexcept {
+    return _timestamps - date_time._timestamps;
+}
+
+bool Tiny::DT::DateTime::reset(Tiny::DT::Duration timestamps, bool use_local_time) {
     _timestamps = timestamps;
     _local_time = use_local_time;
     generateDateTime(_timestamps);
@@ -493,7 +475,7 @@ std::string Tiny::DT::DateTime::formatString(const char* format, const DateTime 
     return oss.str();
 }
 
-void Tiny::DT::DateTime::generateDateTime(uint64_t timestamps) {
+void Tiny::DT::DateTime::generateDateTime(Tiny::DT::Duration timestamps) {
     SDT dt = fromTimestamp(timestamps, _local_time, _valid);
     if (_valid) {
         _year = dt.year;
@@ -507,71 +489,80 @@ void Tiny::DT::DateTime::generateDateTime(uint64_t timestamps) {
     }
 }
 
+Tiny::DT::Duration Tiny::DT::DateTime::correctTS(const DateTime &other) const {
+    if (_local_time != other._local_time) {
+        SDT sdt = {other._year, other._month, other._day, other._hour, other._minute, other._second, other._milliseconds};
+        bool ok = false;
+        return toTimestamp(sdt, _local_time, ok);
+    }
+    return other._timestamps;
+}
 
-uint64_t Tiny::DT::operator""_ms(unsigned long long milliseconds) noexcept {
+
+Tiny::DT::Duration Tiny::DT::operator""_ms(unsigned long long milliseconds) noexcept {
     return milliseconds;
 }
 
-uint64_t Tiny::DT::operator""_s(unsigned long long seconds) noexcept {
+Tiny::DT::Duration Tiny::DT::operator""_s(unsigned long long seconds) noexcept {
     return seconds * 1000;
 }
 
-uint64_t Tiny::DT::operator""_m(unsigned long long minutes) noexcept {
+Tiny::DT::Duration Tiny::DT::operator""_m(unsigned long long minutes) noexcept {
     return minutes * 60000;
 }
 
-uint64_t Tiny::DT::operator""_h(unsigned long long hours) noexcept {
+Tiny::DT::Duration Tiny::DT::operator""_h(unsigned long long hours) noexcept {
     return hours * 3600000;
 }
 
-uint64_t Tiny::DT::operator""_d(unsigned long long days) noexcept {
+Tiny::DT::Duration Tiny::DT::operator""_d(unsigned long long days) noexcept {
     return days * 86400000;
 }
 
-uint64_t Tiny::DT::operator""_w(unsigned long long weeks) noexcept {
+Tiny::DT::Duration Tiny::DT::operator""_w(unsigned long long weeks) noexcept {
     return weeks * 604800000;
 }
 
-uint64_t Tiny::DT::weeks(uint64_t timestamps) noexcept {
+Tiny::DT::Duration Tiny::DT::weeks(Tiny::DT::Duration timestamps) noexcept {
     return timestamps / 604800000;
 }
 
-uint64_t Tiny::DT::days(uint64_t timestamps) noexcept {
+Tiny::DT::Duration Tiny::DT::days(Tiny::DT::Duration timestamps) noexcept {
     return timestamps / 86400000;
 }
 
-uint64_t Tiny::DT::hours(uint64_t timestamps) noexcept {
+Tiny::DT::Duration Tiny::DT::hours(Tiny::DT::Duration timestamps) noexcept {
     return timestamps / 3600000;
 }
 
-uint64_t Tiny::DT::minutes(uint64_t timestamps) noexcept {
+Tiny::DT::Duration Tiny::DT::minutes(Tiny::DT::Duration timestamps) noexcept {
     return timestamps / 60000;
 }
 
-uint64_t Tiny::DT::seconds(uint64_t timestamps) noexcept {
+Tiny::DT::Duration Tiny::DT::seconds(Tiny::DT::Duration timestamps) noexcept {
     return timestamps / 1000;
 }
 
-uint64_t Tiny::DT::milliseconds(uint64_t timestamps) noexcept {
+Tiny::DT::Duration Tiny::DT::milliseconds(Tiny::DT::Duration timestamps) noexcept {
     return timestamps;
 }
 
-uint64_t Tiny::DT::currentTimestamps() noexcept {
+Tiny::DT::Duration Tiny::DT::currentTimestamps() noexcept {
 #ifdef TINY_CPP_MY_OS_WINDOWS
     SYSTEMTIME sys{};
     GetSystemTime(&sys);
     FILETIME ft{};
     GetSystemTimeAsFileTime(&ft);
 
-    ULARGE_INTEGER ull{};
-    ull.LowPart = ft.dwLowDateTime;
-    ull.HighPart = ft.dwHighDateTime;
-    const uint64_t EPOCH_DIFF = 116444736000000000;
-    return (ull.QuadPart - EPOCH_DIFF) / 10000;
+    LARGE_INTEGER ll{};
+    ll.LowPart = ft.dwLowDateTime;
+    ll.HighPart = ft.dwHighDateTime;
+    const int64_t EPOCH_DIFF = 116444736000000000;
+    return (ll.QuadPart - EPOCH_DIFF) / 10000;
 #elif defined(TINY_CPP_MY_OS_UNIX)
     struct timespec tv{};
     clock_gettime(CLOCK_REALTIME, &tv);
-    return tv.tv_sec * 1000 + tv.tv_nsec / 1000000;
+    return tv.tv_sec * 1000LL + tv.tv_nsec / 1000000;
 #endif
 }
 
