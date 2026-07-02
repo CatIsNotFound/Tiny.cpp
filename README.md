@@ -16,12 +16,13 @@ An extremely small, lightweight, and easy-to-use foundational library.
 
 ## Included Modules
 
-| Module            | Path         | Functionality                                                      |
-|-------------------|--------------|--------------------------------------------------------------------|
-| **TUI**           | `src/TUI`    | Terminal User Interface, providing basic terminal drawing functionality for easier terminal rendering |
-| **OS**            | `src/OS`     | Operating System, supporting basic file and path operations as well as viewing system information |
-| **CommandParser** | `src/Parser` | Command parser, providing basic command parameter parsing functionality for easy implementation of command-line tools |
-| **Events**        | `src/Events` | Event system, providing basic components for easy implementation of timers, asynchronous functions, etc. |
+| Module            | Path           | Functionality                                                      |
+|-------------------|----------------|--------------------------------------------------------------------|
+| **TUI**           | `src/TUI`      | Terminal User Interface, providing basic terminal drawing functionality for easier terminal rendering |
+| **OS**            | `src/OS`       | Operating System, supporting basic file and path operations as well as viewing system information |
+| **DateTime**      | `src/DateTime` | Date and time utilities, supporting construction, formatting, arithmetic, and timestamp conversion |
+| **CommandParser** | `src/Parser`   | Command parser, providing basic command parameter parsing functionality for easy implementation of command-line tools |
+| **Events**        | `src/Events`   | Event system, providing basic components for easy implementation of timers, asynchronous functions, etc. |
 
 ## Installation
 

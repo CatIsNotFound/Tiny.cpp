@@ -102,6 +102,32 @@ enum OpenMode : uint8_t {
 uint8_t mode = Tiny::OS::ReadOnly | Tiny::OS::Append;
 ```
 
+### 4.3 容量单位字面量
+
+```cpp
+inline size_t operator""_B(unsigned long long n) noexcept;
+inline size_t operator""_KB(unsigned long long n) noexcept;
+inline size_t operator""_KiB(unsigned long long n) noexcept;
+inline size_t operator""_MB(unsigned long long n) noexcept;
+inline size_t operator""_MiB(unsigned long long n) noexcept;
+inline size_t operator""_GB(unsigned long long n) noexcept;
+inline size_t operator""_GiB(unsigned long long n) noexcept;
+inline size_t operator""_TB(unsigned long long n) noexcept;
+inline size_t operator""_TiB(unsigned long long n) noexcept;
+```
+
+| 字面量 | 换算系数 | 示例 |
+|--------|----------|------|
+| `_B` | 1 | `512_B` |
+| `_KB` | 1000 | `5_KB` |
+| `_KiB` | 1024 | `5_KiB` |
+| `_MB` | 1000000 | `10_MB` |
+| `_MiB` | 1048576 | `10_MiB` |
+| `_GB` | 1000000000 | `2_GB` |
+| `_GiB` | 1073741824 | `2_GiB` |
+| `_TB` | 1000000000000 | `1_TB` |
+| `_TiB` | 1099511627776 | `1_TiB` |
+
 ---
 
 ## 5. Path 类
@@ -371,13 +397,21 @@ void setPath(const Path& path);
 - **参数**: 新的路径
 - **约束**: 文件打开时会先关闭原文件
 
-#### isValid
+#### isFile
 
 ```cpp
-bool isValid() const;
+bool isFile() const;
 ```
-- **功能**: 检查文件路径是否有效且为文件
-- **返回值**: `true` 表示有效
+- **功能**: 检查路径是否指向普通文件
+- **返回值**: `true` 表示是文件
+
+#### isNull
+
+```cpp
+bool isNull() const;
+```
+- **功能**: 检查文件对象是否没有有效路径
+- **返回值**: `true` 表示路径为空或无效
 
 #### isOpen
 
@@ -494,6 +528,14 @@ void moveToStart();
 void moveToEnd();
 ```
 - **功能**: 移动读写位置到文件末尾
+
+#### moveTo
+
+```cpp
+void moveTo(int64_t pos);
+```
+- **功能**: 移动读写位置到绝对偏移处
+- **参数**: `pos` - 相对于文件开头的字节偏移
 
 #### fileSize
 

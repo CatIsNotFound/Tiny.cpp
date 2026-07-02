@@ -41,6 +41,7 @@
 | **TUI** | `src/TUI` | 终端用户界面，提供了基本的终端绘制功能，可更方便的渲染终端 | [zh/TUI/TUI.md](zh/TUI/TUI.md) |
 | **OS** | `src/OS` | 操作系统，支持文件、路径的基本操作以及查看系统信息等基本功能 | [zh/OS/File.md](zh/OS/File.md)、[zh/OS/System.md](zh/OS/System.md) |
 | **CommandParser** | `src/Parser` | 命令解析器，提供基本的命令参数解析功能，可便于实现基本的命令行工具 | [zh/Parser/CommandParser.md](zh/Parser/CommandParser.md) |
+| **DateTime** | `src/DateTime` | 日期时间工具，支持构造、格式化、算术运算和时间戳转换 | [zh/DateTime/DateTime.md](zh/DateTime/DateTime.md) |
 | **Events** | `src/Events` | 事件系统，提供基本的组件，可方便实现定时器、异步等功能 | [zh/Events/Event.md](zh/Events/Event.md) |
 
 ---
@@ -138,6 +139,7 @@ int main() {
 #include <Tiny/Tiny.hpp>
 
 // 或单独引入特定模块
+#include <Tiny/DateTime/DateTime.hpp>
 #include <Tiny/Events/Events.hpp>
 #include <Tiny/OS/File.hpp>
 #include <Tiny/OS/System.hpp>
@@ -152,6 +154,7 @@ int main() {
 #include "Tiny.hpp"
 
 // 或单独引入特定模块
+#include "DateTime/DateTime.hpp"
 #include "Events/Events.hpp"
 #include "OS/File.hpp"
 #include "OS/System.hpp"
@@ -164,6 +167,7 @@ int main() {
 ```bash
 # Linux/macOS
 g++ -std=c++17 -I./src main.cpp src/Tiny.cpp \
+    src/DateTime/DateTime.cpp \
     src/Events/Events.cpp \
     src/OS/File.cpp \
     src/OS/System.cpp \
@@ -201,6 +205,7 @@ g++ -std=c++17 -I./src main.cpp src/*.cpp src/*/*.cpp -o myapp.exe
 |----------|------|
 | `Tiny` | 根命名空间 |
 | `Tiny::OS` | 操作系统相关功能（文件、系统信息） |
+| `Tiny::DT` | 日期时间工具 |
 | `Tiny::TUI` | 终端用户界面功能 |
 
 ### 6.3 运行环境
@@ -219,26 +224,32 @@ g++ -std=c++17 -I./src main.cpp src/*.cpp src/*/*.cpp -o myapp.exe
 
 ## 7. API 文档
 
-### 7.1 Events 模块
+### 7.1 DateTime 模块
+
+日期时间处理工具。
+
+- [DateTime 模块详细文档](zh/DateTime/DateTime.md)
+
+### 7.2 Events 模块
 
 异步事件管理系统。
 
 - [Event 类详细文档](zh/Events/Event.md)
 
-### 7.2 OS 模块
+### 7.3 OS 模块
 
 操作系统相关功能。
 
 - [File 模块 - 文件操作](zh/OS/File.md)
 - [System 模块 - 系统信息](zh/OS/System.md)
 
-### 7.3 Parser 模块
+### 7.4 Parser 模块
 
 命令行参数解析器。
 
 - [CommandParser 类详细文档](zh/Parser/CommandParser.md)
 
-### 7.4 TUI 模块
+### 7.5 TUI 模块
 
 终端用户界面。
 

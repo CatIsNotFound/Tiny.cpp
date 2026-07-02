@@ -12,8 +12,9 @@ Namespace: `Tiny`
 4. [Destructor](#4-destructor)
 5. [Assignment Operator](#5-assignment-operator)
 6. [Member Functions](#6-member-functions)
-7. [Usage Examples](#7-usage-examples)
-8. [Notes](#8-notes)
+7. [EventsMap Class](#7-eventsmap-class)
+8. [Usage Examples](#8-usage-examples)
+9. [Notes](#9-notes)
 
 ---
 
@@ -276,9 +277,167 @@ void stop();
 
 ---
 
-## 7. Usage Examples
+## 7. EventsMap Class
 
-### 7.1 Basic Timer
+The `EventsMap` class manages multiple `Event` objects by their IDs.
+
+### 7.1 Type Definitions
+
+```cpp
+using constIter = std::unordered_map<size_t, Event>::const_iterator;
+```
+
+### 7.2 Constructors and Destructor
+
+```cpp
+EventsMap();
+~EventsMap();
+```
+
+**Destructor Behavior**:
+- Automatically calls `waitAllEvents()` before destruction.
+
+### 7.3 Event Management
+
+#### execEvent
+
+```cpp
+bool execEvent(const Event& event);
+bool execEvent(size_t event_id);
+```
+- **Function**: Add and run an event, or run an existing event by ID
+- **Return Value**: `true` means success
+
+#### addEvent
+
+```cpp
+bool addEvent(const Event& event);
+```
+- **Function**: Add an event without running it
+- **Return Value**: `true` means success (ID not duplicate)
+
+#### removeEvent
+
+```cpp
+bool removeEvent(size_t event_id);
+```
+- **Function**: Stop and remove an event by ID
+- **Return Value**: `true` means success
+
+#### removeAllFreeEvents
+
+```cpp
+bool removeAllFreeEvents();
+```
+- **Function**: Remove all events that are not currently running
+- **Return Value**: `true`
+
+### 7.4 Control Functions
+
+#### stopEvent
+
+```cpp
+void stopEvent(size_t event_id);
+```
+- **Function**: Stop a running event by ID
+
+#### waitEvent
+
+```cpp
+void waitEvent(size_t event_id);
+```
+- **Function**: Stop and wait for an event to finish
+
+#### stopAllEvents
+
+```cpp
+void stopAllEvents();
+```
+- **Function**: Stop all events in the map
+
+#### waitAllEvents
+
+```cpp
+void waitAllEvents();
+```
+- **Function**: Stop and wait for all events to finish
+
+### 7.5 Setter Functions
+
+#### setConditionByID
+
+```cpp
+bool setConditionByID(size_t event_id, const std::function<bool()>& condition);
+```
+
+#### setEventByID
+
+```cpp
+bool setEventByID(size_t event_id, const std::function<void(const std::atomic<bool>&)>& event);
+```
+
+#### setDelayByID
+
+```cpp
+bool setDelayByID(size_t event_id, uint32_t delay_ms);
+```
+
+#### setRepeatByID
+
+```cpp
+bool setRepeatByID(size_t event_id, uint32_t repeat_count);
+```
+
+- **Function**: Modify event properties by ID
+- **Return Value**: `true` means the event exists and was updated
+
+### 7.6 Query Functions
+
+#### exist
+
+```cpp
+bool exist(size_t event_id) const;
+```
+- **Function**: Check if an event ID exists
+- **Return Value**: `true` means exists
+
+#### event
+
+```cpp
+const Event& event(size_t event_id) const;
+bool event(const Event& find_event, const Event* found_event = nullptr) const;
+```
+- **Function**: Get event by ID, or search for a matching event
+- **Return Value**: Event reference, or `true` if found
+- **Exception**: Throws if ID does not exist
+
+#### size
+
+```cpp
+size_t size() const;
+```
+- **Function**: Get number of events in the map
+
+#### eventIDList
+
+```cpp
+std::vector<size_t> eventIDList() const;
+```
+- **Function**: Get a list of all event IDs
+
+### 7.7 Iterators
+
+```cpp
+constIter cbegin() const;
+constIter cend() const;
+```
+- **Function**: Constant iterators over the event map
+
+---
+
+## 8. Usage Examples
+
+### 8.1 Basic Timer
 
 ```cpp
 #include "Events/Events.hpp"
@@ -306,7 +465,7 @@ int main() {
 }
 ```
 
-### 7.2 Conditional Event
+### 8.2 Conditional Event
 
 ```cpp
 #include "Events/Events.hpp"
@@ -339,7 +498,7 @@ int main() {
 }
 ```
 
-### 7.3 Delayed Initialization Event
+### 8.3 Delayed Initialization Event
 
 ```cpp
 #include "Events/Events.hpp"
@@ -370,7 +529,7 @@ int main() {
 }
 ```
 
-### 7.4 Multiple Event Management
+### 8.4 Multiple Event Management
 
 ```cpp
 #include "Events/Events.hpp"
@@ -400,15 +559,15 @@ int main() {
 
 ---
 
-## 8. Notes
+## 9. Notes
 
-### 8.1 Thread Safety
+### 9.1 Thread Safety
 
 - `Event` class member functions are not thread-safe
 - Do not modify event properties in the event callback
 - Use atomic variables or mutexes to protect shared data
 
-### 8.2 Exception Handling
+### 9.2 Exception Handling
 
 Exceptions in event callbacks are caught and output to stderr:
 
@@ -419,19 +578,19 @@ Event event(1, "Test", [](const std::atomic<bool>&) {
 // Output: "Tiny::Event: An error has occurred: Error!"
 ```
 
-### 8.3 Stopping Events
+### 9.3 Stopping Events
 
 - `stop()` only sets the stop flag, does not forcefully terminate the thread
 - Event exits on next loop check
 - If event is executing callback, waits for callback completion
 
-### 8.4 Resource Management
+### 9.4 Resource Management
 
 - Destructor automatically calls `stop()` and waits for thread completion
 - Avoid destroying event objects while event is running
 - When using smart pointers to manage event objects, ensure sufficient lifetime
 
-### 8.5 Delay Settings
+### 9.5 Delay Settings
 
 - `setDelayMS()` can be modified while event is running
 - Changes take effect on next wait

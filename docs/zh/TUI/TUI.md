@@ -174,11 +174,13 @@ enum Keys : uint8_t {
     KEY_ACK         = 6,
     KEY_BELL        = 7,
     KEY_BK          = 8,
+    KEY_BACKSPACE   = 8,
     KEY_TAB         = 9,
     KEY_LF          = 10,
     KEY_VT          = 11,
     KEY_FF          = 12,
     KEY_CR          = 13,
+    KEY_ENTER       = 13,
     KEY_SO          = 14,
     KEY_SI          = 15,
     KEY_DLE         = 16,
@@ -196,7 +198,7 @@ enum Keys : uint8_t {
     KEY_RS          = 30,
     KEY_US          = 31,
     KEY_SPACE       = 32,
-    KEY_BACKSPACE   = 127,
+    KEY_DEL         = 127,
     KEY_CTRL_A      = 1,
     KEY_CTRL_B      = 2,
     KEY_CTRL_C      = 3,
@@ -230,6 +232,11 @@ enum Keys : uint8_t {
 
 **控制键**:
 - `KEY_CTRL_A` 到 `KEY_CTRL_Z`: 对应 Ctrl+A 到 Ctrl+Z
+
+**按键别名**:
+- `KEY_BK` = `KEY_BACKSPACE` = `8`
+- `KEY_CR` = `KEY_ENTER` = `13`
+- `KEY_DEL` = `127`
 
 ### 4.5 SP_Keys 枚举（特殊键）
 
@@ -316,6 +323,25 @@ using KeyEvent = InputEvent::Input::Keyboard;
 using MouseEvent = InputEvent::Input::Mouse;
 ```
 
+### 4.9 RGBColor 结构体
+
+```cpp
+struct RGBColor {
+    uint8_t r, g, b;
+
+    RGBColor();
+    RGBColor(uint8_t r, uint8_t g, uint8_t b);
+    bool operator==(const RGBColor& other) const;
+    bool operator!=(const RGBColor& other) const;
+};
+```
+
+| 成员 | 类型 | 说明 |
+|------|------|------|
+| `r` | `uint8_t` | 红色分量（0-255） |
+| `g` | `uint8_t` | 绿色分量（0-255） |
+| `b` | `uint8_t` | 蓝色分量（0-255） |
+
 ---
 
 ## 5. Terminal 类
@@ -378,10 +404,13 @@ static Position cursorPosition();
 #### print
 
 ```cpp
+static bool print(char ch);
 static bool print(const std::string& text);
 ```
-- **功能**: 输出文本（不换行）
-- **参数**: `text` - 要输出的文本
+- **功能**: 输出单个字符或文本（不换行）
+- **参数**: 
+  - `ch` - 单个字符
+  - `text` - 要输出的文本
 - **返回值**: `true` 表示成功
 
 #### printLine
@@ -556,7 +585,7 @@ static void setDark(bool enable);          // 暗色
 static void setItalic(bool enable);        // 斜体
 static void setUnderline(bool enable);     // 下划线
 static void setBlinking(bool enable);      // 闪烁
-static void reverseColor(bool enable);     // 反色
+static void setReverseColor(bool enable);  // 反色
 static void setCursorVisible(bool enable); // 光标可见性
 static void setStrikethrough(bool enable); // 删除线
 static void reset();                       // 重置所有样式
@@ -597,15 +626,17 @@ struct Style {
     Style();
     void reset();
     bool isDefault() const;
+    bool operator==(const Style& other) const;
+    bool operator!=(const Style& other) const;
 };
 ```
 
 | 成员 | 类型 | 说明 |
 |------|------|------|
 | `property` | `uint8_t` | 样式属性位掩码 |
-| `bg_color` | `Color` | ANSI 背景色 |
-| `fg_color` | `Color` | ANSI 前景色 |
-| `intensity` | `uint8_t` | 颜色强度：0=无, 1=仅背景, 2=仅前景, 3=全部 |
+| `bg_color` | `Color` | ANSI 背景色（默认值：`Color::Black`） |
+| `fg_color` | `Color` | ANSI 前景色（默认值：`Color::Default`） |
+| `intensity` | `uint8_t` | 颜色强度：0=无, 1=仅背景, 2=仅前景, 3=全部（默认值：2） |
 | `used_rgb_color` | `bool` | 是否使用 RGB 颜色（true 时忽略 ANSI 颜色） |
 | `bg_rgb_color` | `RGBColor` | RGB 背景色（r, g, b 各 0-255） |
 | `fg_rgb_color` | `RGBColor` | RGB 前景色（r, g, b 各 0-255） |
@@ -621,8 +652,42 @@ struct Cell {
     Char data;        // 字符数据
     bool is_dirty;    // 是否已修改
     Style style;      // 样式
+
+    Cell();
+    void reset();
+    void set(const char* ch, Style st);
 };
 ```
+
+| 成员 | 类型 | 说明 |
+|------|------|------|
+| `data` | `Char` | 字符数据（支持多字节 UTF-8） |
+| `is_dirty` | `bool` | 该单元格是否已被修改 |
+| `style` | `Style` | 单元格样式 |
+
+**Char 类**:
+
+```cpp
+class Char {
+public:
+    Char();
+    Char(const char* data);
+    Char(const std::string& data);
+    Char& operator=(const std::string& ch);
+    Char& operator=(const char* ch);
+    Char& operator=(const Char& ch);
+    bool operator==(const Char& other) const;
+    bool operator!=(const Char& other) const;
+
+    const std::string& data() const;
+    uint8_t length() const;
+};
+```
+
+| 成员 | 类型 | 说明 |
+|------|------|------|
+| `data` | `std::string` | 字符字符串数据 |
+| `length` | `uint8_t` | 字符数据的字节长度 |
 
 #### Corner
 
@@ -639,7 +704,7 @@ struct Corner {
 };
 ```
 
-### 6.3 静态成员函数
+### 6.3 构造函数与静态成员函数
 
 #### self
 
@@ -648,6 +713,13 @@ static Renderer& self();
 ```
 - **功能**: 获取渲染器单例
 - **返回值**: 渲染器引用
+
+#### 析构函数
+
+```cpp
+virtual ~Renderer();
+```
+- **功能**: 释放渲染器资源并停止后台尺寸监控线程
 
 ### 6.4 成员函数
 
@@ -807,6 +879,27 @@ void present();
 ```
 - **功能**: 将前缓冲区内容呈现到屏幕
 
+### 6.5 受保护虚函数
+
+#### renderEvent
+
+```cpp
+virtual void renderEvent();
+```
+- **功能**: 内部渲染事件处理函数，渲染器需要重绘时调用
+- **说明**: 子类可重写以自定义渲染行为
+
+#### resizeEvent
+
+```cpp
+virtual void resizeEvent(bool use_default_size = true, const Size& size = {});
+```
+- **功能**: 内部尺寸变化事件处理函数，终端尺寸变化时调用
+- **参数**: 
+  - `use_default_size` - 是否使用当前终端尺寸（默认值：`true`）
+  - `size` - 当 `use_default_size` 为 `false` 时使用的自定义尺寸
+- **说明**: 子类可重写以自定义尺寸变化行为
+
 ---
 
 ## 7. AbstractWidget 类
@@ -883,12 +976,13 @@ void resize(uint32_t w, uint32_t h);
 - **功能**: 获取控件大小
 - **返回值**: 大小引用
 
-### 7.5 纯虚函数
+### 7.5 受保护虚函数
 
 ```cpp
-virtual void renderEvent() = 0;
+virtual void renderEvent();
 ```
-- **功能**: 渲染事件处理，子类必须实现
+- **功能**: 渲染事件处理，子类可重写以自定义控件渲染
+- **说明**: 基类提供默认空实现
 
 ---
 
@@ -925,9 +1019,8 @@ int main() {
     
     // 读取按键
     Terminal::printLine("\nPress any key...");
-    uint8_t key;
     SP_Keys sp_key;
-    Terminal::getKey(key, sp_key);
+    uint8_t key = Terminal::getKey(&sp_key);
     
     Terminal::printFormat("Key: {} ({})", 
         getKeyName(key, sp_key),
@@ -1097,7 +1190,8 @@ int main() {
 
 - 使用双缓冲机制，先绘制到缓冲区
 - 调用 `present()` 才实际输出到屏幕
-- 终端尺寸变化后调用 `refresh()` 更新缓冲区
+- 调用 `clear()` 清空前缓冲区以便重新绘制
+- 终端尺寸变化由 `resizeEvent()` 内部处理；可使用 `setResizeEvent()` 注册自定义回调
 
 ### 9.5 UTF-8 支持
 

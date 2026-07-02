@@ -12,8 +12,9 @@
 4. [析构函数](#4-析构函数)
 5. [赋值运算符](#5-赋值运算符)
 6. [成员函数](#6-成员函数)
-7. [使用示例](#7-使用示例)
-8. [注意事项](#8-注意事项)
+7. [EventsMap 类](#7-eventsmap-类)
+8. [使用示例](#8-使用示例)
+9. [注意事项](#9-注意事项)
 
 ---
 
@@ -276,9 +277,167 @@ void stop();
 
 ---
 
-## 7. 使用示例
+## 7. EventsMap 类
 
-### 7.1 基本定时器
+`EventsMap` 类用于通过事件 ID 管理多个 `Event` 对象。
+
+### 7.1 类型定义
+
+```cpp
+using constIter = std::unordered_map<size_t, Event>::const_iterator;
+```
+
+### 7.2 构造函数与析构函数
+
+```cpp
+EventsMap();
+~EventsMap();
+```
+
+**析构函数行为**:
+- 析构前自动调用 `waitAllEvents()`。
+
+### 7.3 事件管理
+
+#### execEvent
+
+```cpp
+bool execEvent(const Event& event);
+bool execEvent(size_t event_id);
+```
+- **功能**: 添加并运行事件，或通过 ID 运行已有事件
+- **返回值**: `true` 表示成功
+
+#### addEvent
+
+```cpp
+bool addEvent(const Event& event);
+```
+- **功能**: 添加事件但不运行
+- **返回值**: `true` 表示成功（ID 不重复）
+
+#### removeEvent
+
+```cpp
+bool removeEvent(size_t event_id);
+```
+- **功能**: 停止并移除指定 ID 的事件
+- **返回值**: `true` 表示成功
+
+#### removeAllFreeEvents
+
+```cpp
+bool removeAllFreeEvents();
+```
+- **功能**: 移除所有未在运行的事件
+- **返回值**: `true`
+
+### 7.4 控制函数
+
+#### stopEvent
+
+```cpp
+void stopEvent(size_t event_id);
+```
+- **功能**: 停止指定 ID 的运行中事件
+
+#### waitEvent
+
+```cpp
+void waitEvent(size_t event_id);
+```
+- **功能**: 停止并等待指定事件结束
+
+#### stopAllEvents
+
+```cpp
+void stopAllEvents();
+```
+- **功能**: 停止映射中的所有事件
+
+#### waitAllEvents
+
+```cpp
+void waitAllEvents();
+```
+- **功能**: 停止并等待所有事件结束
+
+### 7.5 设置函数
+
+#### setConditionByID
+
+```cpp
+bool setConditionByID(size_t event_id, const std::function<bool()>& condition);
+```
+
+#### setEventByID
+
+```cpp
+bool setEventByID(size_t event_id, const std::function<void(const std::atomic<bool>&)>& event);
+```
+
+#### setDelayByID
+
+```cpp
+bool setDelayByID(size_t event_id, uint32_t delay_ms);
+```
+
+#### setRepeatByID
+
+```cpp
+bool setRepeatByID(size_t event_id, uint32_t repeat_count);
+```
+
+- **功能**: 通过 ID 修改事件属性
+- **返回值**: `true` 表示事件存在并已更新
+
+### 7.6 查询函数
+
+#### exist
+
+```cpp
+bool exist(size_t event_id) const;
+```
+- **功能**: 检查事件 ID 是否存在
+- **返回值**: `true` 表示存在
+
+#### event
+
+```cpp
+const Event& event(size_t event_id) const;
+bool event(const Event& find_event, const Event* found_event = nullptr) const;
+```
+- **功能**: 通过 ID 获取事件，或查找匹配的事件
+- **返回值**: 事件引用，或找到则返回 `true`
+- **异常**: ID 不存在时抛出异常
+
+#### size
+
+```cpp
+size_t size() const;
+```
+- **功能**: 获取映射中事件数量
+
+#### eventIDList
+
+```cpp
+std::vector<size_t> eventIDList() const;
+```
+- **功能**: 获取所有事件 ID 列表
+
+### 7.7 迭代器
+
+```cpp
+constIter cbegin() const;
+constIter cend() const;
+```
+- **功能**: 事件映射的常量迭代器
+
+---
+
+## 8. 使用示例
+
+### 8.1 基本定时器
 
 ```cpp
 #include "Events/Events.hpp"
@@ -306,7 +465,7 @@ int main() {
 }
 ```
 
-### 7.2 条件触发事件
+### 8.2 条件触发事件
 
 ```cpp
 #include "Events/Events.hpp"
@@ -339,7 +498,7 @@ int main() {
 }
 ```
 
-### 7.3 延迟初始化事件
+### 8.3 延迟初始化事件
 
 ```cpp
 #include "Events/Events.hpp"
@@ -370,7 +529,7 @@ int main() {
 }
 ```
 
-### 7.4 多事件管理
+### 8.4 多事件管理
 
 ```cpp
 #include "Events/Events.hpp"
@@ -400,15 +559,15 @@ int main() {
 
 ---
 
-## 8. 注意事项
+## 9. 注意事项
 
-### 8.1 线程安全
+### 9.1 线程安全
 
 - `Event` 类的成员函数不是线程安全的
 - 不要在事件回调中修改事件自身的属性
 - 使用原子变量或互斥锁保护共享数据
 
-### 8.2 异常处理
+### 9.2 异常处理
 
 事件回调中的异常会被捕获并输出到 stderr：
 
@@ -419,19 +578,19 @@ Event event(1, "Test", [](const std::atomic<bool>&) {
 // 输出: "Tiny::Event: An error has occurred: Error!"
 ```
 
-### 8.3 停止事件
+### 9.3 停止事件
 
 - `stop()` 只是设置停止标志，不会强制终止线程
 - 事件会在下一次循环检查时退出
 - 如果事件正在执行回调，会等待回调完成
 
-### 8.4 资源管理
+### 9.4 资源管理
 
 - 析构函数会自动调用 `stop()` 并等待线程结束
 - 避免在事件运行时销毁事件对象
 - 使用智能指针管理事件对象时确保生命周期足够长
 
-### 8.5 延迟设置
+### 9.5 延迟设置
 
 - `setDelayMS()` 可以在事件运行时修改
 - 修改后会在下一次等待时生效

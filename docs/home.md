@@ -33,6 +33,7 @@
 | **TUI** | `src/TUI` | Terminal User Interface, provides basic terminal drawing functionality for easier terminal rendering | [en/TUI/TUI.md](en/TUI/TUI.md) |
 | **OS** | `src/OS` | Operating System, supports basic file and path operations as well as system information viewing | [en/OS/File.md](en/OS/File.md), [en/OS/System.md](en/OS/System.md) |
 | **CommandParser** | `src/Parser` | Command parser, provides basic command parameter parsing functionality for easy implementation of command-line tools | [en/Parser/CommandParser.md](en/Parser/CommandParser.md) |
+| **DateTime** | `src/DateTime` | Date and time utilities, supporting construction, formatting, arithmetic, and timestamp conversion | [en/DateTime/DateTime.md](en/DateTime/DateTime.md) |
 | **Events** | `src/Events` | Event system, provides basic components for easy implementation of timers, asynchronous functions, etc. | [en/Events/Event.md](en/Events/Event.md) |
 
 ---
@@ -130,6 +131,7 @@ If using CMake to install this project, use the following include methods:
 #include <Tiny/Tiny.hpp>
 
 // Or include specific modules separately
+#include <Tiny/DateTime/DateTime.hpp>
 #include <Tiny/Events/Events.hpp>
 #include <Tiny/OS/File.hpp>
 #include <Tiny/OS/System.hpp>
@@ -144,6 +146,7 @@ If directly copying the `src` directory source code, use the following include m
 #include "Tiny.hpp"
 
 // Or include specific modules separately
+#include "DateTime/DateTime.hpp"
 #include "Events/Events.hpp"
 #include "OS/File.hpp"
 #include "OS/System.hpp"
@@ -156,6 +159,7 @@ If directly copying the `src` directory source code, use the following include m
 ```bash
 # Linux/macOS
 g++ -std=c++17 -I./src main.cpp src/Tiny.cpp \
+    src/DateTime/DateTime.cpp \
     src/Events/Events.cpp \
     src/OS/File.cpp \
     src/OS/System.cpp \
@@ -193,6 +197,7 @@ g++ -std=c++17 -I./src main.cpp src/*.cpp src/*/*.cpp -o myapp.exe
 |-----------|-------------|
 | `Tiny` | Root namespace |
 | `Tiny::OS` | Operating system related functions (files, system info) |
+| `Tiny::DT` | Date and time utilities |
 | `Tiny::TUI` | Terminal user interface functions |
 
 ### Runtime Environment
@@ -210,6 +215,12 @@ g++ -std=c++17 -I./src main.cpp src/*.cpp src/*/*.cpp -o myapp.exe
 ---
 
 ## Module Documentation
+
+### DateTime Module
+
+Date and time handling utilities.
+
+- [DateTime Module Detailed Documentation](en/DateTime/DateTime.md)
 
 ### Events Module
 

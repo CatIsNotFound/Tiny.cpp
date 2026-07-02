@@ -63,8 +63,9 @@ struct Command {
     std::string description;       // Option description
     bool full_option_only;         // Whether only long option is supported
     bool is_default_command;       // Whether it is a default command
-    bool is_need;                  // Whether it is a required command
+    bool is_required;              // Whether it is a required command
     bool has_value;                // Whether it accepts a value
+    bool is_last_command;          // Stop parsing after this command is parsed
     std::string value;             // Actual passed value
     std::string default_value;     // Default value
 };
@@ -77,8 +78,9 @@ struct Command {
 | `description` | `std::string` | Option description text |
 | `full_option_only` | `bool` | true means short option not supported |
 | `is_default_command` | `bool` | Whether it is a default execution command |
-| `is_need` | `bool` | Whether this option is required |
+| `is_required` | `bool` | Whether this option is required |
 | `has_value` | `bool` | Whether this option requires a parameter value |
+| `is_last_command` | `bool` | If true, parsing stops after this command |
 | `value` | `std::string` | Actual value obtained after parsing |
 | `default_value` | `std::string` | Default value when not provided |
 
@@ -141,7 +143,7 @@ bool addCommand(const std::string& command_name,
                 const std::string& description = {}, 
                 bool has_value = false, 
                 const std::string& default_value = {}, 
-                bool is_need = false,
+                bool is_required = false,
                 bool default_command = false);
 ```
 - **Function**: Add command option
@@ -151,7 +153,7 @@ bool addCommand(const std::string& command_name,
   - `description` - Description text
   - `has_value` - Whether it accepts a value
   - `default_value` - Default value
-  - `is_need` - Whether this option is required
+  - `is_required` - Whether this option is required
   - `default_command` - Whether it is a default command
 - **Return Value**: `true` means success (name not duplicate)
 
@@ -162,11 +164,36 @@ bool addFullCommand(const std::string& command_name,
                     const std::string& description, 
                     bool has_value = false, 
                     const std::string& default_value = {}, 
-                    bool is_need = false,
+                    bool is_required = false,
                     bool default_command = false);
 ```
 - **Function**: Add long-format only command
 - **Parameter**: Same as `addCommand` (without short_options)
+- **Return Value**: `true` means success
+
+#### addLastCommand
+
+```cpp
+bool addLastCommand(const std::string& command_name, 
+                    const std::string& short_options, 
+                    const std::string& description = {}, 
+                    bool has_value = false, 
+                    const std::string& default_value = {});
+```
+- **Function**: Add a command that stops all further parsing once matched
+- **Parameter**: Same as `addCommand` (without `is_required` and `default_command`)
+- **Return Value**: `true` means success
+
+#### addFullLastCommand
+
+```cpp
+bool addFullLastCommand(const std::string& command_name, 
+                        const std::string& description = {}, 
+                        bool has_value = false, 
+                        const std::string& default_value = {});
+```
+- **Function**: Add a long-only command that stops all further parsing once matched
+- **Parameter**: Same as `addFullCommand` (without `is_required` and `default_command`)
 - **Return Value**: `true` means success
 
 ### 6.2 Removing Commands

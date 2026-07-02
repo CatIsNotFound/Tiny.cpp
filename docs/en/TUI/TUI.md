@@ -173,11 +173,13 @@ enum Keys : uint8_t {
     KEY_ACK         = 6,
     KEY_BELL        = 7,
     KEY_BK          = 8,
+    KEY_BACKSPACE   = 8,
     KEY_TAB         = 9,
     KEY_LF          = 10,
     KEY_VT          = 11,
     KEY_FF          = 12,
     KEY_CR          = 13,
+    KEY_ENTER       = 13,
     KEY_SO          = 14,
     KEY_SI          = 15,
     KEY_DLE         = 16,
@@ -195,7 +197,7 @@ enum Keys : uint8_t {
     KEY_RS          = 30,
     KEY_US          = 31,
     KEY_SPACE       = 32,
-    KEY_BACKSPACE   = 127,
+    KEY_DEL         = 127,
     KEY_CTRL_A      = 1,
     KEY_CTRL_B      = 2,
     KEY_CTRL_C      = 3,
@@ -229,6 +231,11 @@ enum Keys : uint8_t {
 
 **Control Keys**:
 - `KEY_CTRL_A` to `KEY_CTRL_Z`: Correspond to Ctrl+A to Ctrl+Z
+
+**Key Aliases**:
+- `KEY_BK` = `KEY_BACKSPACE` = `8`
+- `KEY_CR` = `KEY_ENTER` = `13`
+- `KEY_DEL` = `127`
 
 ### 4.5 SP_Keys Enum (Special Keys)
 
@@ -315,6 +322,25 @@ using KeyEvent = InputEvent::Input::Keyboard;
 using MouseEvent = InputEvent::Input::Mouse;
 ```
 
+### 4.9 RGBColor Structure
+
+```cpp
+struct RGBColor {
+    uint8_t r, g, b;
+
+    RGBColor();
+    RGBColor(uint8_t r, uint8_t g, uint8_t b);
+    bool operator==(const RGBColor& other) const;
+    bool operator!=(const RGBColor& other) const;
+};
+```
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `r` | `uint8_t` | Red component (0-255) |
+| `g` | `uint8_t` | Green component (0-255) |
+| `b` | `uint8_t` | Blue component (0-255) |
+
 ---
 
 ## 5. Terminal Class
@@ -377,10 +403,13 @@ static Position cursorPosition();
 #### print
 
 ```cpp
+static bool print(char ch);
 static bool print(const std::string& text);
 ```
-- **Function**: Output text (no newline)
-- **Parameter**: `text` - Text to output
+- **Function**: Output a single character or text (no newline)
+- **Parameters**: 
+  - `ch` - Single character
+  - `text` - Text to output
 - **Return Value**: `true` means success
 
 #### printLine
@@ -555,7 +584,7 @@ static void setDark(bool enable);          // Dim
 static void setItalic(bool enable);        // Italic
 static void setUnderline(bool enable);     // Underline
 static void setBlinking(bool enable);      // Blink
-static void reverseColor(bool enable);     // Reverse
+static void setReverseColor(bool enable);  // Reverse
 static void setCursorVisible(bool enable); // Cursor visibility
 static void setStrikethrough(bool enable); // Strikethrough
 static void reset();                       // Reset all styles
@@ -596,15 +625,17 @@ struct Style {
     Style();
     void reset();
     bool isDefault() const;
+    bool operator==(const Style& other) const;
+    bool operator!=(const Style& other) const;
 };
 ```
 
 | Member | Type | Description |
 |--------|------|-------------|
 | `property` | `uint8_t` | Style property bitmask |
-| `bg_color` | `Color` | ANSI background color |
-| `fg_color` | `Color` | ANSI foreground color |
-| `intensity` | `uint8_t` | Color intensity: 0=None, 1=Background only, 2=Foreground only, 3=All |
+| `bg_color` | `Color` | ANSI background color (default: `Color::Black`) |
+| `fg_color` | `Color` | ANSI foreground color (default: `Color::Default`) |
+| `intensity` | `uint8_t` | Color intensity: 0=None, 1=Background only, 2=Foreground only, 3=All (default: 2) |
 | `used_rgb_color` | `bool` | Whether to use RGB colors (when true, ignores ANSI colors) |
 | `bg_rgb_color` | `RGBColor` | RGB background color (r, g, b each 0-255) |
 | `fg_rgb_color` | `RGBColor` | RGB foreground color (r, g, b each 0-255) |
@@ -620,8 +651,42 @@ struct Cell {
     Char data;        // Character data
     bool is_dirty;    // Whether modified
     Style style;      // Style
+
+    Cell();
+    void reset();
+    void set(const char* ch, Style st);
 };
 ```
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `data` | `Char` | Character data (supports multi-byte UTF-8) |
+| `is_dirty` | `bool` | Whether the cell has been modified |
+| `style` | `Style` | Cell style |
+
+**Char Class**:
+
+```cpp
+class Char {
+public:
+    Char();
+    Char(const char* data);
+    Char(const std::string& data);
+    Char& operator=(const std::string& ch);
+    Char& operator=(const char* ch);
+    Char& operator=(const Char& ch);
+    bool operator==(const Char& other) const;
+    bool operator!=(const Char& other) const;
+
+    const std::string& data() const;
+    uint8_t length() const;
+};
+```
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `data` | `std::string` | Character string data |
+| `length` | `uint8_t` | Byte length of the character data |
 
 #### Corner
 
@@ -638,7 +703,7 @@ struct Corner {
 };
 ```
 
-### 6.3 Static Member Functions
+### 6.3 Constructors and Static Member Functions
 
 #### self
 
@@ -647,6 +712,13 @@ static Renderer& self();
 ```
 - **Function**: Get renderer singleton
 - **Return Value**: Renderer reference
+
+#### Destructor
+
+```cpp
+virtual ~Renderer();
+```
+- **Function**: Release renderer resources and stop background resize monitoring thread
 
 ### 6.4 Member Functions
 
@@ -806,6 +878,27 @@ void present();
 ```
 - **Function**: Present front buffer content to screen
 
+### 6.5 Protected Virtual Functions
+
+#### renderEvent
+
+```cpp
+virtual void renderEvent();
+```
+- **Function**: Internal render event handler, called when the renderer needs to redraw
+- **Note**: Can be overridden in subclasses to customize rendering behavior
+
+#### resizeEvent
+
+```cpp
+virtual void resizeEvent(bool use_default_size = true, const Size& size = {});
+```
+- **Function**: Internal resize event handler, called when the terminal size changes
+- **Parameters**: 
+  - `use_default_size` - Whether to use the current terminal size (default: `true`)
+  - `size` - Custom size to use when `use_default_size` is `false`
+- **Note**: Can be overridden in subclasses to customize resize behavior
+
 ---
 
 ## 7. AbstractWidget Class
@@ -882,12 +975,13 @@ void resize(uint32_t w, uint32_t h);
 - **Function**: Get widget size
 - **Return Value**: Size reference
 
-### 7.5 Pure Virtual Functions
+### 7.5 Protected Virtual Functions
 
 ```cpp
-virtual void renderEvent() = 0;
+virtual void renderEvent();
 ```
-- **Function**: Render event handling, must be implemented by subclasses
+- **Function**: Render event handling, can be overridden by subclasses to customize widget rendering
+- **Note**: The base class provides a default empty implementation
 
 ---
 
@@ -924,9 +1018,8 @@ int main() {
     
     // Read key
     Terminal::printLine("\nPress any key...");
-    uint8_t key;
     SP_Keys sp_key;
-    Terminal::getKey(key, sp_key);
+    uint8_t key = Terminal::getKey(&sp_key);
     
     Terminal::printFormat("Key: {} ({})", 
         getKeyName(key, sp_key),
@@ -1096,7 +1189,8 @@ int main() {
 
 - Uses double buffering mechanism, draws to buffer first
 - Call `present()` to actually output to screen
-- Call `refresh()` to update buffer after terminal size changes
+- Call `clear()` to clear the front buffer before redrawing
+- Terminal size changes are handled internally by `resizeEvent()`; use `setResizeEvent()` to register custom callbacks
 
 ### 9.5 UTF-8 Support
 

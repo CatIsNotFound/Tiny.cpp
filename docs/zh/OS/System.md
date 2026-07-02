@@ -41,7 +41,7 @@
 ### Name
 
 ```cpp
-constexpr const char* Name;
+constexpr const char* Name("...");
 ```
 
 **说明**: 当前操作系统名称常量，根据编译平台自动定义。
@@ -574,7 +574,7 @@ int main() {
 
 ---
 
-## 8. 注意事项
+## 7. 注意事项
 
 ### 7.1 CPU 使用率获取
 

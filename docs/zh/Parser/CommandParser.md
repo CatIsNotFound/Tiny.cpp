@@ -63,8 +63,9 @@ struct Command {
     std::string description;       // 选项描述
     bool full_option_only;         // 是否仅支持长选项
     bool is_default_command;       // 是否为默认命令
-    bool is_need;                  // 是否为必需命令
+    bool is_required;              // 是否为必需命令
     bool has_value;                // 是否接受值
+    bool is_last_command;          // 解析到该命令后停止解析
     std::string value;             // 实际传入的值
     std::string default_value;     // 默认值
 };
@@ -77,8 +78,9 @@ struct Command {
 | `description` | `std::string` | 选项说明文本 |
 | `full_option_only` | `bool` | true 表示不支持短选项 |
 | `is_default_command` | `bool` | 是否为默认执行命令 |
-| `is_need` | `bool` | 该选项是否为必需 |
+| `is_required` | `bool` | 该选项是否为必需 |
 | `has_value` | `bool` | 该选项是否需要参数值 |
+| `is_last_command` | `bool` | 为 true 时解析到该命令后停止 |
 | `value` | `std::string` | 解析后获得的实际值 |
 | `default_value` | `std::string` | 未提供值时的默认值 |
 
@@ -141,7 +143,7 @@ bool addCommand(const std::string& command_name,
                 const std::string& description = {}, 
                 bool has_value = false, 
                 const std::string& default_value = {}, 
-                bool is_need = false,
+                bool is_required = false,
                 bool default_command = false);
 ```
 - **功能**: 添加命令选项
@@ -151,7 +153,7 @@ bool addCommand(const std::string& command_name,
   - `description` - 描述信息
   - `has_value` - 是否接受值
   - `default_value` - 默认值
-  - `is_need` - 该选项是否为必需
+  - `is_required` - 该选项是否为必需
   - `default_command` - 是否为默认命令
 - **返回值**: `true` 表示成功（名称不重复）
 
@@ -162,11 +164,36 @@ bool addFullCommand(const std::string& command_name,
                     const std::string& description, 
                     bool has_value = false, 
                     const std::string& default_value = {}, 
-                    bool is_need = false,
+                    bool is_required = false,
                     bool default_command = false);
 ```
 - **功能**: 添加仅支持长格式的命令
 - **参数**: 同 `addCommand`（无 short_options）
+- **返回值**: `true` 表示成功
+
+#### addLastCommand
+
+```cpp
+bool addLastCommand(const std::string& command_name, 
+                    const std::string& short_options, 
+                    const std::string& description = {}, 
+                    bool has_value = false, 
+                    const std::string& default_value = {});
+```
+- **功能**: 添加匹配后停止后续解析的命令
+- **参数**: 同 `addCommand`（无 `is_required` 和 `default_command`）
+- **返回值**: `true` 表示成功
+
+#### addFullLastCommand
+
+```cpp
+bool addFullLastCommand(const std::string& command_name, 
+                        const std::string& description = {}, 
+                        bool has_value = false, 
+                        const std::string& default_value = {});
+```
+- **功能**: 添加仅长格式、匹配后停止后续解析的命令
+- **参数**: 同 `addFullCommand`（无 `is_required` 和 `default_command`）
 - **返回值**: `true` 表示成功
 
 ### 6.2 移除命令

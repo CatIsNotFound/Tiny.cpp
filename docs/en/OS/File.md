@@ -102,6 +102,32 @@ enum OpenMode : uint8_t {
 uint8_t mode = Tiny::OS::ReadOnly | Tiny::OS::Append;
 ```
 
+### 4.3 Size Unit Literals
+
+```cpp
+inline size_t operator""_B(unsigned long long n) noexcept;
+inline size_t operator""_KB(unsigned long long n) noexcept;
+inline size_t operator""_KiB(unsigned long long n) noexcept;
+inline size_t operator""_MB(unsigned long long n) noexcept;
+inline size_t operator""_MiB(unsigned long long n) noexcept;
+inline size_t operator""_GB(unsigned long long n) noexcept;
+inline size_t operator""_GiB(unsigned long long n) noexcept;
+inline size_t operator""_TB(unsigned long long n) noexcept;
+inline size_t operator""_TiB(unsigned long long n) noexcept;
+```
+
+| Literal | Factor | Example |
+|---------|--------|---------|
+| `_B` | 1 | `512_B` |
+| `_KB` | 1000 | `5_KB` |
+| `_KiB` | 1024 | `5_KiB` |
+| `_MB` | 1000000 | `10_MB` |
+| `_MiB` | 1048576 | `10_MiB` |
+| `_GB` | 1000000000 | `2_GB` |
+| `_GiB` | 1073741824 | `2_GiB` |
+| `_TB` | 1000000000000 | `1_TB` |
+| `_TiB` | 1099511627776 | `1_TiB` |
+
 ---
 
 ## 5. Path Class
@@ -371,13 +397,21 @@ void setPath(const Path& path);
 - **Parameter**: New path
 - **Constraint**: Closes original file if open
 
-#### isValid
+#### isFile
 
 ```cpp
-bool isValid() const;
+bool isFile() const;
 ```
-- **Function**: Check if file path is valid and is a file
-- **Return Value**: `true` means valid
+- **Function**: Check if the path points to a regular file
+- **Return Value**: `true` means it is a file
+
+#### isNull
+
+```cpp
+bool isNull() const;
+```
+- **Function**: Check if the file object has no valid path
+- **Return Value**: `true` means the path is empty or invalid
 
 #### isOpen
 
@@ -494,6 +528,14 @@ void moveToStart();
 void moveToEnd();
 ```
 - **Function**: Move read/write position to file end
+
+#### moveTo
+
+```cpp
+void moveTo(int64_t pos);
+```
+- **Function**: Move read/write position to absolute offset
+- **Parameter**: `pos` - Byte offset from file start
 
 #### fileSize
 

@@ -41,7 +41,7 @@ The `OS::System` module provides system information retrieval and file system op
 ### Name
 
 ```cpp
-constexpr const char* Name;
+constexpr const char* Name("...");
 ```
 
 **Description**: Current operating system name constant, automatically defined based on compilation platform.
