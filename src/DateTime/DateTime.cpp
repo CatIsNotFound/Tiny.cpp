@@ -235,7 +235,7 @@ inline Tiny::DT::Duration toTimestamp(SDT date_time, bool use_local_time, bool& 
             time_t local_ts = mktime(&local_tm);
             time_t offset = local_ts - utc_as_local;
 
-            sec -= offset;
+            sec += offset;
             real = sec;
         } else {
             real = sec;
