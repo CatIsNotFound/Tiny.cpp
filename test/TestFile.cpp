@@ -333,14 +333,14 @@ TEST(FileTypeTest, FileTypeName_Socket) {
 
 // 测试 File 类型特性 - 拷贝构造/赋值被删除
 TEST(FileTest, TypeTrait_NoCopy) {
-    EXPECT_FALSE(std::is_copy_constructible_v<File>);
-    EXPECT_FALSE(std::is_copy_assignable_v<File>);
+    EXPECT_FALSE(std::is_copy_constructible<File>::value);
+    EXPECT_FALSE(std::is_copy_assignable<File>::value);
 }
 
 // 测试 File 类型特性 - 移动构造/赋值可用
 TEST(FileTest, TypeTrait_MoveOnly) {
-    EXPECT_TRUE(std::is_move_constructible_v<File>);
-    EXPECT_TRUE(std::is_move_assignable_v<File>);
+    EXPECT_TRUE(std::is_move_constructible<File>::value);
+    EXPECT_TRUE(std::is_move_assignable<File>::value);
 }
 
 // 测试 File 构造函数 - 字符串路径 + ReadOnly

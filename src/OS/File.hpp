@@ -113,26 +113,26 @@ namespace Tiny {
         public:
             Path(std::string  path);
             Path(const Path& path);
-            [[nodiscard]] Path(Path&& path) noexcept;
+            Path(Path&& path) noexcept;
             Path& operator=(const Path& path);
-            [[nodiscard]] Path& operator=(Path&& path) noexcept;
+            Path& operator=(Path&& path) noexcept;
             ~Path();
 
             void setPath(const std::string& path);
             void setPath(const Path& path);
             void unset();
-            [[nodiscard]] const std::string& path() const;
-            [[nodiscard]] std::string extensionName() const;
-            [[nodiscard]] std::string fileNameWithoutExtension() const;
-            [[nodiscard]] const std::string& shortFileName() const;
-            [[nodiscard]] std::string parentDirectory() const;
+            const std::string& path() const;
+            std::string extensionName() const;
+            std::string fileNameWithoutExtension() const;
+            const std::string& shortFileName() const;
+            std::string parentDirectory() const;
 
-            [[nodiscard]] bool isValid() const;
-            [[nodiscard]] bool isDirectory() const;
-            [[nodiscard]] bool isFile() const;
-            [[nodiscard]] bool isSymbolLink() const;
-            [[nodiscard]] FileType fileType() const;
-            [[nodiscard]] size_t fileSize() const;
+            bool isValid() const;
+            bool isDirectory() const;
+            bool isFile() const;
+            bool isSymbolLink() const;
+            FileType fileType() const;
+            size_t fileSize() const;
 
             Path& operator/(const std::string& path);
             Path& join(const std::string& path);
@@ -165,7 +165,7 @@ namespace Tiny {
             File(const std::string& path, uint8_t open_mode = Unknown);
             File(Path  path, uint8_t open_mode = Unknown);
             File(File&& file) noexcept;
-            [[nodiscard]] File& operator=(File&& file) noexcept;
+            File& operator=(File&& file) noexcept;
 
             void setPath(const std::string& path);
             void setPath(const Path& path);
@@ -189,9 +189,9 @@ namespace Tiny {
             void moveToEnd();
             void moveTo(int64_t pos);
 
-            [[nodiscard]] size_t fileSize() const;
-            [[nodiscard]] std::string path() const;
-            [[nodiscard]] std::string fileName() const;
+            size_t fileSize() const;
+            std::string path() const;
+            std::string fileName() const;
 
             File(const File&) = delete;
             File& operator=(const File&) = delete;
