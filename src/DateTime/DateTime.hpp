@@ -175,6 +175,7 @@ namespace Tiny {
             bool reset(Duration timestamps, bool use_local_time = true);
             bool reset(uint32_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second,
                 uint16_t millisecond = 0, uint8_t weekday = 0, bool use_local_time = true);
+            std::string formatString(const char* format) const;
 
             static DateTime now(bool use_local_time = true);
             static std::string formatString(const char* format, const DateTime &date_time);

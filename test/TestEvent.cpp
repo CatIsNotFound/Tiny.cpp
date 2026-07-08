@@ -31,7 +31,6 @@
 
 using namespace Tiny;
 
-// 测试 Event 基础构造和属性
 TEST(EventTest, BasicConstruction) {
     Event ev(1, "TestEvent");
     EXPECT_EQ(ev.eventID(), 1);
@@ -40,7 +39,6 @@ TEST(EventTest, BasicConstruction) {
     EXPECT_FALSE(ev.hasEvent());
 }
 
-// 测试 Event 完整构造
 TEST(EventTest, FullConstruction) {
     auto condition = []() { return true; };
     auto callback = [](const std::atomic<bool>&) {};
@@ -51,7 +49,16 @@ TEST(EventTest, FullConstruction) {
     EXPECT_TRUE(ev.hasEvent());
 }
 
-// 测试 Event 属性设置
+TEST(EventTest, EventOnlyConstruction) {
+    auto callback = [](const std::atomic<bool>&) {};
+
+    Event ev(3, "EventOnly", callback);
+    EXPECT_EQ(ev.eventID(), 3);
+    EXPECT_EQ(ev.eventName(), "EventOnly");
+    EXPECT_TRUE(ev.hasEvent());
+    EXPECT_FALSE(ev.isRunning());
+}
+
 TEST(EventTest, PropertySetters) {
     Event ev(1, "Original");
     
@@ -68,7 +75,6 @@ TEST(EventTest, PropertySetters) {
     EXPECT_EQ(ev.eventRepeatCount(), 5);
 }
 
-// 测试 Event 回调设置
 TEST(EventTest, CallbackSetters) {
     Event ev(1, "CallbackTest");
     
@@ -80,7 +86,6 @@ TEST(EventTest, CallbackSetters) {
     ev.setCondition([]() { return true; });
 }
 
-// 测试 Event 拷贝构造
 TEST(EventTest, CopyConstruction) {
     auto condition = []() { return true; };
     auto callback = [](const std::atomic<bool>&) {};
@@ -98,7 +103,6 @@ TEST(EventTest, CopyConstruction) {
     EXPECT_TRUE(ev2.hasEvent());
 }
 
-// 测试 Event 拷贝赋值
 TEST(EventTest, CopyAssignment) {
     auto condition = []() { return true; };
     auto callback = [](const std::atomic<bool>&) {};
@@ -115,7 +119,32 @@ TEST(EventTest, CopyAssignment) {
     EXPECT_FALSE(ev2.isRunning());
 }
 
-// 测试 Event 基本执行
+TEST(EventTest, CopyWhenThreadRunning) {
+    auto cond = []() { return true; };
+    auto ev = [](const std::atomic<bool>& f) {
+        while (f.load()) {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+    };
+
+    Event e1(1, "event 1", cond, ev);
+    e1.setDelayMS(10);
+    e1.run();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    Event e2(2, "event 2", cond, ev);
+    e2.setDelayMS(1);
+    e1 = e2;
+    e1.run();
+    
+    EXPECT_EQ(e1.eventID(), e2.eventID());
+    EXPECT_EQ(e1.eventName(), e2.eventName());
+    EXPECT_EQ(e1.isRunning(), true);
+    EXPECT_EQ(e1.eventDelayMS(), 1);
+}
+
+
 TEST(EventTest, BasicExecution) {
     std::atomic<int> counter{0};
     
@@ -127,15 +156,11 @@ TEST(EventTest, BasicExecution) {
     ev.setDelayMS(10);
     
     ev.run();
-    
-    // 等待执行完成
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    
     EXPECT_EQ(counter.load(), 3);
     EXPECT_FALSE(ev.isRunning());
 }
 
-// 测试 Event 条件判断
 TEST(EventTest, ConditionCheck) {
     std::atomic<int> counter{0};
     std::atomic<bool> shouldRun{false};
@@ -150,18 +175,15 @@ TEST(EventTest, ConditionCheck) {
     ev.run();
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     
-    // 条件为 false，不应该执行
     EXPECT_EQ(counter.load(), 0);
     
     shouldRun.store(true);
     ev.run();
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     
-    // 条件为 true，应该执行
     EXPECT_EQ(counter.load(), 1);
 }
 
-// 测试 Event 停止功能
 TEST(EventTest, StopExecution) {
     std::atomic<int> counter{0};
     
@@ -181,11 +203,9 @@ TEST(EventTest, StopExecution) {
     ev.stop();
     
     EXPECT_FALSE(ev.isRunning());
-    // 应该只执行了少数几次就被停止
     EXPECT_LT(counter.load(), 100);
 }
 
-// 测试 Event 延迟设置
 TEST(EventTest, DelayExecution) {
     auto start = std::chrono::steady_clock::now();
     std::atomic<bool> executed{false};
@@ -199,19 +219,16 @@ TEST(EventTest, DelayExecution) {
     
     ev.run();
     
-    // 立即检查，应该还没执行
     EXPECT_FALSE(executed.load());
     
     std::this_thread::sleep_for(std::chrono::milliseconds(150));
     
-    // 延迟后应该执行了
     EXPECT_TRUE(executed.load());
     
     auto elapsed = std::chrono::steady_clock::now() - start;
     EXPECT_GE(elapsed, std::chrono::milliseconds(100));
 }
 
-// 测试 Event 重复次数限制
 TEST(EventTest, RepeatCount) {
     std::atomic<int> counter{0};
     
@@ -224,14 +241,12 @@ TEST(EventTest, RepeatCount) {
     
     ev.run();
     
-    // 等待足够时间让所有重复执行完成
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     EXPECT_EQ(counter.load(), 5);
     EXPECT_FALSE(ev.isRunning());
 }
 
-// 测试 Event 运行状态
 TEST(EventTest, RunningState) {
     Event ev(1, "StateTest",
         []() { return true; },
@@ -250,7 +265,6 @@ TEST(EventTest, RunningState) {
     EXPECT_FALSE(ev.isRunning());
 }
 
-// 测试 Event 重新运行
 TEST(EventTest, RerunEvent) {
     std::atomic<int> counter{0};
     
@@ -261,18 +275,15 @@ TEST(EventTest, RerunEvent) {
     ev.setRepeatCount(2);
     ev.setDelayMS(5);
     
-    // 第一次运行
     ev.run();
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     EXPECT_EQ(counter.load(), 2);
     
-    // 第二次运行
     ev.run();
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     EXPECT_EQ(counter.load(), 4);
 }
 
-// 测试 Event 无回调情况
 TEST(EventTest, NoCallback) {
     Event ev(1, "NoCallback", []() { return true; }, nullptr);
     
@@ -281,11 +292,9 @@ TEST(EventTest, NoCallback) {
     ev.run();
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
     
-    // 没有回调，应该立即结束
     EXPECT_FALSE(ev.isRunning());
 }
 
-// 测试 Event 无条件情况
 TEST(EventTest, NoCondition) {
     std::atomic<bool> executed{false};
     
@@ -293,10 +302,42 @@ TEST(EventTest, NoCondition) {
     ev.setEvent([&executed](const std::atomic<bool>&) { executed.store(true); });
     ev.setRepeatCount(1);
     ev.setDelayMS(5);
-    
-    // 没有设置条件，应该使用默认条件（nullptr检查）
     ev.run();
     std::this_thread::sleep_for(std::chrono::milliseconds(30));
+}
+
+TEST(EventTest, ExecutionCount) {
+    std::atomic<int> counter{0};
+
+    Event ev(1, "ExecCount",
+        []() { return true; },
+        [&counter](const std::atomic<bool>&) { counter++; }
+    );
+    ev.setRepeatCount(3);
+    ev.setDelayMS(5);
+
+    EXPECT_EQ(ev.executionCount(), 0);
+
+    ev.run();
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    EXPECT_EQ(ev.executionCount(), 3u);
+    EXPECT_EQ(counter.load(), 3);
+}
+
+TEST(EventTest, AllowedFailedDefault) {
+    Event ev(1, "Test");
+    EXPECT_TRUE(ev.allowedFailedEnabled());
+}
+
+TEST(EventTest, SetAllowedFailedEnabled) {
+    Event ev(1, "Test");
+
+    ev.setAllowedFailedEnabled(false);
+    EXPECT_FALSE(ev.allowedFailedEnabled());
+
+    ev.setAllowedFailedEnabled(true);
+    EXPECT_TRUE(ev.allowedFailedEnabled());
 }
 
 int main(int argc, char **argv) {

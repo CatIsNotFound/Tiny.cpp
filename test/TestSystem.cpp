@@ -30,23 +30,19 @@
 
 using namespace Tiny::OS;
 
-// ==================== FileSystem 类测试 ====================
 
-// 测试 currentPath()
 TEST(FileSystemTest, CurrentPath) {
     Path current = FileSystem::currentPath();
     EXPECT_TRUE(current.isValid());
     EXPECT_TRUE(current.isDirectory());
 }
 
-// 测试 homePath()
 TEST(FileSystemTest, HomePath) {
     Path home = FileSystem::homePath();
     EXPECT_TRUE(home.isValid());
     EXPECT_TRUE(home.isDirectory());
 }
 
-// 测试 chDir() - 字符串参数
 TEST(FileSystemTest, ChDir_String) {
     Path originalDir = FileSystem::currentPath();
     EXPECT_TRUE(FileSystem::chDir(".."));
@@ -57,7 +53,6 @@ TEST(FileSystemTest, ChDir_String) {
     EXPECT_EQ(backDir.path(), originalDir.path());
 }
 
-// 测试 chDir() - Path参数
 TEST(FileSystemTest, ChDir_Path) {
     Path originalDir = FileSystem::currentPath();
     Path parentDir("..");
@@ -69,12 +64,10 @@ TEST(FileSystemTest, ChDir_Path) {
     EXPECT_EQ(backDir.path(), originalDir.path());
 }
 
-// 测试 chDir() - 无效路径
 TEST(FileSystemTest, ChDir_Invalid) {
     EXPECT_FALSE(FileSystem::chDir("/this/path/does/not/exist/12345"));
 }
 
-// 测试 mkDir() 和 rmDir() - 字符串参数
 TEST(FileSystemTest, MkDirAndRmDir_String) {
     std::string testDir = "./test_dir_temp";
     Path checkPath(testDir);
@@ -90,7 +83,6 @@ TEST(FileSystemTest, MkDirAndRmDir_String) {
     EXPECT_FALSE(removedPath.isValid());
 }
 
-// 测试 mkDir() 和 rmDir() - Path参数
 TEST(FileSystemTest, MkDirAndRmDir_Path) {
     std::string testDir = "./test_dir_temp_path";
     Path checkPath(testDir);
@@ -108,7 +100,6 @@ TEST(FileSystemTest, MkDirAndRmDir_Path) {
     EXPECT_FALSE(removedPath.isValid());
 }
 
-// 测试 mkDir() - 已存在目录
 TEST(FileSystemTest, MkDir_Existing) {
     std::string testDir = "./test_existing_dir";
     Path checkPath(testDir);
@@ -120,7 +111,6 @@ TEST(FileSystemTest, MkDir_Existing) {
     FileSystem::rmDir(testDir, true);
 }
 
-// 测试 rmDir() - 递归删除
 TEST(FileSystemTest, RmDir_Recursion) {
     std::string parentDir = "./test_parent_dir";
     std::string childDir = parentDir + "/child_dir";
@@ -138,7 +128,6 @@ TEST(FileSystemTest, RmDir_Recursion) {
     EXPECT_FALSE(removedPath.isValid());
 }
 
-// 测试 mkFile() 和 rmFile() - 字符串参数，空文件
 TEST(FileSystemTest, MkFileAndRmFile_String_Empty) {
     std::string testFile = "./test_file_empty.txt";
     Path checkPath(testFile);
@@ -155,7 +144,6 @@ TEST(FileSystemTest, MkFileAndRmFile_String_Empty) {
     EXPECT_FALSE(removedPath.isValid());
 }
 
-// 测试 mkFile() 和 rmFile() - Path参数，空文件
 TEST(FileSystemTest, MkFileAndRmFile_Path_Empty) {
     std::string testFile = "./test_file_empty_path.txt";
     Path checkPath(testFile);
@@ -173,7 +161,6 @@ TEST(FileSystemTest, MkFileAndRmFile_Path_Empty) {
     EXPECT_FALSE(removedPath.isValid());
 }
 
-// 测试 mkFile() - 字符串参数，带vector数据
 TEST(FileSystemTest, MkFile_String_Vector) {
     std::string testFile = "./test_file_vector.bin";
     std::vector<uint8_t> data = {0x01, 0x02, 0x03, 0x04, 0x05};
@@ -190,7 +177,6 @@ TEST(FileSystemTest, MkFile_String_Vector) {
     FileSystem::rmFile(testFile);
 }
 
-// 测试 mkFile() - Path参数，带vector数据
 TEST(FileSystemTest, MkFile_Path_Vector) {
     std::string testFile = "./test_file_vector_path.bin";
     std::vector<uint8_t> data = {0x0A, 0x0B, 0x0C};
@@ -207,7 +193,6 @@ TEST(FileSystemTest, MkFile_Path_Vector) {
     FileSystem::rmFile(filePath);
 }
 
-// 测试 mkFile() - 字符串参数，带string数据
 TEST(FileSystemTest, MkFile_String_String) {
     std::string testFile = "./test_file_string.txt";
     std::string content = "Hello, World!";
@@ -224,7 +209,6 @@ TEST(FileSystemTest, MkFile_String_String) {
     FileSystem::rmFile(testFile);
 }
 
-// 测试 mkFile() - Path参数，带string数据
 TEST(FileSystemTest, MkFile_Path_String) {
     std::string testFile = "./test_file_string_path.txt";
     std::string content = "Test content with Path";
@@ -241,7 +225,6 @@ TEST(FileSystemTest, MkFile_Path_String) {
     FileSystem::rmFile(filePath);
 }
 
-// 测试 cpFile() - Path, Path
 TEST(FileSystemTest, CpFile_PathPath) {
     std::string srcFile = "./test_cp_src.txt";
     std::string destFile = "./test_cp_dest.txt";
@@ -267,7 +250,6 @@ TEST(FileSystemTest, CpFile_PathPath) {
     FileSystem::rmFile(destFile);
 }
 
-// 测试 cpFile() - Path, string
 TEST(FileSystemTest, CpFile_PathString) {
     std::string srcFile = "./test_cp_src2.txt";
     std::string destFile = "./test_cp_dest2.txt";
@@ -290,7 +272,6 @@ TEST(FileSystemTest, CpFile_PathString) {
     FileSystem::rmFile(destFile);
 }
 
-// 测试 mvFile() - Path, Path
 TEST(FileSystemTest, MvFile_PathPath) {
     std::string srcFile = "./test_mv_src.txt";
     std::string destFile = "./test_mv_dest.txt";
@@ -311,7 +292,6 @@ TEST(FileSystemTest, MvFile_PathPath) {
     if (Path(destFile).isValid()) FileSystem::rmFile(destFile);
 }
 
-// 测试 mvFile() - Path, string
 TEST(FileSystemTest, MvFile_PathString) {
     std::string srcFile = "./test_mv_src2.txt";
     std::string destFile = "./test_mv_dest2.txt";
@@ -331,7 +311,6 @@ TEST(FileSystemTest, MvFile_PathString) {
     if (Path(destFile).isValid()) FileSystem::rmFile(destFile);
 }
 
-// 测试 cpDir() - Path, Path
 TEST(FileSystemTest, CpDir_PathPath) {
     std::string srcDir = "./test_cpdir_src";
     std::string destDir = "./test_cpdir_dest";
@@ -352,7 +331,6 @@ TEST(FileSystemTest, CpDir_PathPath) {
     if (Path(destDir).isValid()) FileSystem::rmDir(destDir, true);
 }
 
-// 测试 cpDir() - Path, string
 TEST(FileSystemTest, CpDir_PathString) {
     std::string srcDir = "./test_cpdir_src2";
     std::string destDir = "./test_cpdir_dest2";
@@ -372,7 +350,6 @@ TEST(FileSystemTest, CpDir_PathString) {
     if (Path(destDir).isValid()) FileSystem::rmDir(destDir, true);
 }
 
-// 测试 mvDir() - Path, Path
 TEST(FileSystemTest, MvDir_PathPath) {
     std::string srcDir = "./test_mvdir_src";
     std::string destDir = "./test_mvdir_dest";
@@ -392,7 +369,6 @@ TEST(FileSystemTest, MvDir_PathPath) {
     if (Path(destDir).isValid()) FileSystem::rmDir(destDir, true);
 }
 
-// 测试 mvDir() - Path, string
 TEST(FileSystemTest, MvDir_PathString) {
     std::string srcDir = "./test_mvdir_src2";
     std::string destDir = "./test_mvdir_dest2";
@@ -411,7 +387,6 @@ TEST(FileSystemTest, MvDir_PathString) {
     if (Path(destDir).isValid()) FileSystem::rmDir(destDir, true);
 }
 
-// 测试 mkLink() - string, string
 TEST(FileSystemTest, MkLink_StringString) {
     std::string targetFile = "./test_link_target.txt";
     std::string linkFile = "./test_link.lnk";
@@ -429,7 +404,6 @@ TEST(FileSystemTest, MkLink_StringString) {
     if (Path(linkFile).isValid()) FileSystem::rmFile(linkFile);
 }
 
-// 测试 mkLink() - string, Path
 TEST(FileSystemTest, MkLink_StringPath) {
     std::string targetFile = "./test_link_target2.txt";
     std::string linkFile = "./test_link2.lnk";
@@ -448,26 +422,22 @@ TEST(FileSystemTest, MkLink_StringPath) {
     if (Path(linkFile).isValid()) FileSystem::rmFile(linkFile);
 }
 
-// 测试 listPath() - 字符串参数
 TEST(FileSystemTest, ListPath_String) {
     std::vector<Path> paths = FileSystem::listPath(".", 1);
     EXPECT_FALSE(paths.empty());
 }
 
-// 测试 listPath() - Path参数
 TEST(FileSystemTest, ListPath_Path) {
     Path currentDir(".");
     std::vector<Path> paths = FileSystem::listPath(currentDir, 1);
     EXPECT_FALSE(paths.empty());
 }
 
-// 测试 listPath() - 无参数
 TEST(FileSystemTest, ListPath_NoArgs) {
     std::vector<Path> paths = FileSystem::listPath(1);
     EXPECT_FALSE(paths.empty());
 }
 
-// 测试 listPath() - 带过滤器
 TEST(FileSystemTest, ListPath_WithFilter) {
     auto filter = [](const Path& p) { return p.isDirectory(); };
     std::vector<Path> paths = FileSystem::listPath(".", 1, filter);
@@ -476,13 +446,11 @@ TEST(FileSystemTest, ListPath_WithFilter) {
     }
 }
 
-// 测试 listPath() - 递归
 TEST(FileSystemTest, ListPath_Recursion) {
     std::vector<Path> paths = FileSystem::listPath(".", 2);
     EXPECT_FALSE(paths.empty());
 }
 
-// ==================== 主函数 ====================
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);

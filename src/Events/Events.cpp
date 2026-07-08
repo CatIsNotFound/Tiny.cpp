@@ -43,21 +43,25 @@ namespace Tiny {
     Event &Event::operator=(const Event &event) {
         if (this != &event) {
             stop();
+            this->_needs_destroy.store(true);
+            if (this->_thread.joinable()) this->_thread.join();
+            this->_needs_destroy.store(false);
             this->_id = event._id;
             this->_name = event._name;
-            this->_is_running = false;
             this->_event = event._event;
             this->_condition = event._condition;
             this->_delay.store(event._delay.load());
-            this->_exec_count.store(event._exec_count.load());
             this->_now_cnt.store(0);
+            this->_is_load_event.store(false);
+            this->_exec_count.store(0);
+            this->_is_running.store(false);
         }
         return *this;
     }
 
     Event::~Event() {
-        _needs_destroy.store(true);
         stop();
+        _needs_destroy.store(true);
         if (_thread.joinable()) {
             _thread.join();
         }
@@ -80,10 +84,16 @@ namespace Tiny {
     }
 
     void Event::setCondition(const std::function<bool()> &condition) {
+        std::lock_guard<std::mutex> lock_guard{_sh_mutex};
         _condition = condition;
     }
 
+    void Event::setAllowedFailedEnabled(bool enabled) {
+        _allowed_failed.store(enabled);
+    }
+
     void Event::setEvent(const std::function<void(const std::atomic<bool>&)> &callback) {
+        std::lock_guard<std::mutex> lock_guard{_sh_mutex};
         _event = callback;
     }
 
@@ -103,6 +113,10 @@ namespace Tiny {
         return _exec_count.load();
     }
 
+    uint32_t Event::executionCount() const {
+        return _allowed_failed.load() ? _attempt_cnt.load() : _now_cnt.load();
+    }
+
     bool Event::isRunning() const {
         return _is_running.load();
     }
@@ -111,11 +125,16 @@ namespace Tiny {
         return _event != nullptr;
     }
 
+    bool Event::allowedFailedEnabled() const {
+        return _allowed_failed.load();
+    }
+
     void Event::run() {
         if (_is_running.load() || !hasEvent()) return;
         {
             std::unique_lock<std::mutex> lock(_mutex);
             _now_cnt.store(0);
+            _attempt_cnt.store(0);
             _is_running.store(true);
             _run_var.notify_all();
         }
@@ -147,23 +166,33 @@ namespace Tiny {
                 }
             }
 
+
             while (_is_running.load()) {
-                if (!_condition || !_event) {
+                std::function<bool()> copied_cond;
+                std::function<void(const std::atomic<bool>&)> copied_event;
+                {
+                    std::lock_guard<std::mutex> lock_guard(_sh_mutex);
+                    copied_cond = _condition;
+                    copied_event = _event;
+                }
+                if (!copied_cond || !copied_event) {
                     _is_running.store(false);
                     break;
                 }
                 size_t cycle_cnt = _exec_count.load();
                 if (cycle_cnt > 0) {
-                    if (_now_cnt.load() >= cycle_cnt) {
+                    bool cond = _allowed_failed.load() ? _attempt_cnt.load() >= cycle_cnt : _now_cnt.load() >= cycle_cnt;
+                    if (cond) {
                         _is_running.store(false);
                         break;
                     }
                 }
                 try {
-                    if (_condition()) {
-                        _event(_is_running);
+                    if (copied_cond()) {
+                        copied_event(_is_running);
                         _now_cnt.fetch_add(1);
                     }
+                    _attempt_cnt.fetch_add(1);
                 } catch (const std::exception &e) {
                     _is_running.store(false);
                     printf("Tiny::Event: An error has occurred: %s\n", e.what());
@@ -277,16 +306,6 @@ namespace Tiny {
     const Event & EventsMap::event(size_t event_id) const {
         if (exist(event_id)) return _event_map.at(event_id);
         throw std::out_of_range("Tiny::EventsMap: The specified event id is not found!");
-    }
-
-    bool EventsMap::event(const Event &find_event, const Event *found_event) const {
-        if (!exist(find_event.eventID())) return false;
-        size_t id = find_event.eventID();
-        if (_event_map.at(id).eventName() != find_event.eventName() ||
-            _event_map.at(id).eventDelayMS() != find_event.eventDelayMS() ||
-            _event_map.at(id).eventRepeatCount() != find_event.eventRepeatCount()) return false;
-        if (found_event) found_event = &_event_map.at(id);
-        return true;
     }
 
     EventsMap::constIter EventsMap::cbegin() const {

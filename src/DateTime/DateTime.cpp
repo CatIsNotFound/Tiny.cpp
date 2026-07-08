@@ -381,6 +381,10 @@ bool Tiny::DT::DateTime::reset(uint32_t year, uint8_t month, uint8_t day, uint8_
     return _valid;
 }
 
+std::string Tiny::DT::DateTime::formatString(const char *format) const {
+    return formatString(format, *this);
+}
+
 Tiny::DT::DateTime Tiny::DT::DateTime::now(bool use_local_time) {
     return use_local_time ? localTime() : systemTime();
 }

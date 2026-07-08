@@ -54,27 +54,30 @@ namespace Tiny {
         void setDelayMS(uint32_t delay);
         void setRepeatCount(uint32_t count);
         void setCondition(const std::function<bool()>& condition);
+        void setAllowedFailedEnabled(bool enabled);
         void setEvent(const std::function<void(const std::atomic<bool>&)>& callback);
         [[nodiscard]] uint32_t eventID() const;
         [[nodiscard]] const std::string& eventName() const;
         [[nodiscard]] uint32_t eventDelayMS() const;
         [[nodiscard]] uint32_t eventRepeatCount() const;
+        [[nodiscard]] uint32_t executionCount() const;
         [[nodiscard]] bool isRunning() const;
         [[nodiscard]] bool hasEvent() const;
+        [[nodiscard]] bool allowedFailedEnabled() const;
         void run();
         void stop();
     private:
         void loop();
         uint32_t _id{};
         std::atomic<bool> _is_load_event{}, _needs_destroy{};
-        std::atomic<bool> _is_running{};
+        std::atomic<bool> _is_running{}, _allowed_failed{true};
         std::string _name{};
         std::function<void(const std::atomic<bool>&)> _event{};
-        std::function<bool()> _condition{[] { return true; }};
+        std::function<bool()> _condition{};
         std::thread _thread{};
         std::atomic<uint32_t> _delay{1000};
-        std::atomic<uint32_t> _exec_count{1}, _now_cnt{0};
-        std::mutex _mutex{};
+        std::atomic<uint32_t> _exec_count{1}, _now_cnt{}, _attempt_cnt{};
+        std::mutex _mutex{}, _sh_mutex{};
         std::condition_variable _con_var{}, _run_var{};
     };
 
@@ -103,7 +106,6 @@ namespace Tiny {
 
         bool exist(size_t event_id) const;
         const Event& event(size_t event_id) const;
-        bool event(const Event& find_event, const Event* found_event = nullptr) const;
 
         constIter cbegin() const;
         constIter cend() const;

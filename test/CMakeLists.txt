@@ -51,10 +51,14 @@ addModule(TestDT MY_MODULE_WITHOUT_GTEST
         Test_Dt.cpp
 )
 
+addModule(TestEV MY_MODULE_WITHOUT_GTEST
+        Test_Ev.cpp
+)
+
 
 foreach (MODULE IN ITEMS ${MY_MODULE})
     set_target_properties(${MODULE} PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/gtests
     )
 
     target_link_libraries(${MODULE}

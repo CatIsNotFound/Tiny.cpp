@@ -23,12 +23,18 @@ addModule(Edit MY_MODULE
     Misc/Misc.hpp
 )
 
+addModule(Tetris MY_MODULE
+    Tetris/Tetris.hpp
+    Tetris/Tetris.cpp
+    Tetris/main.cpp
+)
+
 
 #########################################################################################
 
 foreach (MODULE IN ITEMS ${MY_MODULE})
     set_target_properties(${MODULE} PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/demos
     )
 
     target_link_libraries(${MODULE}
