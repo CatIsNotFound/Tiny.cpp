@@ -279,24 +279,29 @@ namespace Tiny {
     }
 
     void TUI::Renderer::drawBorder(const Position &start_pos, const Position &end_pos, Corner corner, Style style) {
-        if (isOutOfRange(start_pos.row, start_pos.column) || isOutOfRange(end_pos.row, end_pos.column)) return;
+        Position r_ed = end_pos;
+        if (isOutOfRange(start_pos.row, start_pos.column)) return;
+        if (isOutOfRange(end_pos.row, end_pos.column)) {
+            r_ed.row = _front_buffer.size() - 1;
+            r_ed.column = _front_buffer.front().size() - 1;
+        }
         // left top
         _front_buffer[start_pos.row][start_pos.column].set(corner.left_top.data().c_str(), style);
         // left bottom
-        _front_buffer[end_pos.row][start_pos.column].set(corner.left_bottom.data().c_str(), style);
+        _front_buffer[r_ed.row][start_pos.column].set(corner.left_bottom.data().c_str(), style);
         // right top
-        _front_buffer[start_pos.row][end_pos.column].set(corner.right_top.data().c_str(), style);
+        _front_buffer[start_pos.row][r_ed.column].set(corner.right_top.data().c_str(), style);
         // right bottom
-        _front_buffer[end_pos.row][end_pos.column].set(corner.right_bottom.data().c_str(), style);
+        _front_buffer[r_ed.row][r_ed.column].set(corner.right_bottom.data().c_str(), style);
         // top / bottom
-        for (uint32_t c = start_pos.column + 1; c < end_pos.column; c++) {
+        for (uint32_t c = start_pos.column + 1; c < r_ed.column; c++) {
             _front_buffer[start_pos.row][c].set(corner.top.data().c_str(), style);
-            _front_buffer[end_pos.row][c].set(corner.bottom.data().c_str(), style);
+            _front_buffer[r_ed.row][c].set(corner.bottom.data().c_str(), style);
         }
         // left / right
-        for (uint32_t r = start_pos.row + 1; r < end_pos.row; r++) {
+        for (uint32_t r = start_pos.row + 1; r < r_ed.row; r++) {
             _front_buffer[r][start_pos.column].set(corner.left.data().c_str(), style);
-            _front_buffer[r][end_pos.column].set(corner.right.data().c_str(), style);
+            _front_buffer[r][r_ed.column].set(corner.right.data().c_str(), style);
         }
     }
 
@@ -345,9 +350,8 @@ namespace Tiny {
     }
 
     void TUI::Renderer::present() {
-        if (_is_resizing.exchange(false)) {
+        if (self()._is_resizing.exchange(false)) {
             resizeEvent(true, {});
-            if (_resize_event) _resize_event(*this);
         }
         renderEvent();
     }

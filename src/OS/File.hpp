@@ -28,6 +28,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <cmath>
 
 /*******************************************************************************************
  * P.S: - To enabled using Windows32 lib, please use the macro below:                      *
@@ -107,6 +108,24 @@ namespace Tiny {
         inline size_t operator""_TiB(unsigned long long n) noexcept {
             return n * 1099511627776;
         }
+
+        enum class DataUnit : int8_t {
+            B,
+            KiB,
+            MiB,
+            GiB,
+            TiB
+        };
+
+        inline double convertDataSize(size_t size, DataUnit dst_unit, DataUnit src_unit = DataUnit::B) {
+            int8_t t = static_cast<int8_t>(dst_unit) - static_cast<int8_t>(src_unit);
+            if (t > 0) {
+                return size / pow(1024.0, static_cast<double>(abs(t)));
+            } else {
+                return size * pow(1024.0, static_cast<double>(abs(t)));
+            }
+            return 0;
+        } 
 
         class Path {
             friend class File;

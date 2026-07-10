@@ -23,10 +23,8 @@ addModule(Edit MY_MODULE
     Misc/Misc.hpp
 )
 
-addModule(Tetris MY_MODULE
-    Tetris/Tetris.hpp
-    Tetris/Tetris.cpp
-    Tetris/main.cpp
+addModule(OSInfo MY_MODULE
+    OSInfo/DemoOSInfo.cpp
 )
 
 

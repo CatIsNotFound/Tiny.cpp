@@ -193,19 +193,27 @@ namespace Tiny {
         info.user_name.resize(size);
         /// System Version
         HKEY hKey;
-        DWORD major = 0, minor = 0, build = 0;
-        DWORD d_size = sizeof(DWORD);
+        char dis_product[128] = {};
+        char dis_version[32] = {};
+        DWORD dis_product_len = 128;
+        DWORD dis_ver_len = 32;
         if (RegOpenKeyExA(HKEY_LOCAL_MACHINE,
             "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",
             0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-            RegQueryValueExA(hKey, "CurrentMajorVersionNumber", nullptr, nullptr, (LPBYTE)&major, &d_size);
-            RegQueryValueExA(hKey, "CurrentMinorVersionNumber", nullptr, nullptr, (LPBYTE)&minor, &d_size);
-            RegQueryValueExA(hKey, "CurrentBuildNumber", nullptr, nullptr, (LPBYTE)&build, &d_size);
+            RegQueryValueExA(hKey, "ProductName", nullptr, nullptr, (LPBYTE)&dis_product, &dis_product_len);
+            RegQueryValueExA(hKey, "WinREVersion", nullptr, nullptr, (LPBYTE)&dis_version, &dis_ver_len);
             RegCloseKey(hKey);
-            std::ostringstream oss;
-            oss << major << "." << minor << "." << build;
-            info.version = oss.str();
-            info.os_name = "Windows " + std::to_string(major);
+            info.version = dis_version;
+            info.os_name = dis_product;
+        } else ret = false;
+        if (RegOpenKeyExA(HKEY_LOCAL_MACHINE,
+            "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
+            0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+            char machine_arch[32] = {};
+            DWORD machine_arch_len = 32;
+            RegQueryValueExA(hKey, "PROCESSOR_ARCHITECTURE", nullptr, nullptr, (LPBYTE)&machine_arch, &machine_arch_len);
+            RegCloseKey(hKey);
+            info.machine = machine_arch;
         } else ret = false;
 #elif defined(TINY_CPP_MY_OS_UNIX)
         struct utsname uts_name;
@@ -299,7 +307,7 @@ namespace Tiny {
             } else ret = false;
         }
         // Get per core usage
-        // info.usages.resize(info.cores);
+        info.usages.resize(info.cores);
         PdhCollectQueryData(query);
         std::this_thread::sleep_for(std::chrono::milliseconds(internal));
         PdhCollectQueryData(query);
