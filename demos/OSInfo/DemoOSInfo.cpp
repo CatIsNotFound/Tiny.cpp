@@ -33,40 +33,62 @@ std::atomic<bool> need_refresh{};
 
 void drawInfo(TUI::Renderer& renderer) {
     renderer.drawBorder({0, 0}, {2, 60}, {}, {});
-    renderer.setStrF({1, 4}, "{:>20c}Host Information", ' ');
+    renderer.setStrF({1, 4}, "{:>18c}Host Information", ' ');
+
+    TUI::Renderer::StyleList styles;
+    TUI::Renderer::Style style_1, style_2;
+    style_1.intensity = 2;
+    style_1.fg_color = TUI::Color::Blue;
+    style_2.intensity = 2;
+    style_2.fg_color = TUI::Color::Yellow;
+    styles.push_back(style_1);
+    styles.push_back(style_2);
 
     auto os_info = OS::currentHostInfo();
     renderer.drawBorder({2, 0}, {10, 60}, {}, {});
-    renderer.setStrF({3, 1}, "{:>20s}: {:<20s}", "Hostname", os_info.host_name);
-    renderer.setStrF({4, 1}, "{:>20s}: {:<20s}", "Username", os_info.user_name);
-    renderer.setStrF({5, 1}, "{:>20s}: {:<20s}", "OS", os_info.os_name);
-    renderer.setStrF({6, 1}, "{:>20s}: {:<20s}", "Version", os_info.version);
-    renderer.setStrF({7, 1}, "{:>20s}: {:<20s}", "Arch", os_info.machine);
-    renderer.setStrF({8, 1}, "{:>20s}: Processing...", "Memory");
-    renderer.setStrF({9, 1}, "{:>20s}: Processing...", "Disk");
+    renderer.setSSFX({3, 1}, "<1>{:>20s}: <2>{:<20s}", styles, "Hostname", os_info.host_name);
+    renderer.setSSFX({4, 1}, "<1>{:>20s}: <2>{:<20s}", styles, "Username", os_info.user_name);
+    renderer.setSSFX({5, 1}, "<1>{:>20s}: <2>{:<20s}", styles, "OS", os_info.os_name);
+    renderer.setSSFX({6, 1}, "<1>{:>20s}: <2>{:<20s}", styles, "Version", os_info.version);
+    renderer.setSSFX({7, 1}, "<1>{:>20s}: <2>{:<20s}", styles, "Arch", os_info.machine);
+    renderer.setSSFX({8, 1}, "<1>{:>20s}: <2>{:<32s}", styles, "Memory", "Processing...");
+    renderer.setSSFX({9, 1}, "<1>{:>20s}: <2>{:<32s}", styles, "Disk", "Processing...");
 }
 
 void updateInfo(TUI::Renderer& renderer, OS::CPU& cpu, OS::Memory& memory, OS::DiskSpace& disk_space) {
     // std::lock_guard<std::mutex> lock_guard(mutex);
     if (need_refresh.load()) {
-        renderer.setStrF({8, 1}, "{:>20s}: {:.1f}GB / {:.1f}GB ({:.2f} GB free)", "Memory", 
+        TUI::Renderer::StyleList styles;
+        TUI::Renderer::Style style_1, style_2, style_def;
+        style_1.intensity = 2;
+        style_1.fg_color = TUI::Color::Yellow;
+        style_2.intensity = 2;
+        style_2.fg_color = TUI::Color::Green;
+        styles.push_back(style_def);
+        styles.push_back(style_1);
+        styles.push_back(style_2);
+        renderer.setSSFX({8, 1}, "{:>20s}: <2>{:.1f}GB / {:.1f}GB ({:.2f} GB free)", styles, "Memory",
             OS::convertDataSize(memory.used_ram, OS::DataUnit::GiB), 
             OS::convertDataSize(memory.total_ram, OS::DataUnit::GiB), 
             OS::convertDataSize(memory.free_ram, OS::DataUnit::GiB)
         );
-        renderer.setStrF({9, 1}, "{:>20s}: {:.1f}GB / {:.1f}GB ({:.1f}GB free)", "Disk", 
+        renderer.setSSFX({9, 1}, "{:>20s}: <2>{:.1f}GB / {:.1f}GB ({:.1f}GB free)", styles, "Disk",
             OS::convertDataSize(disk_space.used_bytes, OS::DataUnit::GiB), 
             OS::convertDataSize(disk_space.total_bytes, OS::DataUnit::GiB), 
             OS::convertDataSize(disk_space.free_bytes, OS::DataUnit::GiB)
         );
 
+
         renderer.drawBorder({10, 0}, {12, 60}, {}, {});
         renderer.drawBorder({12, 0}, {13 + cpu.cores, 60}, {}, {});
-        renderer.setStrF({11, 1}, "CPU Total: {:.1f}%  ", cpu.total_usage);
+        renderer.setStrF({11, 2}, "CPU Total: {:.1f}%  ", cpu.total_usage);
         for (size_t i = 0; i < cpu.cores; i++) {
             auto repeat = static_cast<uint8_t>(50.f * (cpu.usages[i] * 0.01f));
-            std::string s(repeat, '#');
-            renderer.setStrF({13 + static_cast<uint32_t>(i), 1}, "CPU {:>2s}: {:<50s}", i, s);
+            std::string s;
+            for (size_t j = 0; j < repeat; j++) {
+                s += "|";
+            }
+            renderer.setSSFX({13 + static_cast<uint32_t>(i), 2}, "<2>CPU{:>2s}: <3>{:<50s}", styles, i, s);
         }
         need_refresh.store(false);
     }

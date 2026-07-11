@@ -143,6 +143,8 @@ namespace Tiny {
                     return false;
                 }
             };
+            
+            using StyleList = std::vector<Style>;
 
             struct Cell {
                 Char data;
@@ -186,6 +188,8 @@ namespace Tiny {
             void setStrF(const Position& pos, const char* format, Args... args);
             template<typename ... Args>
             void setSSF(const Position& pos, const char* format, const Style& style, Args... args);
+            template<typename ... Args>
+            void setSSFX(const Position& pos, const char* format, const StyleList& styles, Args... args);
             void fillScreen(const Style& style = {});
             void fillRows(uint32_t start_row, uint32_t end_row, uint8_t ch = ' ', Style style = {});
             void fillRows(uint32_t start_row, uint32_t end_row, const std::string& ch, Style style = {});
@@ -208,12 +212,13 @@ namespace Tiny {
             virtual void renderEvent();
             virtual void resizeEvent(bool use_default_size = true, const Size& size = {});
         private:
-            void setChars(const Position& pos, const std::string& str, const Style& style = {});
+            size_t setChars(const Position &pos, const std::string &str, const Style &style = {});
             void setStyle(const Style& style);
             void fillBuffers();
             bool isOutOfRange(uint32_t row, uint32_t col);
             void initSignal();
             static void resizeWindow(int);
+            void formatStyles(const Position& pos, const std::string& fmt, const StyleList& styles);
 
             Size _win_size{};
             std::vector<std::vector<Cell>> _buffer;
@@ -239,6 +244,14 @@ namespace Tiny {
             if (isOutOfRange(pos.row, pos.column)) return;
             std::string f_text = Terminal::formatString(format, args...);
             setChars(pos, f_text, style);
+        }
+
+        template<typename ... Args>
+        void Renderer::setSSFX(const Position &pos, const char *format, const StyleList &styles,
+                                Args... args) {
+            if (isOutOfRange(pos.row, pos.column)) return;
+            std::string f_text = Terminal::formatString(format, args...);
+            formatStyles(pos, f_text, styles);
         }
 
         class AbstractWidget {
