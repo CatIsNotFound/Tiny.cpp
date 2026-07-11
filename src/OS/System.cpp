@@ -32,6 +32,7 @@
 #include <fileapi.h>
 #include <shlobj.h>
 #include <pdh.h>
+#include <sddl.h>
 #pragma comment(lib, "pdh.lib")
 #elif defined(TINY_CPP_MY_OS_UNIX)
 #include <dirent.h>
@@ -570,6 +571,72 @@ namespace Tiny {
 #endif
     }
 
+    void OS::lastSystemError(std::string& info, int* err_code) {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        auto err = GetLastError();
+        if (err_code) *err_code = err;
+        if (err == 0) {
+            info.clear();
+            return;
+        }
+        SetLastError(0);
+        void* msg_buf = nullptr;
+        auto out_size = FormatMessageA(
+            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+            nullptr,
+            err,
+            MAKELANGID(LANG_ENGLISH, SUBLANG_DEFAULT),
+            (LPSTR)&msg_buf,
+            0,
+            nullptr);
+
+        if (out_size > 0) {
+            info = static_cast<char*>(msg_buf);
+            info.pop_back();
+            info.pop_back();
+            if (msg_buf) LocalFree(msg_buf);
+            return;
+        }
+        if (msg_buf) LocalFree(msg_buf);
+        char out[32]{};
+        snprintf(out, 32, "Unknown error! code: 0x%x", err);
+        out[31] = '\0';
+        info = out;
+#else
+        int err = errno;
+        if (err_code) *err_code = err;
+        if (err == 0) {
+            info.clear();
+            return;
+        }
+        auto err_text = strerror(err);
+        if (err_text == nullptr) {
+            std::ostringstream oss;
+            oss << "Unknown error! code: 0x" << std::hex << err;
+            info = oss.str();
+            return;
+        }
+        info = err_text;
+#endif
+    }
+
+    bool OS::isAdmin() {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        BOOL isElevated = FALSE;
+        PSID adminSid = nullptr;
+
+        if (!ConvertStringSidToSidW(L"S-1-5-32-544", &adminSid))
+            return false;
+
+        CheckTokenMembership(NULL, adminSid, &isElevated);
+        LocalFree(adminSid);
+
+        return isElevated != FALSE;
+#else
+        return geteuid() == 0;
+#endif
+    }
+
     bool OS::FileSystem::chDir(const Path &path) {
 #ifdef TINY_CPP_MY_OS_WINDOWS
         if (!path.isValid()) return false;
@@ -596,7 +663,7 @@ namespace Tiny {
     }
 
     bool OS::FileSystem::rmFile(const Path &path) {
-        if (!path.isValid() || !path.isFile()) return false;
+        if (!Path::isFile(path.path())) return false;
 #ifdef TINY_CPP_MY_OS_WINDOWS
         auto ok = DeleteFileA(path.path().data());
         if (ok == 0) return false;
@@ -795,7 +862,7 @@ namespace Tiny {
 #elif defined(TINY_CPP_MY_OS_UNIX)
         int src_fd = open(src.path().c_str(), O_RDONLY);
         if (src_fd == -1) return false;
-        int dest_fd = open(dest.path().c_str(), O_WRONLY | O_CREAT | O_EXCL | O_TRUNC, 0777 - umask(0000));
+        int dest_fd = open(dest.path().c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0777 - umask(0000));
         if (dest_fd == -1) {
             close(src_fd);
             return false;
@@ -826,7 +893,7 @@ namespace Tiny {
 #elif defined(TINY_CPP_MY_OS_UNIX)
         int src_fd = open(src.path().c_str(), O_RDONLY);
         if (src_fd == -1) return false;
-        int dest_fd = open(dest.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_TRUNC, 0777 - umask(0000));
+        int dest_fd = open(dest.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0777 - umask(0000));
         if (dest_fd == -1) {
             close(src_fd);
             return false;
@@ -1117,7 +1184,7 @@ namespace Tiny {
             Path new_path(new_found);
             if (short_file_name == "." || short_file_name == "..") continue;
             if (new_path.isDirectory()) {
-                auto found_path = listAllPath(new_path, current_recursion + 1, recursion_count);
+                auto found_path = listAllPath(new_path, current_recursion + 1, recursion_count, filter);
                 paths.insert(paths.end(), found_path.begin(), found_path.end());
             }
             if (filter && !filter(new_path)) continue;
@@ -1138,7 +1205,7 @@ namespace Tiny {
             auto full_path = path.path() + "/" + short_file_name;
             Path new_found(full_path);
             if (new_found.isDirectory()) {
-                auto found_path = listAllPath(new_found, current_recursion + 1, recursion_count);
+                auto found_path = listAllPath(new_found, current_recursion + 1, recursion_count, filter);
                 paths.insert(paths.end(), found_path.begin(), found_path.end());
             }
             if (filter && !filter(new_found)) continue;

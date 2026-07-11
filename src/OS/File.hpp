@@ -120,12 +120,10 @@ namespace Tiny {
         inline double convertDataSize(size_t size, DataUnit dst_unit, DataUnit src_unit = DataUnit::B) {
             int8_t t = static_cast<int8_t>(dst_unit) - static_cast<int8_t>(src_unit);
             if (t > 0) {
-                return size / pow(1024.0, static_cast<double>(abs(t)));
-            } else {
-                return size * pow(1024.0, static_cast<double>(abs(t)));
+                return size / pow(1024.0, abs(t));
             }
-            return 0;
-        } 
+            return size * pow(1024.0, abs(t));
+        }
 
         class Path {
             friend class File;
@@ -185,6 +183,7 @@ namespace Tiny {
             File(Path  path, uint8_t open_mode = Unknown);
             File(File&& file) noexcept;
             File& operator=(File&& file) noexcept;
+            ~File();
 
             void setPath(const std::string& path);
             void setPath(const Path& path);

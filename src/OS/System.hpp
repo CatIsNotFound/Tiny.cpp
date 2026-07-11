@@ -111,6 +111,10 @@ namespace Tiny {
         bool getDiskSpace(DiskSpace& disk_space);
         CPU_Arch getCurrentCPUArch();
 
+        void lastSystemError(std::string& info, int* err_code = nullptr);
+        bool isAdmin();
+
+
         class FileSystem {
         public:
             static bool chDir(const Path& path);

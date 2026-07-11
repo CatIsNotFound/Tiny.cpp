@@ -355,6 +355,8 @@ namespace Tiny {
     OS::File &OS::File::operator=(File &&file) noexcept {
         if (this == &file) return *this;
         
+        if (isOpen()) close();
+        
         _path = file._path;
         _open_mode = std::move(file._open_mode);
         _handler = std::move(file._handler);
@@ -362,6 +364,10 @@ namespace Tiny {
         file._file_size = 0;
         file._path.unset();
         return *this;
+    }
+
+    OS::File::~File() {
+        if (isOpen()) close();
     }
 
     void OS::File::setPath(const std::string &path) {
@@ -671,7 +677,6 @@ namespace Tiny {
         if (handler == -1) return false;
         _handler = handler;
 #endif
-        _path.checkPath();
         _file_size = _path.fileSize();
         _position = (IO & Append) ? _file_size : 0;
         return true;
