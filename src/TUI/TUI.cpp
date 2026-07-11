@@ -350,9 +350,6 @@ namespace Tiny {
     }
 
     void TUI::Renderer::present() {
-        if (self()._is_resizing.exchange(false)) {
-            resizeEvent(true, {});
-        }
         renderEvent();
     }
 
@@ -372,18 +369,19 @@ namespace Tiny {
 
     void TUI::Renderer::renderEvent() {
         Terminal::reset();
-        auto size = Terminal::screenSize();
-        _win_size = size;
-        if (size.height != _buffer.size() || size.width != _buffer.front().size()) {
-            resizeEvent(false, size);
-            Terminal::clearScreen();
+        if (_is_resizing.exchange(false)) {
+            auto& size = _win_size;
+            if (size.height != _front_buffer.size() || size.width != _front_buffer.front().size()) {
+                Terminal::clearScreen();
+                resizeEvent(false, size);
+            }
         }
         _buffer = _front_buffer;
         fillBuffers();
     }
 
     void TUI::Renderer::resizeEvent(bool use_default_size, const Size& size) {
-        Size new_size = (use_default_size ? Terminal::screenSize() : size);
+        Size new_size = (use_default_size ? _win_size : size);
         if (new_size.height > _front_buffer.size()) _front_buffer.resize(new_size.height);
         if (new_size.height > _buffer.size()) _buffer.resize(new_size.height);
         size_t row = 0;
@@ -397,10 +395,11 @@ namespace Tiny {
         if (_resize_event) _resize_event(self());
     }
 
-    void TUI::Renderer::setChars(const Position &pos, const std::string &str, const Style& style) {
+    size_t TUI::Renderer::setChars(const Position &pos, const std::string &str, const Style &style) {
         auto strs = splitUTF8(str.c_str());
         auto size = Terminal::screenSize();
         Position temp = pos;
+        size_t filled_cnt = 0;
         for (auto &s : strs) {
             if (temp.column + 1 >= size.width) {
                 temp.column = 0;
@@ -413,7 +412,9 @@ namespace Tiny {
                     _front_buffer[temp.row][temp.column + i].is_dirty = true;
             }
             temp.column += display_width;
+            filled_cnt += display_width;
         }
+        return filled_cnt;
     }
 
     void TUI::Renderer::setStyle(const Style &style) {
@@ -481,13 +482,51 @@ namespace Tiny {
             std::unique_lock<std::mutex> lock(self()._mutex);
             Size new_size = Terminal::screenSize();
             if (compareSize(new_size, self()._win_size) != 0) {
+                self()._win_size = new_size;
                 self()._is_resizing.store(true);
             }
         }
 #else
         self()._is_resizing.store(true);
+        self()._win_size = Terminal::screenSize();
 #endif
     }
+
+    void TUI::Renderer::formatStyles(const Position& pos, const std::string &fmt, const StyleList &styles) {
+        uint32_t n = 0, i = 0, st = 0;
+        Style current_style{};
+        for (; i < fmt.size(); ) {
+            if (fmt[i] == '<') {
+                int id = 0;
+                bool flag = false;
+                size_t j = 1;
+                for (; ; ++j) {
+                    size_t k = i + j;
+                    if (k >= fmt.size()) break;
+                    if (fmt[k] == '>') {
+                        flag = true;
+                        break;
+                    }
+                    if (fmt[k] < '0' || fmt[k] > '9') break;
+                    id = id * 10 + fmt[k] - '0';
+                }
+                if (flag) {
+                    auto t = setChars({pos.row, pos.column + n}, fmt.substr(st, i - st), current_style);
+                    n += t;
+                    i += j + 1;
+                    st = i;
+                    if (id - 1 > 0 && id - 1 < styles.size()) current_style = styles[id - 1];
+                    continue;
+                }
+            }
+            i += 1;
+        }
+        if (fmt.back() != '>') {
+            setChars({pos.row, pos.column + n}, fmt.substr(st, i - st), current_style);
+
+        }
+    }
+
 
     TUI::AbstractWidget::AbstractWidget(const std::string &name, const Position &position, const Size &size)
             :_name(name), _pos(position), _size(size) {}
