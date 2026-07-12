@@ -43,6 +43,7 @@ jobs:
         shell: bash
         run: |
           cd ~/work/Tiny.cpp/Tiny.cpp/build/gtests
+          timedatectl set-timezone `curl ipconfig.io/json | grep time_zone | cut -d'"' -f4`
           for EXE in $(ls -1); do
               ./$EXE
               if [ $? -ne 0 ]; then
@@ -77,6 +78,7 @@ jobs:
         shell: bash
         run: |
           cd ~/work/Tiny.cpp/Tiny.cpp/build/gtests
+          timedatectl set-timezone `curl ipconfig.io/json | grep time_zone | cut -d'"' -f4`
           for EXE in $(ls -1); do
               ./$EXE
               if [ $? -ne 0 ]; then
