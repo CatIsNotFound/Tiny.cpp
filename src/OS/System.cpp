@@ -831,6 +831,9 @@ namespace Tiny {
             link_dest.c_str(), dest.isDirectory());
         if (ok == 0) return false;
 #elif defined(TINY_CPP_MY_OS_UNIX)
+        if (!access(link_dest.c_str(), F_OK)) {
+            unlink(link_dest.c_str());
+        }
         auto ok = symlink(link_dest.c_str(), path.c_str());
         if (ok == -1) return false;
 #else
@@ -846,6 +849,9 @@ namespace Tiny {
             link_dest.path().c_str(), link_dest.isDirectory());
         if (ok == 0) return false;
 #elif defined(TINY_CPP_MY_OS_UNIX)
+        if (!access(link_dest.path().c_str(), F_OK)) {
+            unlink(link_dest.path().c_str());
+        }
         auto ok = symlink(link_dest.path().c_str(), path.c_str());
         if (ok == -1) return false;
 #else

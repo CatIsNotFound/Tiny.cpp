@@ -865,15 +865,15 @@ TEST(FileSystemTest, MkLink_StringString) {
 #endif
     }
 
-    if (Path(linkFile).isValid()) {
-        if (!FileSystem::rmFile(linkFile)) {
+    if (Path(targetFile).isValid()) {
+        if (!FileSystem::rmFile(targetFile)) {
             std::string error;
             lastSystemError(error);
             ADD_FAILURE() << "rmFile() cleanup failed: " << error;
         }
     }
-    if (Path(targetFile).isValid()) {
-        if (!FileSystem::rmFile(targetFile)) {
+    if (Path(linkFile).isValid()) {
+        if (!FileSystem::rmFile(linkFile)) {
             std::string error;
             lastSystemError(error);
             ADD_FAILURE() << "rmFile() cleanup failed: " << error;
@@ -921,15 +921,15 @@ TEST(FileSystemTest, MkLink_StringPath) {
 #endif
     }
 
-    if (Path(linkFile).isValid()) {
-        if (!FileSystem::rmFile(linkFile)) {
+    if (Path(targetFile).isValid()) {
+        if (!FileSystem::rmFile(targetFile)) {
             std::string error;
             lastSystemError(error);
             ADD_FAILURE() << "rmFile() cleanup failed: " << error;
         }
     }
-    if (Path(targetFile).isValid()) {
-        if (!FileSystem::rmFile(targetFile)) {
+    if (Path(linkFile).isValid()) {
+        if (!FileSystem::rmFile(linkFile)) {
             std::string error;
             lastSystemError(error);
             ADD_FAILURE() << "rmFile() cleanup failed: " << error;
