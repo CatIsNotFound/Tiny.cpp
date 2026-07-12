@@ -28,7 +28,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p ~/MyLibs/
-          cmake -B build -DCMAKE_INSTALL_PREFIX=~/MyLibs/Tiny.cpp -DCMAKE_BUILD_TYPE=Release -DTINY_BUILD_TEST=OFF 
+          cmake -B build -DCMAKE_INSTALL_PREFIX=~/MyLibs/Tiny.cpp -DCMAKE_BUILD_TYPE=Release -DTINY_USE_GPM=ON
           if [ $? -ne 0 ]; then
               echo "* Failed to configure project!"
               exit 1
@@ -42,7 +42,41 @@ jobs:
       - name: Test for project
         shell: bash
         run: |
-          cd build/gtests
+          cd ~/work/Tiny.cpp/Tiny.cpp/build/gtests
+          for EXE in $(ls -1); do
+              ./EXE
+              if [ $? -ne 0 ]; then
+                  echo "* Test failed: " $EXE
+                  exit 1
+              fi
+          done
+
+  env-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: pull project
+        uses: actions/checkout@v4
+
+      - name: Compiling project
+        shell: bash
+        run: |
+          mkdir -p ~/MyLibs/
+          cmake -B build -DCMAKE_INSTALL_PREFIX=~/MyLibs/Tiny.cpp -DCMAKE_BUILD_TYPE=Release
+          if [ $? -ne 0 ]; then
+              echo "* Failed to configure project!"
+              exit 1
+          fi
+          cmake --build build --target install -j8
+          if [ $? -ne 0 ]; then
+              echo "* Failed to compile and install!"
+              exit 1
+          fi
+
+      - name: Test for project
+        shell: bash
+        run: |
+          cd ~/work/Tiny.cpp/Tiny.cpp/build/gtests
           for EXE in $(ls -1); do
               ./EXE
               if [ $? -ne 0 ]; then
