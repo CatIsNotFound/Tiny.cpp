@@ -181,6 +181,16 @@ void setCondition(const std::function<bool()>& condition);
 - **Return Value**: None
 - **Default Condition**: `[] { return true; }`
 
+#### setAllowedFailedEnabled
+
+```cpp
+void setAllowedFailedEnabled(bool enabled);
+```
+- **Function**: Set whether failed executions are allowed
+- **Parameter**: `enabled` - `true` to allow failed executions, `false` to stop on failure
+- **Return Value**: None
+- **Default Value**: `true` (failed executions are allowed by default)
+
 #### setEvent
 
 ```cpp
@@ -223,6 +233,22 @@ void setEvent(const std::function<void(const std::atomic<bool>&)>& callback);
 ```
 - **Function**: Get set repeat count
 - **Return Value**: Repeat count (0 means infinite)
+
+#### executionCount
+
+```cpp
+[[nodiscard]] uint32_t executionCount() const;
+```
+- **Function**: Get the number of times the event has been executed
+- **Return Value**: Execution count
+
+#### allowedFailedEnabled
+
+```cpp
+[[nodiscard]] bool allowedFailedEnabled() const;
+```
+- **Function**: Check if failed executions are allowed
+- **Return Value**: `true` means failed executions are allowed
 
 #### isRunning
 
@@ -388,6 +414,12 @@ bool setDelayByID(size_t event_id, uint32_t delay_ms);
 bool setRepeatByID(size_t event_id, uint32_t repeat_count);
 ```
 
+#### setAllowedFailedEnabledByID
+
+```cpp
+bool setAllowedFailedEnabledByID(size_t event_id, bool enabled);
+```
+
 - **Function**: Modify event properties by ID
 - **Return Value**: `true` means the event exists and was updated
 
@@ -405,10 +437,9 @@ bool exist(size_t event_id) const;
 
 ```cpp
 const Event& event(size_t event_id) const;
-bool event(const Event& find_event, const Event* found_event = nullptr) const;
 ```
-- **Function**: Get event by ID, or search for a matching event
-- **Return Value**: Event reference, or `true` if found
+- **Function**: Get event by ID
+- **Return Value**: Event reference
 - **Exception**: Throws if ID does not exist
 
 #### size

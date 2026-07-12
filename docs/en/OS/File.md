@@ -128,6 +128,43 @@ inline size_t operator""_TiB(unsigned long long n) noexcept;
 | `_TB` | 1000000000000 | `1_TB` |
 | `_TiB` | 1099511627776 | `1_TiB` |
 
+### 4.4 DataUnit Enum
+
+```cpp
+enum class DataUnit : int8_t {
+    B,
+    KiB,
+    MiB,
+    GiB,
+    TiB
+};
+```
+
+| Enum Value | Value | Description |
+|------------|-------|-------------|
+| `B` | 0 | Bytes |
+| `KiB` | 1 | Kibibytes (1024 bytes) |
+| `MiB` | 2 | Mebibytes (1024² bytes) |
+| `GiB` | 3 | Gibibytes (1024³ bytes) |
+| `TiB` | 4 | Tebibytes (1024⁴ bytes) |
+
+### convertDataSize Function
+
+```cpp
+inline double convertDataSize(size_t size, DataUnit dst_unit, DataUnit src_unit = DataUnit::B);
+```
+- **Function**: Convert data size between different units
+- **Parameters**:
+  - `size` - Size value to convert
+  - `dst_unit` - Target unit
+  - `src_unit` - Source unit (default: `DataUnit::B`)
+- **Return Value**: Converted size value
+- **Example**:
+```cpp
+double size_in_mb = Tiny::OS::convertDataSize(1048576, Tiny::OS::DataUnit::MiB);
+// Returns: 1.0 (1048576 bytes = 1 MiB)
+```
+
 ---
 
 ## 5. Path Class

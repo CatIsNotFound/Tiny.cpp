@@ -113,6 +113,7 @@ int main() {
     e1.setDelayMS(10);
     e1.setRepeatCount(0);
     e1.run();
+    drawInfo(ren);
     auto start_ts = DT::currentTimestamps();
     while (true) {
         updateInfo(ren, cpu_info, memory, disk_space);

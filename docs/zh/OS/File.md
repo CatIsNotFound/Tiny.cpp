@@ -128,6 +128,43 @@ inline size_t operator""_TiB(unsigned long long n) noexcept;
 | `_TB` | 1000000000000 | `1_TB` |
 | `_TiB` | 1099511627776 | `1_TiB` |
 
+### 4.4 DataUnit 枚举
+
+```cpp
+enum class DataUnit : int8_t {
+    B,
+    KiB,
+    MiB,
+    GiB,
+    TiB
+};
+```
+
+| 枚举值 | 数值 | 说明 |
+|--------|------|------|
+| `B` | 0 | 字节 |
+| `KiB` | 1 | 千字节（1024 字节） |
+| `MiB` | 2 | 兆字节（1024² 字节） |
+| `GiB` | 3 | 吉字节（1024³ 字节） |
+| `TiB` | 4 | 太字节（1024⁴ 字节） |
+
+### convertDataSize 函数
+
+```cpp
+inline double convertDataSize(size_t size, DataUnit dst_unit, DataUnit src_unit = DataUnit::B);
+```
+- **功能**: 在不同单位之间转换数据大小
+- **参数**:
+  - `size` - 要转换的大小值
+  - `dst_unit` - 目标单位
+  - `src_unit` - 源单位（默认：`DataUnit::B`）
+- **返回值**: 转换后的大小值
+- **示例**:
+```cpp
+double size_in_mb = Tiny::OS::convertDataSize(1048576, Tiny::OS::DataUnit::MiB);
+// 返回：1.0（1048576 字节 = 1 MiB）
+```
+
 ---
 
 ## 5. Path 类

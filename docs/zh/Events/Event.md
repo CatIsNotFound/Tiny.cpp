@@ -181,6 +181,16 @@ void setCondition(const std::function<bool()>& condition);
 - **返回值**: 无
 - **默认条件**: `[] { return true; }`
 
+#### setAllowedFailedEnabled
+
+```cpp
+void setAllowedFailedEnabled(bool enabled);
+```
+- **功能**: 设置是否允许失败的执行
+- **参数**: `enabled` - `true` 表示允许失败，`false` 表示遇到失败时停止
+- **返回值**: 无
+- **默认值**: `true`（默认允许失败）
+
 #### setEvent
 
 ```cpp
@@ -223,6 +233,22 @@ void setEvent(const std::function<void(const std::atomic<bool>&)>& callback);
 ```
 - **功能**: 获取设置的重复次数
 - **返回值**: 重复次数（0 表示无限）
+
+#### executionCount
+
+```cpp
+[[nodiscard]] uint32_t executionCount() const;
+```
+- **功能**: 获取事件已执行的次数
+- **返回值**: 执行次数
+
+#### allowedFailedEnabled
+
+```cpp
+[[nodiscard]] bool allowedFailedEnabled() const;
+```
+- **功能**: 检查是否允许失败的执行
+- **返回值**: `true` 表示允许失败
 
 #### isRunning
 
@@ -388,6 +414,12 @@ bool setDelayByID(size_t event_id, uint32_t delay_ms);
 bool setRepeatByID(size_t event_id, uint32_t repeat_count);
 ```
 
+#### setAllowedFailedEnabledByID
+
+```cpp
+bool setAllowedFailedEnabledByID(size_t event_id, bool enabled);
+```
+
 - **功能**: 通过 ID 修改事件属性
 - **返回值**: `true` 表示事件存在并已更新
 
@@ -405,10 +437,9 @@ bool exist(size_t event_id) const;
 
 ```cpp
 const Event& event(size_t event_id) const;
-bool event(const Event& find_event, const Event* found_event = nullptr) const;
 ```
-- **功能**: 通过 ID 获取事件，或查找匹配的事件
-- **返回值**: 事件引用，或找到则返回 `true`
+- **功能**: 通过 ID 获取事件
+- **返回值**: 事件引用
 - **异常**: ID 不存在时抛出异常
 
 #### size

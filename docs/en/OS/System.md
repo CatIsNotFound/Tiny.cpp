@@ -261,6 +261,32 @@ CPU_Arch getCurrentCPUArch();
 - **Function**: Get current CPU architecture
 - **Return Value**: `CPU_Arch` enum value
 
+### 4.11 lastSystemError
+
+```cpp
+void lastSystemError(std::string& info, int* err_code = nullptr);
+```
+- **Function**: Get the last system error information
+- **Parameters**:
+  - `info` - Output parameter, receives the error description string
+  - `err_code` - Optional output parameter, receives the error code (default `nullptr`)
+- **Return Value**: None
+- **Notes**: 
+  - On Windows, uses `GetLastError()` and `FormatMessageA()` to retrieve the error
+  - On Unix/Linux, uses `errno` and `strerror()` to retrieve the error
+  - This function retrieves the error of the most recent system call
+
+### 4.12 isAdmin
+
+```cpp
+bool isAdmin();
+```
+- **Function**: Check whether the current process is running with administrator/root privileges
+- **Return Value**: `true` means running with administrator/root privileges
+- **Notes**:
+  - On Windows, checks whether the current user is a member of the Administrators group
+  - On Unix/Linux, checks whether the effective user ID is 0 (root)
+
 ---
 
 ## 5. FileSystem Class

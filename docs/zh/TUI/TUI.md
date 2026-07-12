@@ -342,6 +342,36 @@ struct RGBColor {
 | `g` | `uint8_t` | 绿色分量（0-255） |
 | `b` | `uint8_t` | 蓝色分量（0-255） |
 
+### 4.10 Char 类
+
+```cpp
+class Char {
+public:
+    Char();
+    Char(const char* data);
+    Char(const std::string& data);
+    Char& operator=(const std::string& ch);
+    Char& operator=(const char* ch);
+    Char& operator=(const Char& ch);
+    bool operator==(const Char& other) const;
+    bool operator!=(const Char& other) const;
+    const std::string& data() const;
+    uint8_t length() const;
+};
+```
+
+单个字符的轻量级封装（支持 UTF-8 多字节字符）。
+
+| 成员 | 说明 |
+|------|------|
+| `Char()` | 默认构造函数，初始化为空格字符 |
+| `Char(const char* data)` | 从 C 字符串构造（提取第一个 UTF-8 字符） |
+| `Char(const std::string& data)` | 从 `std::string` 构造（提取第一个 UTF-8 字符） |
+| `operator=` | 赋值运算符（从字符串、C 字符串或另一个 Char） |
+| `operator==` / `operator!=` | 比较运算符 |
+| `data()` | 获取字符的底层字符串表示 |
+| `length()` | 获取字符的字节长度 |
+
 ---
 
 ## 5. Terminal 类

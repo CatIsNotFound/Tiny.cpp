@@ -341,6 +341,36 @@ struct RGBColor {
 | `g` | `uint8_t` | Green component (0-255) |
 | `b` | `uint8_t` | Blue component (0-255) |
 
+### 4.10 Char Class
+
+```cpp
+class Char {
+public:
+    Char();
+    Char(const char* data);
+    Char(const std::string& data);
+    Char& operator=(const std::string& ch);
+    Char& operator=(const char* ch);
+    Char& operator=(const Char& ch);
+    bool operator==(const Char& other) const;
+    bool operator!=(const Char& other) const;
+    const std::string& data() const;
+    uint8_t length() const;
+};
+```
+
+A lightweight wrapper for a single character (supports UTF-8 multi-byte characters).
+
+| Member | Description |
+|--------|-------------|
+| `Char()` | Default constructor, initializes with a space character |
+| `Char(const char* data)` | Construct from a C-string (extracts the first UTF-8 character) |
+| `Char(const std::string& data)` | Construct from a `std::string` (extracts the first UTF-8 character) |
+| `operator=` | Assignment operators (from string, C-string, or another Char) |
+| `operator==` / `operator!=` | Comparison operators |
+| `data()` | Get the underlying string representation of the character |
+| `length()` | Get the byte length of the character |
+
 ---
 
 ## 5. Terminal Class

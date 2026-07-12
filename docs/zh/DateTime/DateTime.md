@@ -255,28 +255,17 @@ bool reset(uint32_t year, uint8_t month, uint8_t day,
 - **功能**: 使用新值重新初始化对象
 - **返回值**: 新值有效则返回 `true`
 
-### 6.7 静态方法
+### 6.7 格式化方法
 
-#### now
-
-```cpp
-static DateTime now(bool use_local_time = true);
-```
-
-- **功能**: 获取当前日期时间
-- **参数**: `use_local_time` - `true` 为本地时间，`false` 为 UTC
-- **返回值**: 表示当前时刻的 `DateTime` 对象
-
-#### formatString
+#### formatString（成员函数）
 
 ```cpp
-static std::string formatString(const char* format, const DateTime& date_time);
+std::string formatString(const char* format) const;
 ```
 
-- **功能**: 使用格式字符串格式化 `DateTime`
+- **功能**: 使用格式字符串格式化此 `DateTime`
 - **参数**:
   - `format` - 格式说明符字符串
-  - `date_time` - 要格式化的日期时间
 - **返回值**: 格式化后的字符串
 
 **格式说明符**:
@@ -295,6 +284,30 @@ static std::string formatString(const char* format, const DateTime& date_time);
 | `S` | 毫秒 | `SSS` -> "500" |
 
 其他字符将原样输出。
+
+### 6.8 静态方法
+
+#### now
+
+```cpp
+static DateTime now(bool use_local_time = true);
+```
+
+- **功能**: 获取当前日期时间
+- **参数**: `use_local_time` - `true` 为本地时间，`false` 为 UTC
+- **返回值**: 表示当前时刻的 `DateTime` 对象
+
+#### formatString（静态函数）
+
+```cpp
+static std::string formatString(const char* format, const DateTime& date_time);
+```
+
+- **功能**: 使用格式字符串格式化 `DateTime`
+- **参数**:
+  - `format` - 格式说明符字符串
+  - `date_time` - 要格式化的日期时间
+- **返回值**: 格式化后的字符串
 
 ---
 

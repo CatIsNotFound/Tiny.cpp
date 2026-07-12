@@ -112,18 +112,18 @@ namespace Tiny {
                     Strikethrough     = 64,
                 };
 
-                Style() : property(), bg_color(), fg_color(Color::Default), intensity(2) {}
+                Style() : property(), bg_color(Color::Default), fg_color(Color::Default), intensity(2) {}
 
                 void reset() {
                     property = 0;
                     intensity = 2;
-                    bg_color = Color::Black;
+                    bg_color = Color::Default;
                     fg_color = Color::Default;
                 }
 
                 bool isDefault() const {
                     return property == 0 && intensity == 2 &&
-                           bg_color == Color::Black && fg_color == Color::Default &&
+                           bg_color == Color::Default && fg_color == Color::Default &&
                            !used_rgb_color;
                 }
 

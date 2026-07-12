@@ -255,28 +255,17 @@ bool reset(uint32_t year, uint8_t month, uint8_t day,
 - **Function**: Reinitialize the object with new values
 - **Return Value**: `true` if the new values are valid
 
-### 6.7 Static Methods
+### 6.7 Format Methods
 
-#### now
-
-```cpp
-static DateTime now(bool use_local_time = true);
-```
-
-- **Function**: Get current date/time
-- **Parameter**: `use_local_time` - Use local time if `true`, UTC otherwise
-- **Return Value**: `DateTime` object representing now
-
-#### formatString
+#### formatString (member)
 
 ```cpp
-static std::string formatString(const char* format, const DateTime& date_time);
+std::string formatString(const char* format) const;
 ```
 
-- **Function**: Format a `DateTime` using a format string
-- **Parameters**:
+- **Function**: Format this `DateTime` using a format string
+- **Parameter**:
   - `format` - Format specifier string
-  - `date_time` - Date/time to format
 - **Return Value**: Formatted string
 
 **Format Specifiers**:
@@ -295,6 +284,30 @@ static std::string formatString(const char* format, const DateTime& date_time);
 | `S` | Millisecond | `SSS` -> "500" |
 
 Any other characters are copied literally.
+
+### 6.8 Static Methods
+
+#### now
+
+```cpp
+static DateTime now(bool use_local_time = true);
+```
+
+- **Function**: Get current date/time
+- **Parameter**: `use_local_time` - Use local time if `true`, UTC otherwise
+- **Return Value**: `DateTime` object representing now
+
+#### formatString (static)
+
+```cpp
+static std::string formatString(const char* format, const DateTime& date_time);
+```
+
+- **Function**: Format a `DateTime` using a format string
+- **Parameters**:
+  - `format` - Format specifier string
+  - `date_time` - Date/time to format
+- **Return Value**: Formatted string
 
 ---
 

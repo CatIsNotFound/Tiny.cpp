@@ -261,6 +261,32 @@ CPU_Arch getCurrentCPUArch();
 - **功能**: 获取当前 CPU 架构
 - **返回值**: `CPU_Arch` 枚举值
 
+### 4.11 lastSystemError
+
+```cpp
+void lastSystemError(std::string& info, int* err_code = nullptr);
+```
+- **功能**: 获取最后一次系统错误信息
+- **参数**:
+  - `info` - 输出参数，接收错误描述字符串
+  - `err_code` - 可选输出参数，接收错误代码（默认 `nullptr`）
+- **返回值**: 无
+- **注意事项**: 
+  - Windows 平台使用 `GetLastError()` 和 `FormatMessageA()` 获取错误
+  - Unix/Linux 平台使用 `errno` 和 `strerror()` 获取错误
+  - 该函数获取的是最近一次系统调用的错误
+
+### 4.12 isAdmin
+
+```cpp
+bool isAdmin();
+```
+- **功能**: 检查当前进程是否以管理员/root 权限运行
+- **返回值**: `true` 表示以管理员/root 权限运行
+- **注意事项**:
+  - Windows 平台检查当前用户是否属于管理员组
+  - Unix/Linux 平台检查有效用户 ID 是否为 0（root）
+
 ---
 
 ## 6. FileSystem 类
