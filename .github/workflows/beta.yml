@@ -1,0 +1,52 @@
+﻿name: Build and Test
+on:
+  workflow_call:
+  push:
+    branches:
+      - main
+      - beta
+  pull_request:
+    branches:
+      - main
+      - beta
+
+jobs:
+  env-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: pull project
+        uses: actions/checkout@v4
+
+      - name: Install requirements
+        shell: bash
+        run: |
+          sudo apt update
+          sudo apt install build-essential git cmake make ninja-build libgpm-dev gpm -y
+
+      - name: Compiling project
+        shell: bash
+        run: |
+          mkdir -p ~/MyLibs/
+          cmake -B build -DCMAKE_INSTALL_PREFIX=~/MyLibs/Tiny.cpp -DCMAKE_BUILD_TYPE=Release -DTINY_BUILD_TEST=OFF 
+          if [ $? -ne 0 ]; then
+              echo "* Failed to configure project!"
+              exit 1
+          fi
+          cmake --build build --target install -j8
+          if [ $? -ne 0 ]; then
+              echo "* Failed to compile and install!"
+              exit 1
+          fi
+
+      - name: Test for project
+        shell: bash
+        run: |
+          cd build/gtests
+          for EXE in $(ls -1); do
+              ./EXE
+              if [ $? -ne 0 ]; then
+                  echo "* Test failed: " $EXE
+                  exit 1
+              fi
+          done
