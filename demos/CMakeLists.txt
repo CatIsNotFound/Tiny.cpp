@@ -18,11 +18,6 @@ addModule(Msgbox MY_MODULE
     Misc/Misc.hpp
 )
 
-addModule(Edit MY_MODULE
-    Edit/DemoTextEditor.cpp
-    Misc/Misc.hpp
-)
-
 addModule(OSInfo MY_MODULE
     OSInfo/DemoOSInfo.cpp
 )
