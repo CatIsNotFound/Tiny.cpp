@@ -299,6 +299,12 @@ namespace Tiny {
         return true;
     }
 
+    bool EventsMap::setAllowedFailedEnabledByID(size_t event_id, bool enabled) {
+        if (!exist(event_id)) return false;
+        _event_map.at(event_id).setAllowedFailedEnabled(enabled);
+        return true;
+    }
+
     bool EventsMap::exist(size_t event_id) const {
         return _event_map.find(event_id) != _event_map.end();
     }
@@ -322,6 +328,7 @@ namespace Tiny {
 
     std::vector<size_t> EventsMap::eventIDList() const {
         std::vector<size_t> event_ids;
+        event_ids.reserve(_event_map.size());
         for (auto& ev : _event_map) {
             event_ids.push_back(ev.first);
         }

@@ -384,22 +384,22 @@ TEST(EventMapTest, GetEventByIDNotFound) {
 }
 
 
-TEST(EventMapTest, GetEventByObject) {
+TEST(EventMapTest, SetAllowedFailedEnabledByID) {
     EventsMap map;
-    Event ev(1, "FindEvent", []() { return true; }, [](const std::atomic<bool>&) {});
-    ev.setDelayMS(50);
-    ev.setRepeatCount(2);
+    Event ev(1, "AllowedFailedTest", []() { return true; }, [](const std::atomic<bool>&) {});
 
     map.addEvent(ev);
-    EXPECT_TRUE(map.event(ev));
+    EXPECT_TRUE(map.setAllowedFailedEnabledByID(1, false));
+    EXPECT_FALSE(map.event(1).allowedFailedEnabled());
 
-    Event notMatch(1, "Different", []() { return true; }, [](const std::atomic<bool>&) {});
-    notMatch.setDelayMS(50);
-    notMatch.setRepeatCount(2);
-    EXPECT_FALSE(map.event(notMatch));
+    EXPECT_TRUE(map.setAllowedFailedEnabledByID(1, true));
+    EXPECT_TRUE(map.event(1).allowedFailedEnabled());
+}
 
-    Event notExist(999, "NotExist", []() { return true; }, [](const std::atomic<bool>&) {});
-    EXPECT_FALSE(map.event(notExist));
+
+TEST(EventMapTest, SetAllowedFailedEnabledByIDNotFound) {
+    EventsMap map;
+    EXPECT_FALSE(map.setAllowedFailedEnabledByID(999, true));
 }
 
 

@@ -103,6 +103,7 @@ namespace Tiny {
         bool setEventByID(size_t event_id, const std::function<void(const std::atomic<bool>&)>& event);
         bool setDelayByID(size_t event_id, uint32_t delay_ms);
         bool setRepeatByID(size_t event_id, uint32_t repeat_count);
+        bool setAllowedFailedEnabledByID(size_t event_id, bool enabled);
 
         bool exist(size_t event_id) const;
         const Event& event(size_t event_id) const;
