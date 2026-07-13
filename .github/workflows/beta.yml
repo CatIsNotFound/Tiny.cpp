@@ -60,17 +60,20 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Package artifact
+        id: package
         shell: bash
         run: |
           cd ~/MyLibs
           ARCH=$(uname -m)
-          tar -czf Tiny_cpp_v${{ steps.version.outputs.version }}_linux_${ARCH}.tar.gz Tiny.cpp
+          ARTIFACT_NAME="Tiny_cpp_v${{ steps.version.outputs.version }}_linux_${ARCH}"
+          tar -czf ${ARTIFACT_NAME}.tar.gz Tiny.cpp
+          echo "artifact_name=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Tiny_cpp_linux
-          path: ~/MyLibs/Tiny_cpp_v*.tar.gz
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: ~/MyLibs/${{ steps.package.outputs.artifact_name }}.tar.gz
 
   env-macos:
     runs-on: macos-latest
@@ -117,17 +120,20 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Package artifact
+        id: package
         shell: bash
         run: |
           cd ~/MyLibs
           ARCH=$(uname -m)
-          tar -czf Tiny_cpp_v${{ steps.version.outputs.version }}_macos_${ARCH}.tar.gz Tiny.cpp
+          ARTIFACT_NAME="Tiny_cpp_v${{ steps.version.outputs.version }}_macos_${ARCH}"
+          tar -czf ${ARTIFACT_NAME}.tar.gz Tiny.cpp
+          echo "artifact_name=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Tiny_cpp_macos
-          path: ~/MyLibs/Tiny_cpp_v*.tar.gz
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: ~/MyLibs/${{ steps.package.outputs.artifact_name }}.tar.gz
 
   env-windows:
     runs-on: windows-latest
@@ -175,17 +181,20 @@ jobs:
           }
 
       - name: Package artifact
+        id: package
         shell: pwsh
         run: |
           $libDir = Join-Path $env:USERPROFILE "MyLibs"
           $arch = $env:PROCESSOR_ARCHITECTURE.ToLower()
           if ($arch -eq "amd64") { $arch = "x86_64" }
-          $dest = Join-Path $env:GITHUB_WORKSPACE "Tiny_cpp_v${{ steps.version.outputs.version }}_windows_${arch}.zip"
+          $artifactName = "Tiny_cpp_v${{ steps.version.outputs.version }}_windows_${arch}"
+          $dest = Join-Path $env:GITHUB_WORKSPACE "$artifactName.zip"
           Compress-Archive -Path (Join-Path $libDir "Tiny.cpp") -DestinationPath $dest
+          echo "artifact_name=$artifactName" >> $env:GITHUB_OUTPUT
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Tiny_cpp_windows
-          path: ${{ github.workspace }}/Tiny_cpp_v*.zip
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: ${{ github.workspace }}/${{ steps.package.outputs.artifact_name }}.zip
         

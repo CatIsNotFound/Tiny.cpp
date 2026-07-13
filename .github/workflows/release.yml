@@ -21,7 +21,7 @@ jobs:
       - name: Get version
         id: version
         run: |
-          VERSION=$(grep "project(Tiny" CMakeLists.txt | grep -oP 'VERSION \K[0-9.]+')
+          VERSION=$(grep "project(Tiny" CMakeLists.txt | sed -n 's/.*VERSION \([0-9.]*\).*/\1/p')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Download all artifacts
@@ -45,9 +45,8 @@ jobs:
           name: Tiny.cpp v${{ steps.version.outputs.version }}
           body: ${{ steps.changelog.outputs.content }}
           files: |
-            artifacts/Tiny_cpp_linux/*.tar.gz
-            artifacts/Tiny_cpp_macos/*.tar.gz
-            artifacts/Tiny_cpp_windows/*.zip
+            artifacts/*/*.tar.gz
+            artifacts/*/*.zip
           draft: false
           prerelease: false
         env:
