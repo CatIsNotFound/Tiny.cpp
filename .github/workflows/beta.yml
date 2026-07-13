@@ -52,6 +52,26 @@ jobs:
               fi
           done
 
+      - name: Get version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(grep "project(Tiny" CMakeLists.txt | grep -oP 'VERSION \K[0-9.]+')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Package artifact
+        shell: bash
+        run: |
+          cd ~/MyLibs
+          ARCH=$(uname -m)
+          tar -czf Tiny_cpp_v${{ steps.version.outputs.version }}_linux_${ARCH}.tar.gz Tiny.cpp
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tiny_cpp_linux
+          path: ~/MyLibs/Tiny_cpp_v*.tar.gz
+
   env-macos:
     runs-on: macos-latest
 
@@ -88,3 +108,84 @@ jobs:
                   exit 1
               fi
           done
+
+      - name: Get version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(grep "project(Tiny" CMakeLists.txt | grep -oP 'VERSION \K[0-9.]+')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Package artifact
+        shell: bash
+        run: |
+          cd ~/MyLibs
+          ARCH=$(uname -m)
+          tar -czf Tiny_cpp_v${{ steps.version.outputs.version }}_macos_${ARCH}.tar.gz Tiny.cpp
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tiny_cpp_macos
+          path: ~/MyLibs/Tiny_cpp_v*.tar.gz
+
+  env-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: pull project
+        uses: actions/checkout@v4
+
+      - name: Compiling project
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\MyLibs"
+          cmake -B build -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp" -DCMAKE_BUILD_TYPE=Release
+          if ($LASTEXITCODE -ne 0) {
+              Write-Host "* Failed to configure project!"
+              exit 1
+          }
+          cmake --build build --target install --config Release -j8
+          if ($LASTEXITCODE -ne 0) {
+              Write-Host "* Failed to compile and install!"
+              exit 1
+          }
+
+      - name: Test for project
+        shell: pwsh
+        run: |
+          cd build\test
+          $exes = Get-ChildItem -Filter *.exe
+          foreach ($exe in $exes) {
+              & $exe.FullName
+              if ($LASTEXITCODE -ne 0) {
+                  Write-Host "* Test failed: " $exe.Name
+                  exit 1
+              }
+          }
+
+      - name: Get version
+        id: version
+        shell: pwsh
+        run: |
+          $content = Get-Content CMakeLists.txt -Raw
+          if ($content -match 'VERSION\s+([0-9.]+)') {
+              $version = $matches[1]
+              echo "version=$version" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Package artifact
+        shell: pwsh
+        run: |
+          $libDir = Join-Path $env:USERPROFILE "MyLibs"
+          $arch = $env:PROCESSOR_ARCHITECTURE.ToLower()
+          if ($arch -eq "amd64") { $arch = "x86_64" }
+          $dest = Join-Path $env:GITHUB_WORKSPACE "Tiny_cpp_v${{ steps.version.outputs.version }}_windows_${arch}.zip"
+          Compress-Archive -Path (Join-Path $libDir "Tiny.cpp") -DestinationPath $dest
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tiny_cpp_windows
+          path: ${{ github.workspace }}/Tiny_cpp_v*.zip
+        
