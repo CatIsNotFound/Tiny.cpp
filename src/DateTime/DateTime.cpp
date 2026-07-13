@@ -254,6 +254,17 @@ Tiny::DT::DateTime::DateTime(uint32_t year, uint8_t month, uint8_t day, uint8_t 
           _local_time(use_local_time), _milliseconds(millisecond), _w_day(weekday) {
     SDT dt = {year, month, day, hour, minute, second, millisecond, weekday};
     _timestamps = toTimestamp(dt, use_local_time, _valid);
+    dt = fromTimestamp(_timestamps, use_local_time, _valid);
+    if (_valid) {
+        _year = dt.year;
+        _month = dt.month;
+        _day = dt.day;
+        _hour = dt.hour;
+        _minute = dt.minute;
+        _second = dt.second;
+        _milliseconds = dt.millisecond;
+        _w_day = dt.weekday;
+    }
 }
 
 Tiny::DT::DateTime::DateTime(Tiny::DT::Duration timestamps, bool use_local_time)

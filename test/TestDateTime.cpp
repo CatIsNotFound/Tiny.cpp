@@ -129,7 +129,7 @@ TEST(DateTimeConstructorTest, DefaultMillisAndWeekday) {
     DateTime dt(2026, 1, 1, 0, 0, 0);
     EXPECT_TRUE(dt.isValid());
     EXPECT_EQ(dt.millisecond(), 0);
-    EXPECT_EQ(dt.weekday(), 0);
+    EXPECT_EQ(dt.weekday(), 4);
     EXPECT_TRUE(dt.isLocalTime());
 }
 
