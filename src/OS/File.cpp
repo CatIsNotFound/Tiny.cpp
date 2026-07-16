@@ -207,13 +207,19 @@ namespace Tiny {
     }
 
     OS::Path &OS::Path::parent() {
+#ifdef TINY_CPP_MY_OS_WINDOWS
         auto coped_path = convertPath(_path);
         setPath(coped_path.substr(0, coped_path.find_last_of(SPLASH) + 1));
+#else
+        setPath(_path.substr(0, _path.find_last_of(SPLASH) + 1));
+#endif
         return *this;
     }
 
     OS::Path &OS::Path::upper() {
+#ifdef TINY_CPP_MY_OS_WINDOWS
         _path = convertPath(_path);
+#endif
         auto pos = _path.find_last_of(SPLASH);
         if (pos >= _path.size() - 1) _path = _path.substr(0, pos);
         setPath(_path.substr(0, pos + 1));
