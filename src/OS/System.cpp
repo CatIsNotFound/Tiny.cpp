@@ -1309,7 +1309,7 @@ namespace Tiny {
             std::string short_file_name = iter->d_name;
             if (short_file_name == "." || short_file_name == "..") continue;
             auto full_path = path.path() + "/" + short_file_name;
-            Path new_path(new_found);
+            Path new_path(full_path);
             if (new_path.isDirectory()) {
                 auto found_path = listAllPaths(new_path, current_recursion + 1, recursion_count, stop_all, found_event);
                 if (stop_all) break;
