@@ -24,7 +24,7 @@
  *************************************************************************************/
 
 #include "../src/OS/File.hpp"
-#include "../src/TUI/Terminal.hpp"
+#include "../src/Terminal/Terminal.hpp"
 using namespace Tiny::OS;
 
 int main() {

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(Tiny LANGUAGES CXX VERSION 1.1.1)
+project(Tiny LANGUAGES CXX VERSION 1.2.0)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -43,9 +43,9 @@ add_library(${PROJECT_NAME} STATIC
         src/DateTime/DateTime.cpp
         src/Events/Events.hpp
         src/Events/Events.cpp
-        src/TUI/Terminal.hpp
-        src/TUI/Terminal.cpp
-        src/TUI/Terminal_Int.hpp
+        src/Terminal/Terminal.hpp
+        src/Terminal/Terminal.cpp
+        src/Terminal/Terminal_Int.hpp
         src/TUI/TUI.hpp
         src/TUI/TUI.cpp
         src/Parser/CommandParser.hpp

@@ -26,7 +26,7 @@
 #ifndef TINY_CPP_TUI_HPP
 #define TINY_CPP_TUI_HPP
 
-#include "Terminal.hpp"
+#include "../Terminal/Terminal.hpp"
 #include <vector>
 #include <bitset>
 #include <cstring>
@@ -226,6 +226,7 @@ namespace Tiny {
             std::atomic<bool> _is_resizing{};
             std::mutex _mutex{};
             std::function<void(Renderer&)> _resize_event{};
+            std::thread::id _th_id{};
 #ifdef TINY_CPP_MY_OS_WINDOWS
             std::thread _resize_win_signal{};
             std::atomic<bool> _is_running{};
@@ -264,12 +265,15 @@ namespace Tiny {
             void move(uint32_t x, uint32_t y);
             void resize(const Size& size);
             void resize(uint32_t w, uint32_t h);
+            void draw();
 
             [[nodiscard]] const std::string& name() const;
             [[nodiscard]] const Position& position() const;
             [[nodiscard]] const Size& size() const;
         protected:
-            virtual void renderEvent();
+            virtual void renderEvent() = 0;
+            virtual void resizeEvent(uint32_t width, uint32_t height) = 0;
+            virtual void moveEvent(uint32_t x, uint32_t y) = 0;
 
         private:
             std::string _name;

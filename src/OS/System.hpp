@@ -29,6 +29,8 @@
 #include <deque>
 #include <vector>
 #include <functional>
+#include <unordered_map>
+
 #include "File.hpp"
 
 namespace Tiny {
@@ -147,11 +149,17 @@ namespace Tiny {
             static std::vector<Path> listPath(const Path& path, uint8_t recursion_count = 1, const std::function<bool(const Path&)>& filter = {});
             static std::vector<Path> listPath(const std::string& path, uint8_t recursion_count = 1, const std::function<bool(const Path&)>& filter = {});
             static std::vector<Path> listPath(uint8_t recursion_count = 1, const std::function<bool(const Path&)>& filter = {});
-
+            static std::unordered_map<size_t, std::vector<Path>> listPathEx(const Path& path, uint8_t recursion_count = 1,
+                                                const std::function<bool(const Path&, bool&)>& found_event = {});
+            static std::unordered_map<size_t, std::vector<Path>> listPathEx(const std::string& path, uint8_t recursion_count = 1,
+                                                const std::function<bool(const Path&, bool&)>& found_event = {});
         private:
             static bool rmDirCompletely(const Path& path);
             static std::deque<std::string> mkDirCompletely(const Path& path);
-            static std::vector<Path> listAllPath(const Path& path, uint8_t current_recursion, uint8_t recursion_count, const std::function<bool(const Path&)>& filter = {});
+            static std::vector<Path> listAllPath(const Path &path, uint8_t current_recursion, uint8_t recursion_count,
+                                                 const std::function<bool(const Path &)> &filter = {});
+            static std::unordered_map<size_t, std::vector<Path>> listAllPaths(const Path &path, uint8_t current_recursion, uint8_t recursion_count,
+                                                                              bool &stop_all, const std::function<bool(const Path&, bool&)>& found_event = {});
         };
     }
 }

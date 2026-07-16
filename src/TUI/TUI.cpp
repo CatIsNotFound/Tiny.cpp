@@ -350,6 +350,9 @@ namespace Tiny {
     }
 
     void TUI::Renderer::present() {
+        if (std::this_thread::get_id() != _th_id) {
+            throw std::runtime_error("Tiny::TUI::Renderer::present(): The specified renderer can not used by another thread!");
+        }
         renderEvent();
     }
 
@@ -365,6 +368,7 @@ namespace Tiny {
             i.resize(size.width);
         }
         initSignal();
+        _th_id = std::this_thread::get_id();
     }
 
     void TUI::Renderer::renderEvent() {
@@ -539,20 +543,28 @@ namespace Tiny {
 
     void TUI::AbstractWidget::move(const Position &position) {
         _pos = position;
+        moveEvent(_pos.column, _pos.row);
     }
 
     void TUI::AbstractWidget::move(uint32_t x, uint32_t y) {
         _pos.column = x;
         _pos.row = y;
+        moveEvent(_pos.column, _pos.row);
     }
 
     void TUI::AbstractWidget::resize(const Size &size) {
         _size = size;
+        resizeEvent(_size.width, _size.height);
     }
 
     void TUI::AbstractWidget::resize(uint32_t w, uint32_t h) {
         _size.width = w;
         _size.height = h;
+        resizeEvent(_size.width, _size.height);
+    }
+
+    void TUI::AbstractWidget::draw() {
+        renderEvent();
     }
 
     const std::string & TUI::AbstractWidget::name() const {
@@ -566,8 +578,6 @@ namespace Tiny {
     const TUI::Size & TUI::AbstractWidget::size() const {
         return _size;
     }
-
-    void TUI::AbstractWidget::renderEvent() {}
 }
 
 /*************************************************************************************

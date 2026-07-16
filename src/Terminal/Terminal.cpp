@@ -23,7 +23,7 @@
  *                                                                                   *
  *************************************************************************************/
 
-#include "Terminal.hpp"
+#include "../Terminal/Terminal.hpp"
 #include "../OS/File.hpp"
 
 #if defined(TINY_CPP_MY_OS_WINDOWS)

@@ -196,13 +196,21 @@ namespace Tiny {
         HKEY hKey;
         char dis_product[128] = {};
         char dis_version[32] = {};
+        char dis_cur_ver[32] = {};
+        char dis_cur_build[32] = {};
         DWORD dis_product_len = 128;
         DWORD dis_ver_len = 32;
+        DWORD dis_cur_ver_len = 32;
+        DWORD dis_cur_build_len = 32;
         if (RegOpenKeyExA(HKEY_LOCAL_MACHINE,
             "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",
             0, KEY_READ, &hKey) == ERROR_SUCCESS) {
             RegQueryValueExA(hKey, "ProductName", nullptr, nullptr, (LPBYTE)&dis_product, &dis_product_len);
-            RegQueryValueExA(hKey, "WinREVersion", nullptr, nullptr, (LPBYTE)&dis_version, &dis_ver_len);
+            if (RegQueryValueExA(hKey, "WinREVersion", nullptr, nullptr, (LPBYTE)&dis_version, &dis_ver_len) != ERROR_SUCCESS) {
+                RegQueryValueExA(hKey, "CurrentVersion", nullptr, nullptr, (LPBYTE)&dis_cur_ver, &dis_cur_ver_len);
+                RegQueryValueExA(hKey, "CurrentBuild", nullptr, nullptr, (LPBYTE)&dis_cur_build, &dis_cur_build_len);
+                sprintf(dis_version, "%s.%s", dis_cur_ver, dis_cur_build);
+            }
             RegCloseKey(hKey);
             info.version = dis_version;
             info.os_name = dis_product;
@@ -300,9 +308,9 @@ namespace Tiny {
         if (!query) {
             if (PdhOpenQueryA(nullptr, 0, &query) == ERROR_SUCCESS) {
                 info.usages.resize(info.cores);
-                for (size_t i = 0; i < info.cores; i++) {
+                for (uint32_t i = 0; i < info.cores; i++) {
                     wchar_t path[MAX_PATH];
-                    swprintf(path, L"\\Processor(%llu)\\%% Processor Time", i);
+                    swprintf(path, L"\\Processor Information(0,%u)\\%% Processor Time", i);
                     if (PdhAddCounterW(query, path, 0, &counter[i]) != ERROR_SUCCESS) ret = false;
                 }
             } else ret = false;
@@ -1134,6 +1142,25 @@ namespace Tiny {
         return listAllPath(current_path, 1, recursion_count, filter);
     }
 
+    std::unordered_map<size_t, std::vector<OS::Path>> OS::FileSystem::listPathEx(const Path &path,
+                uint8_t recursion_count,
+                const std::function<bool(const Path &, bool &)> &found_event) {
+        if (!path.isValid()) return {};
+        if (recursion_count == 0) recursion_count = 255;
+        bool st_all{};
+        return listAllPaths(path, 1, recursion_count, st_all, found_event);
+    }
+
+    std::unordered_map<size_t, std::vector<OS::Path>> OS::FileSystem::listPathEx(const std::string &path,
+                uint8_t recursion_count,
+                const std::function<bool(const Path &, bool &)> &found_event) {
+        auto current_path = Path(".");
+        if (!current_path.isValid()) return {};
+        if (recursion_count == 0) recursion_count = 255;
+        bool st_all{};
+        return listAllPaths(current_path, 1, recursion_count, st_all, found_event);
+    }
+
     bool OS::FileSystem::rmDirCompletely(const Path &path) {
         auto paths = listPath(path, 0);
 #ifdef TINY_CPP_MY_OS_WINDOWS
@@ -1174,7 +1201,7 @@ namespace Tiny {
 
     std::vector<OS::Path> OS::FileSystem::listAllPath(const Path &path, uint8_t current_recursion,
                                                       uint8_t recursion_count,
-                                                      const std::function<bool(const Path&)>& filter) {
+                                                      const std::function<bool(const Path &)> &filter) {
         std::vector<Path> paths;
         if (current_recursion > recursion_count) return paths;
 #ifdef TINY_CPP_MY_OS_WINDOWS
@@ -1187,8 +1214,8 @@ namespace Tiny {
         do {
             auto short_file_name = wide2String(res.cFileName);
             auto new_found = path.path() + "\\" + short_file_name;
-            Path new_path(new_found);
             if (short_file_name == "." || short_file_name == "..") continue;
+            Path new_path(new_found);
             if (new_path.isDirectory()) {
                 auto found_path = listAllPath(new_path, current_recursion + 1, recursion_count, filter);
                 paths.insert(paths.end(), found_path.begin(), found_path.end());
@@ -1216,6 +1243,97 @@ namespace Tiny {
             }
             if (filter && !filter(new_found)) continue;
             paths.emplace_back(new_found);
+        } while ((iter = readdir(dir)) != nullptr);
+
+        closedir(dir);
+#endif
+        return paths;
+    }
+
+    std::unordered_map<size_t, std::vector<OS::Path>> OS::FileSystem::listAllPaths(const Path &path,
+                                                      uint8_t current_recursion, uint8_t recursion_count, bool &stop_all,
+                                                      const std::function<bool(const Path &, bool &)> &found_event) {
+        std::unordered_map<size_t, std::vector<Path>> paths;
+        if (current_recursion > recursion_count) return paths;
+        paths.insert({current_recursion, {}});
+        auto& cur_paths = paths[current_recursion];
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        WIN32_FIND_DATAW res = {};
+        auto str = string2Wide(path.path());
+        wchar_t find_string[MAX_PATH];
+        wsprintfW(find_string, L"%s\\*", str.c_str());
+        auto iter = FindFirstFileW(find_string, &res);
+        if (iter == INVALID_HANDLE_VALUE) return paths;
+        bool stop_now = false;
+        do {
+            auto short_file_name = wide2String(res.cFileName);
+            auto new_found = path.path() + "\\" + short_file_name;
+            if (short_file_name == "." || short_file_name == "..") continue;
+            Path new_path(new_found);
+            if (new_path.isDirectory()) {
+                auto found_path = listAllPaths(new_path, current_recursion + 1, recursion_count, stop_all, found_event);
+                if (stop_all) break;
+                for (auto& ff_path : found_path) {
+                    auto& LV = ff_path.first;
+                    if (paths.find(LV) != paths.end()) {
+                        auto& temp_group = paths.at(LV);
+                        temp_group.insert(temp_group.end(), ff_path.second.begin(), ff_path.second.end());
+                    } else {
+                        paths.emplace(LV, ff_path.second);
+                    }
+                }
+            }
+            if (found_event) {
+                if (found_event(new_path, stop_now)) {
+                    cur_paths.emplace_back(new_path);
+                }
+            } else {
+                cur_paths.emplace_back(new_path);
+            }
+            if (stop_now) {
+                stop_all = true;
+                break;
+            }
+        } while (FindNextFileW(iter, &res));
+        FindClose(iter);
+#elif defined(TINY_CPP_MY_OS_UNIX)
+        auto dir = opendir(path.path().data());
+        if (!dir) return paths;
+        auto iter = readdir(dir);
+        if (!iter) {
+            closedir(dir);
+            return paths;
+        }
+        bool stop_now = false;
+        do {
+            std::string short_file_name = iter->d_name;
+            if (short_file_name == "." || short_file_name == "..") continue;
+            auto full_path = path.path() + "/" + short_file_name;
+            Path new_path(new_found);
+            if (new_path.isDirectory()) {
+                auto found_path = listAllPaths(new_path, current_recursion + 1, recursion_count, stop_all, found_event);
+                if (stop_all) break;
+                for (auto& ff_path : found_path) {
+                    auto& LV = ff_path.first;
+                    if (paths.find(LV) != paths.end()) {
+                        auto& temp_group = paths.at(LV);
+                        temp_group.insert(temp_group.end(), ff_path.second.begin(), ff_path.second.end());
+                    } else {
+                        paths.emplace(LV, ff_path.second);
+                    }
+                }
+            }
+            if (found_event) {
+                if (found_event(new_path, stop_now)) {
+                    cur_paths.emplace_back(new_path);
+                }
+            } else {
+                cur_paths.emplace_back(new_path);
+            }
+            if (stop_now) {
+                stop_all = true;
+                break;
+            }
         } while ((iter = readdir(dir)) != nullptr);
 
         closedir(dir);

@@ -25,7 +25,7 @@
 
 #include <gtest/gtest.h>
 #include "../src/Parser/CommandParser.hpp"
-#include "../src/TUI/Terminal.hpp"
+#include "../src/Terminal/Terminal.hpp"
 
 using namespace Tiny;
 

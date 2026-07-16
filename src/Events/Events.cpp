@@ -195,7 +195,6 @@ namespace Tiny {
                     _attempt_cnt.fetch_add(1);
                 } catch (const std::exception &e) {
                     _is_running.store(false);
-                    printf("Tiny::Event (ID %ll): An error has occurred: %s\n", _id, e.what());
                 }
                 std::unique_lock<std::mutex> lock(_mutex);
                 _con_var.wait_for(lock, std::chrono::milliseconds(_delay.load()));
@@ -257,7 +256,9 @@ namespace Tiny {
     void EventsMap::waitEvent(size_t event_id) {
         if (!exist(event_id)) return;
         _event_map.at(event_id).stop();
-        while (_event_map.at(event_id).isRunning()) {}
+        while (_event_map.at(event_id).isRunning()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
     }
 
     void EventsMap::stopAllEvents() {

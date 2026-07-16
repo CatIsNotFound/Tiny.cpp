@@ -28,13 +28,15 @@
 #ifdef TINY_CPP_MY_OS_WINDOWS
 #include <windows.h>
 #include <shlobj.h>
-
-#include <utility>
+#define SPLASH '\\'
+#define SPLASH_STR "\\"
 #elif defined(TINY_CPP_MY_OS_UNIX)
 #include <dirent.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#define SPLASH '/'
+#define SPLASH_STR "/"
 #endif
 
 #ifdef TINY_CPP_MY_OS_WINDOWS
@@ -140,8 +142,8 @@ namespace Tiny {
     }
 
     std::string OS::Path::parentDirectory() const {
-        size_t pos = _path.find_last_of('/');
-        if (pos == 0) return "/";
+        size_t pos = _path.find_last_of(SPLASH);
+        if (pos == 0) return SPLASH_STR;
         return _path.substr(0, pos);
     }
 
@@ -187,8 +189,8 @@ namespace Tiny {
     }
 
     OS::Path &OS::Path::operator/(const std::string &path) {
-        if (path.front() != '/') {
-            setPath(_path + "/" + path);
+        if (path.front() != SPLASH) {
+            setPath(_path + SPLASH_STR + path);
         } else {
             setPath(_path + path);
         }
@@ -196,8 +198,8 @@ namespace Tiny {
     }
 
     OS::Path &OS::Path::join(const std::string &path) {
-        if (path.front() != '/') {
-            setPath(_path + "/" + path);
+        if (path.front() != SPLASH) {
+            setPath(_path + SPLASH_STR + path);
         } else {
             setPath(_path + path);
         }
@@ -205,12 +207,14 @@ namespace Tiny {
     }
 
     OS::Path &OS::Path::parent() {
-        setPath(_path.substr(0, _path.find_last_of('/') + 1));
+        auto coped_path = convertPath(_path);
+        setPath(coped_path.substr(0, coped_path.find_last_of(SPLASH) + 1));
         return *this;
     }
 
     OS::Path &OS::Path::upper() {
-        auto pos = _path.find_last_of('/');
+        _path = convertPath(_path);
+        auto pos = _path.find_last_of(SPLASH);
         if (pos >= _path.size() - 1) _path = _path.substr(0, pos);
         setPath(_path.substr(0, pos + 1));
         return *this;
@@ -259,6 +263,7 @@ namespace Tiny {
         std::string new_full_path(ok, 0);
         GetFullPathNameA(my_path.c_str(), ok, &new_full_path[0], nullptr);
         _path.assign(new_full_path.begin(), new_full_path.end() - 1);
+        if (_path.back() == '\\') _path.pop_back();
         _short_file_name = _path.substr(_path.find_last_of('\\') + 1);
 #elif defined(__linux__) || defined(__unix__) || defined(__APPLE__)
         char* new_path = realpath(_path.c_str(), nullptr);
@@ -281,7 +286,8 @@ namespace Tiny {
         } else {
             _type = FileType::Unknown;
         }
-        _short_file_name = _path.substr(_path.find_last_of('/') + 1);
+        if (_path.back() == '/') _path.pop_back();
+        _short_file_name = _path.substr(_path.find_last_of(SPLASH) + 1);
 #endif
     }
 

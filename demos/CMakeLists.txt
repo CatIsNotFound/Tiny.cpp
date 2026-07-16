@@ -22,6 +22,14 @@ addModule(OSInfo MY_MODULE
     OSInfo/DemoOSInfo.cpp
 )
 
+addModule(Tree MY_MODULE
+        Tree/main.cpp
+)
+
+#addModule(Dialog MY_MODULE
+#        Dialog/main.cpp
+#        Dialog/MyUI.hpp
+#)
 
 #########################################################################################
 
