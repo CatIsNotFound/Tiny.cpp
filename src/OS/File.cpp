@@ -385,7 +385,7 @@ namespace Tiny {
         perm |= file_stat.st_mode & S_IXOTH ? P_Execute : P_None;
         _permission[2] = static_cast<Permission>(perm);
 
-        if (_path.back() == '/') _path.pop_back();
+        if (_path.size() > 1 && _path.back() == '/') _path.pop_back();
         _short_file_name = _path.substr(_path.find_last_of(SPLASH) + 1);
 #endif
     }
