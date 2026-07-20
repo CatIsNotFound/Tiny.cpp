@@ -116,7 +116,6 @@ namespace Tiny {
         void lastSystemError(std::string& info, int* err_code = nullptr);
         bool isAdmin();
 
-
         class FileSystem {
         public:
             static bool chDir(const Path& path);
@@ -149,9 +148,10 @@ namespace Tiny {
             static std::vector<Path> listPath(const Path& path, uint8_t recursion_count = 1, const std::function<bool(const Path&)>& filter = {});
             static std::vector<Path> listPath(const std::string& path, uint8_t recursion_count = 1, const std::function<bool(const Path&)>& filter = {});
             static std::vector<Path> listPath(uint8_t recursion_count = 1, const std::function<bool(const Path&)>& filter = {});
-            static std::unordered_map<size_t, std::vector<Path>> listPathEx(const Path& path, uint8_t recursion_count = 1,
+            using LayerMap = std::unordered_map<size_t, std::vector<Path>>;
+            static LayerMap listPathEx(const Path& path, uint8_t recursion_count = 1,
                                                 const std::function<bool(const Path&, bool&)>& found_event = {});
-            static std::unordered_map<size_t, std::vector<Path>> listPathEx(const std::string& path, uint8_t recursion_count = 1,
+            static LayerMap listPathEx(const std::string& path, uint8_t recursion_count = 1,
                                                 const std::function<bool(const Path&, bool&)>& found_event = {});
         private:
             static bool rmDirCompletely(const Path& path);

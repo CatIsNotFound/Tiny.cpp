@@ -23,10 +23,11 @@
  *                                                                                   *
  *************************************************************************************/
 
-#include "TUI.hpp"
+#include "../TUI/TUI.hpp"
 
 #ifdef TINY_CPP_MY_OS_WINDOWS
 #include <windows.h>
+#include <csignal>
 #else
 #include <csignal>
 #include <clocale>
@@ -359,6 +360,8 @@ namespace Tiny {
     TUI::Renderer::Renderer() {
 #ifdef TINY_CPP_MY_OS_UNIX
         setlocale(LC_ALL, "");
+#else
+        signal(SIGINT, SIG_IGN);
 #endif
         Terminal::enterRawMode();
         auto size = Terminal::screenSize();

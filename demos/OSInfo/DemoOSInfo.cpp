@@ -94,6 +94,10 @@ void updateInfo(TUI::Renderer& renderer, OS::CPU& cpu, OS::Memory& memory, OS::D
     }
 }
 
+void killOne(int) {
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+}
+
 int main() {
     OS::CPU cpu_info{};
     OS::Memory memory{};
@@ -126,6 +130,8 @@ int main() {
         if (input.type == TUI::InputEvent::Keyboard && tolower(input.input.keyboard.key) == 'q') {
             break;
         }
+
+        if (input.type == TUI::InputEvent::Keyboard && input.input.keyboard.key == TUI::KEY_CTRL_C) break;
     }
     term::setCursorVisible(true);
     ren.clear();

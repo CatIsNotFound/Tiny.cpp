@@ -81,13 +81,11 @@ namespace Tiny {
             KEY_ACK         = 6,
             KEY_BELL        = 7,
             KEY_BK          = 8,
-            KEY_BACKSPACE   = 8,
             KEY_TAB         = 9,
             KEY_LF          = 10,
             KEY_VT          = 11,
             KEY_FF          = 12,
             KEY_CR          = 13,
-            KEY_ENTER       = 13,
             KEY_SO          = 14,
             KEY_SI          = 15,
             KEY_DLE         = 16,
@@ -138,6 +136,9 @@ namespace Tiny {
             KEY_SPECIAL     = 254,
             KEY_UNKNOWN     = 255
         };
+
+        constexpr bool KEY_BACKSPACE(uint8_t key) { return key == KEY_BK || key == KEY_DEL; }
+        constexpr bool KEY_ENTER(uint8_t key)     { return key == KEY_CR || key == KEY_LF; }
 
         enum SP_Keys : uint8_t {
             SP_KEY_UNKNOWN,
@@ -232,6 +233,10 @@ namespace Tiny {
             static bool clearInRow(uint8_t row);
             static bool moveCursor(Position position);
             static bool moveCursor(uint32_t row, uint32_t column);
+            static bool moveUpCursor(uint32_t rows = 1);
+            static bool moveDownCursor(uint32_t rows = 1);
+            static bool moveLeftCursor(uint32_t cols = 1);
+            static bool moveRightCursor(uint32_t cols = 1);
             static bool setScrollRegion(uint32_t row_start, uint32_t row_end);
             static bool resetScrollRegion();
             static bool flushScreen();

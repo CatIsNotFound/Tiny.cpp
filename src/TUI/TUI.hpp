@@ -26,7 +26,7 @@
 #ifndef TINY_CPP_TUI_HPP
 #define TINY_CPP_TUI_HPP
 
-#include "../Terminal/Terminal.hpp"
+#include "Terminal.hpp"
 #include <vector>
 #include <bitset>
 #include <cstring>

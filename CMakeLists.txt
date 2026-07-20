@@ -43,9 +43,9 @@ add_library(${PROJECT_NAME} STATIC
         src/DateTime/DateTime.cpp
         src/Events/Events.hpp
         src/Events/Events.cpp
-        src/Terminal/Terminal.hpp
-        src/Terminal/Terminal.cpp
-        src/Terminal/Terminal_Int.hpp
+        src/TUI/Terminal.hpp
+        src/TUI/Terminal.cpp
+        src/TUI/Terminal_Int.hpp
         src/TUI/TUI.hpp
         src/TUI/TUI.cpp
         src/Parser/CommandParser.hpp
@@ -54,7 +54,7 @@ add_library(${PROJECT_NAME} STATIC
 
 # Link Windows libraries
 if(WIN32)
-    target_link_libraries(${PROJECT_NAME} PRIVATE pdh)
+    target_link_libraries(${PROJECT_NAME} PRIVATE pdh advapi32)
 endif()
 
 # Link Linux libraries

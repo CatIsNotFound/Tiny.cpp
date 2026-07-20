@@ -26,6 +26,10 @@ addModule(Tree MY_MODULE
         Tree/main.cpp
 )
 
+addModule(List MY_MODULE
+        List/main.cpp
+)
+
 #addModule(Dialog MY_MODULE
 #        Dialog/main.cpp
 #        Dialog/MyUI.hpp

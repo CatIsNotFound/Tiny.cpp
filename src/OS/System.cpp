@@ -368,7 +368,7 @@ namespace Tiny {
             total_usage += info.usages[i];
         }
         info.total_usage = total_usage / static_cast<float>(info.cores);
-#else
+#elif defined(__linux__)
         info.cores = get_nprocs();
         info.usages.resize(info.cores);
         std::function<std::vector<CPU_Stat>()> getCPUStat = [&info, &ret] {
@@ -1142,7 +1142,7 @@ namespace Tiny {
         return listAllPath(current_path, 1, recursion_count, filter);
     }
 
-    std::unordered_map<size_t, std::vector<OS::Path>> OS::FileSystem::listPathEx(const Path &path,
+    OS::FileSystem::LayerMap OS::FileSystem::listPathEx(const Path &path,
                 uint8_t recursion_count,
                 const std::function<bool(const Path &, bool &)> &found_event) {
         if (!path.isValid()) return {};
@@ -1151,7 +1151,7 @@ namespace Tiny {
         return listAllPaths(path, 1, recursion_count, st_all, found_event);
     }
 
-    std::unordered_map<size_t, std::vector<OS::Path>> OS::FileSystem::listPathEx(const std::string &path,
+    OS::FileSystem::LayerMap OS::FileSystem::listPathEx(const std::string &path,
                 uint8_t recursion_count,
                 const std::function<bool(const Path &, bool &)> &found_event) {
         auto current_path = Path(".");

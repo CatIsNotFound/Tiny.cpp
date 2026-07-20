@@ -23,7 +23,7 @@
  *                                                                                   *
  *************************************************************************************/
 
-#include "../Terminal/Terminal.hpp"
+#include "../TUI/Terminal.hpp"
 #include "../OS/File.hpp"
 
 #if defined(TINY_CPP_MY_OS_WINDOWS)
@@ -536,6 +536,70 @@ namespace Tiny {
         if (column >= scr.width) column = scr.width - 1;
         if (row >= scr.height) row = scr.height - 1;
         if (!SetConsoleCursorPosition(console, {static_cast<short>(column), static_cast<short>(row)})) return false;
+#endif
+        return true;
+    }
+
+    bool TUI::Terminal::moveUpCursor(uint32_t rows) {
+#ifdef TINY_CPP_MY_OS_UNIX
+        std::string cmd = "\x1b[" + std::to_string(rows) + "A";
+        write(STDOUT_FILENO, cmd.c_str(), cmd.length());
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return false;
+        auto scr = screenSize();
+        auto cur = cursorPosition();
+        if (cur.row - rows >= scr.height) cur.row = 0;
+        else cur.row -= rows;
+        if (!SetConsoleCursorPosition(console, {static_cast<short>(cur.column), static_cast<short>(cur.row)})) return false;
+#endif
+        return true;
+    }
+
+    bool TUI::Terminal::moveDownCursor(uint32_t rows) {
+#ifdef TINY_CPP_MY_OS_UNIX
+        std::string cmd = "\x1b[" + std::to_string(rows) + "B";
+        write(STDOUT_FILENO, cmd.c_str(), cmd.length());
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return false;
+        auto scr = screenSize();
+        auto cur = cursorPosition();
+        if (cur.row + rows >= scr.height) cur.row = scr.height - 1;
+        else cur.row += rows;
+        if (!SetConsoleCursorPosition(console, {static_cast<short>(cur.column), static_cast<short>(cur.row)})) return false;
+#endif
+        return true;
+    }
+
+    bool TUI::Terminal::moveLeftCursor(uint32_t cols) {
+#ifdef TINY_CPP_MY_OS_UNIX
+        std::string cmd = "\x1b[" + std::to_string(cols) + "D";
+        write(STDOUT_FILENO, cmd.c_str(), cmd.length());
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return false;
+        auto scr = screenSize();
+        auto cur = cursorPosition();
+        if (cur.column - cols >= scr.width) cur.column = 0;
+        else cur.column -= cols;
+        if (!SetConsoleCursorPosition(console, {static_cast<short>(cur.column), static_cast<short>(cur.row)})) return false;
+#endif
+        return true;
+    }
+
+    bool TUI::Terminal::moveRightCursor(uint32_t cols) {
+#ifdef TINY_CPP_MY_OS_UNIX
+        std::string cmd = "\x1b[" + std::to_string(cols) + "C";
+        write(STDOUT_FILENO, cmd.c_str(), cmd.length());
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return false;
+        auto scr = screenSize();
+        auto cur = cursorPosition();
+        if (cur.column + cols >= scr.width) cur.column = scr.width - 1;
+        else cur.column += cols;
+        if (!SetConsoleCursorPosition(console, {static_cast<short>(cur.column), static_cast<short>(cur.row)})) return false;
 #endif
         return true;
     }

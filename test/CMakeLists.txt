@@ -55,6 +55,10 @@ addModule(TestEV MY_MODULE_WITHOUT_GTEST
         Test_Ev.cpp
 )
 
+addModule(TestFileInfo MY_MODULE_WITHOUT_GTEST
+        Test_FileInfo.cpp
+)
+
 
 foreach (MODULE IN ITEMS ${MY_MODULE})
     set_target_properties(${MODULE} PROPERTIES

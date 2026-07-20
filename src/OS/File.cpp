@@ -28,6 +28,9 @@
 #ifdef TINY_CPP_MY_OS_WINDOWS
 #include <windows.h>
 #include <shlobj.h>
+#include <aclapi.h>
+#include <sddl.h>
+#pragma comment(lib, "advapi32.lib")
 #define SPLASH '\\'
 #define SPLASH_STR "\\"
 #elif defined(TINY_CPP_MY_OS_UNIX)
@@ -65,6 +68,13 @@ namespace {
         WideCharToMultiByte(codepage, 0, w_str.data(), w_str.size(),
             &str[0], len, nullptr, nullptr);
         return str;
+    }
+
+    int64_t convertTimeToMS(const FILETIME& f_time) {
+        LARGE_INTEGER ull;
+        ull.LowPart = f_time.dwLowDateTime;
+        ull.HighPart = f_time.dwHighDateTime;
+        return (ull.QuadPart / 10000) - 11644473600000LL;
     }
 }
 #endif
@@ -168,24 +178,31 @@ namespace Tiny {
     }
 
     size_t OS::Path::fileSize() const {
-#ifdef TINY_CPP_MY_OS_WINDOWS
-        size_t size = 0;
-        auto h_file = CreateFileA(_path.c_str(), GENERIC_READ,
-            FILE_SHARE_READ, nullptr, OPEN_EXISTING,
-            FILE_ATTRIBUTE_NORMAL, nullptr);
-        if (h_file == INVALID_HANDLE_VALUE) return 0;
-        LARGE_INTEGER large_int;
-        auto ok = GetFileSizeEx(h_file, &large_int);
-        CloseHandle(h_file);
-        if (!ok) return 0;
-        return large_int.QuadPart;
-#elif defined(TINY_CPP_MY_OS_UNIX)
-        struct stat file_stat;
-        if (stat(_path.c_str(), &file_stat) == -1) return 0;
-        return file_stat.st_size;
-#else
-        return 0;
-#endif
+        return _file_size;
+    }
+
+    int64_t OS::Path::lastAccessTime() const {
+        return _last_access_time;
+    }
+
+    int64_t OS::Path::lastWriteTime() const {
+        return _last_write_time;
+    }
+
+    int64_t OS::Path::lastCreateTime() const {
+        return _last_create_time;
+    }
+
+    OS::Permission OS::Path::userPermission() const {
+        return _permission[0];
+    }
+
+    OS::Permission OS::Path::groupPermission() const {
+        return _permission[1];
+    }
+
+    OS::Permission OS::Path::otherPermission() const {
+        return _permission[2];
     }
 
     OS::Path &OS::Path::operator/(const std::string &path) {
@@ -250,25 +267,71 @@ namespace Tiny {
         }
 #ifdef TINY_CPP_MY_OS_WINDOWS
         auto my_path = convertPath(_path);
-        auto ok = GetFileAttributesA(my_path.c_str());
-        if (ok == INVALID_FILE_ATTRIBUTES) return;
-        bool is_dir = (ok & FILE_ATTRIBUTE_DIRECTORY);
-        bool is_device = (ok & FILE_ATTRIBUTE_DEVICE);
-        bool is_link = (ok & FILE_ATTRIBUTE_REPARSE_POINT);
-        bool is_file = !(ok & FILE_ATTRIBUTE_DIRECTORY) &&
-                       !(ok & FILE_ATTRIBUTE_DEVICE) &&
-                       !(ok & FILE_ATTRIBUTE_REPARSE_POINT);
-
+        WIN32_FILE_ATTRIBUTE_DATA file_info{};
+        auto w_path = string2Wide(my_path);
+        auto suc = GetFileAttributesExW(w_path.c_str(), GetFileExInfoStandard, reinterpret_cast<LPVOID>(&file_info));
+        if (!suc) return;
+        bool is_dir = (file_info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+        bool is_device = (file_info.dwFileAttributes & FILE_ATTRIBUTE_DEVICE);
+        bool is_link = (file_info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT);
+        bool is_file = !(file_info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
+                       !(file_info.dwFileAttributes & FILE_ATTRIBUTE_DEVICE) &&
+                       !(file_info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT);
         if (is_dir)         _type = FileType::Directory;
         else if (is_device) _type = FileType::Device;
         else if (is_link)   _type = FileType::SymbolLink;
         else if (is_file)   _type = FileType::File;
         else                _type = FileType::Unknown;
-        ok = GetFullPathNameA(my_path.c_str(), 0, nullptr, nullptr);
+
+        _last_create_time = convertTimeToMS(file_info.ftCreationTime);
+        _last_access_time = convertTimeToMS(file_info.ftLastAccessTime);
+        _last_write_time = convertTimeToMS(file_info.ftLastWriteTime);
+        ULARGE_INTEGER ull;
+        ull.LowPart = file_info.nFileSizeLow;
+        ull.HighPart = file_info.nFileSizeHigh;
+        _file_size = ull.QuadPart;
+        PSID owner_sid{}, group_sid{};
+        PACL dacl{};
+        PSECURITY_DESCRIPTOR security_descriptor{};
+        auto is_ok = GetNamedSecurityInfoW(w_path.c_str(), SE_FILE_OBJECT,
+                          OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+                                    &owner_sid, &group_sid, &dacl, nullptr, &security_descriptor);
+        if (is_ok == ERROR_SUCCESS && dacl != nullptr) {
+            auto getEffectivePerm = [&](PSID pSid, Permission& perm) {
+                TRUSTEE_W trustee = {};
+                trustee.TrusteeForm = TRUSTEE_IS_SID;
+                trustee.TrusteeType = TRUSTEE_IS_USER;
+                trustee.ptstrName = (LPWSTR)pSid;
+
+                ACCESS_MASK rights = 0;
+                if (GetEffectiveRightsFromAclW(dacl, &trustee, &rights) == ERROR_SUCCESS) {
+                    perm = P_None;
+                    if (rights & FILE_GENERIC_READ)    perm = static_cast<Permission>(perm | P_Read);
+                    if (rights & FILE_GENERIC_WRITE)   perm = static_cast<Permission>(perm | P_Write);
+                    if (rights & FILE_GENERIC_EXECUTE) perm = static_cast<Permission>(perm | P_Execute);
+                }
+            };
+
+            getEffectivePerm(owner_sid, _permission[0]);
+            getEffectivePerm(group_sid, _permission[1]);
+
+            PSID other_sid{};
+            SID_IDENTIFIER_AUTHORITY worldAuth = SECURITY_WORLD_SID_AUTHORITY;
+            if (AllocateAndInitializeSid(&worldAuth, 1, SECURITY_WORLD_RID,
+                                          0,0,0,0,0,0,0, &other_sid)) {
+                getEffectivePerm(other_sid, _permission[2]);
+                FreeSid(other_sid);
+            }
+
+            LocalFree(security_descriptor);
+        }
+
+        auto ok = GetFullPathNameW(w_path.c_str(), 0, nullptr, nullptr);
         if (ok == 0) return;
-        std::string new_full_path(ok, 0);
-        GetFullPathNameA(my_path.c_str(), ok, &new_full_path[0], nullptr);
-        _path.assign(new_full_path.begin(), new_full_path.end() - 1);
+        std::wstring new_full_path(ok, 0);
+        GetFullPathNameW(w_path.c_str(), ok, &new_full_path[0], nullptr);
+        _path = wide2String(new_full_path);
+        while (_path.back() == '\0') _path.pop_back();
         if (_path.back() == '\\') _path.pop_back();
         _short_file_name = _path.substr(_path.find_last_of('\\') + 1);
 #elif defined(__linux__) || defined(__unix__) || defined(__APPLE__)
@@ -292,6 +355,36 @@ namespace Tiny {
         } else {
             _type = FileType::Unknown;
         }
+#ifdef __linux__
+        _last_access_time = file_stat.st_atim.tv_sec * 1000 + (file_stat.st_atim.tv_nsec / 1000);
+        _last_write_time = file_stat.st_mtim.tv_sec * 1000 + (file_stat.st_mtim.tv_nsec / 1000);
+        _last_create_time = file_stat.st_ctim.tv_sec * 1000 + (file_stat.st_ctim.tv_nsec / 1000);
+#elif defined(__APPLE__)
+        _last_access_time = file_stat.st_atimespec.tv_sec * 1000 + (file_stat.st_atimespec.tv_nsec / 1000);
+        _last_write_time = file_stat.st_mtimespec.tv_sec * 1000 + (file_stat.st_mtimespec.tv_nsec / 1000);
+        _last_create_time = file_stat.st_ctimespec.tv_sec * 1000 + (file_stat.st_ctimespec.tv_nsec / 1000);
+#else
+        _last_access_time = file_stat.st_atime * 1000;
+        _last_write_time = file_stat.st_mtime * 1000;
+        _last_create_time = file_stat.st_ctime * 1000;
+#endif
+        _file_size = file_stat.st_size;
+        uint8_t perm = 0;
+        perm |= S_IRUSR(file_stat.st_mode) ? P_Read : P_None;
+        perm |= S_IWUSR(file_stat.st_mode) ? P_Write : P_None;
+        perm |= S_IXUSR(file_stat.st_mode) ? P_Execute : P_None;
+        _permission[0] = static_cast<Permission>(perm);
+        perm = 0;
+        perm |= S_IRGRP(file_stat.st_mode) ? P_Read : P_None;
+        perm |= S_IWGRP(file_stat.st_mode) ? P_Write : P_None;
+        perm |= S_IXGRP(file_stat.st_mode) ? P_Execute : P_None;
+        _permission[1] = static_cast<Permission>(perm);
+        perm = 0;
+        perm |= S_IROTH(file_stat.st_mode) ? P_Read : P_None;
+        perm |= S_IWOTH(file_stat.st_mode) ? P_Write : P_None;
+        perm |= S_IXOTH(file_stat.st_mode) ? P_Execute : P_None;
+        _permission[2] = static_cast<Permission>(perm);
+
         if (_path.back() == '/') _path.pop_back();
         _short_file_name = _path.substr(_path.find_last_of(SPLASH) + 1);
 #endif
@@ -486,6 +579,7 @@ namespace Tiny {
             } else break;
         } while (ch != '\n' && ch != '\r' && ch != '\0');
 #endif
+        if (out.back() == '\n' || out.back() == '\r') out.pop_back();
         return out;
     }
 
@@ -617,7 +711,7 @@ namespace Tiny {
 
     void OS::File::moveTo(int64_t pos) {
         if (pos < 0) {
-            auto new_pos = _file_size + pos + 1;
+            auto new_pos = _file_size + pos;
             _position = new_pos >= _file_size ? 0 : new_pos;
         } else {
             _position = pos >= _file_size ? _file_size : pos;

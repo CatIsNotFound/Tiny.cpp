@@ -28,6 +28,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <array>
 #include <cmath>
 
 /*******************************************************************************************
@@ -125,6 +126,46 @@ namespace Tiny {
             return size * pow(1024.0, abs(t));
         }
 
+        inline long double autoConvertDataSize(size_t size, DataUnit& result_unit) {
+            auto nums = static_cast<long double>(size);
+            int8_t add{};
+            while (nums > 1024.0) {
+                nums /= 1024.0;
+                add++;
+            }
+            if (add >= static_cast<int8_t>(DataUnit::TiB)) result_unit = DataUnit::TiB;
+            else result_unit = static_cast<DataUnit>(add);
+            return nums;
+        }
+
+        inline const char* dataUnitName(const DataUnit& data_unit) {
+            switch (data_unit) {
+                case DataUnit::B:
+                    return "B";
+                case DataUnit::KiB:
+                    return "KiB";
+                case DataUnit::MiB:
+                    return "MiB";
+                case DataUnit::GiB:
+                    return "GiB";
+                case DataUnit::TiB:
+                    return "TiB";
+                default:
+                    return "NaN";
+            }
+        }
+
+        enum Permission : uint8_t {
+            P_None,
+            P_Execute = 1,
+            P_Write = 2,
+            P_WriteExec = 3,
+            P_Read = 4,
+            P_ReadExec = 5,
+            P_ReadWrite = 6,
+            P_All = 7
+        };
+
         class Path {
             friend class File;
         public:
@@ -151,6 +192,14 @@ namespace Tiny {
             FileType fileType() const;
             size_t fileSize() const;
 
+            int64_t lastAccessTime() const;
+            int64_t lastWriteTime() const;
+            int64_t lastCreateTime() const;
+
+            Permission userPermission() const;
+            Permission groupPermission() const;
+            Permission otherPermission() const;
+
             Path& operator/(const std::string& path);
             Path& join(const std::string& path);
             Path& parent();
@@ -167,6 +216,11 @@ namespace Tiny {
             std::string _path;
             std::string _short_file_name{};
             FileType    _type;
+            std::array<Permission, 3> _permission{};
+            int64_t _last_access_time{};
+            int64_t _last_write_time{};
+            int64_t _last_create_time{};
+            size_t _file_size{};
         };
 
         using FileData = std::vector<uint8_t>;

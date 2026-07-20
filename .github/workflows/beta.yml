@@ -1,4 +1,4 @@
-﻿name: Build and Test
+﻿﻿name: Build and Test
 on:
   workflow_call:
   push:
@@ -56,7 +56,7 @@ jobs:
         id: version
         shell: bash
         run: |
-          VERSION=$(grep "project(Tiny" CMakeLists.txt | sed -n 's/.*VERSION \([0-9.]*\).*/\1/p')
+          VERSION=$(tr -d '[:space:]' < .github/current_version.txt)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Package artifact
@@ -116,7 +116,7 @@ jobs:
         id: version
         shell: bash
         run: |
-          VERSION=$(grep "project(Tiny" CMakeLists.txt | sed -n 's/.*VERSION \([0-9.]*\).*/\1/p')
+          VERSION=$(tr -d '[:space:]' < .github/current_version.txt)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Package artifact
@@ -174,11 +174,8 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          $content = Get-Content CMakeLists.txt -Raw
-          if ($content -match 'VERSION\s+([0-9.]+)') {
-              $version = $matches[1]
-              echo "version=$version" >> $env:GITHUB_OUTPUT
-          }
+          $version = (Get-Content .github\current_version.txt -Raw).Trim()
+          echo "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Package artifact
         id: package
