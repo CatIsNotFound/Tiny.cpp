@@ -370,19 +370,19 @@ namespace Tiny {
 #endif
         _file_size = file_stat.st_size;
         uint8_t perm = 0;
-        perm |= S_IRUSR(file_stat.st_mode) ? P_Read : P_None;
-        perm |= S_IWUSR(file_stat.st_mode) ? P_Write : P_None;
-        perm |= S_IXUSR(file_stat.st_mode) ? P_Execute : P_None;
+        perm |= file_stat.st_mode & S_IRUSR ? P_Read : P_None;
+        perm |= file_stat.st_mode & S_IWUSR ? P_Write : P_None;
+        perm |= file_stat.st_mode & S_IXUSR ? P_Execute : P_None;
         _permission[0] = static_cast<Permission>(perm);
         perm = 0;
-        perm |= S_IRGRP(file_stat.st_mode) ? P_Read : P_None;
-        perm |= S_IWGRP(file_stat.st_mode) ? P_Write : P_None;
-        perm |= S_IXGRP(file_stat.st_mode) ? P_Execute : P_None;
+        perm |= file_stat.st_mode & S_IRGRP ? P_Read : P_None;
+        perm |= file_stat.st_mode & S_IWGRP ? P_Write : P_None;
+        perm |= file_stat.st_mode & S_IXGRP ? P_Execute : P_None;
         _permission[1] = static_cast<Permission>(perm);
         perm = 0;
-        perm |= S_IROTH(file_stat.st_mode) ? P_Read : P_None;
-        perm |= S_IWOTH(file_stat.st_mode) ? P_Write : P_None;
-        perm |= S_IXOTH(file_stat.st_mode) ? P_Execute : P_None;
+        perm |= file_stat.st_mode & S_IROTH ? P_Read : P_None;
+        perm |= file_stat.st_mode & S_IWOTH ? P_Write : P_None;
+        perm |= file_stat.st_mode & S_IXOTH ? P_Execute : P_None;
         _permission[2] = static_cast<Permission>(perm);
 
         if (_path.back() == '/') _path.pop_back();

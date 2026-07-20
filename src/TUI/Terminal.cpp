@@ -1321,11 +1321,11 @@ namespace Tiny {
         do {
             read_bytes = readAfterDelay(STDIN_FILENO, temp, 256);
             if (read_bytes < 0) break;
-            if (temp[0] == KEY_CR || temp[0] == KEY_LF) {
+            if (KEY_ENTER(temp[0])) {
                 auto enter = "\r\n";
                 write(STDOUT_FILENO, enter, 2);
                 break;
-            } else if (temp[0] == KEY_BACKSPACE) {
+            } else if (KEY_BACKSPACE(temp[0])) {
                 if (!result.empty()) {
                     size_t ori_length = result.size();
                     size_t del_length = removeFrontCharCount(result);
