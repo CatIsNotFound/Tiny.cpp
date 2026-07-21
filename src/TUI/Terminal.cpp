@@ -475,6 +475,20 @@ namespace Tiny {
         return true;
     }
 
+    bool TUI::Terminal::printError(const std::string &text) {
+#ifdef TINY_CPP_MY_OS_UNIX
+        write(STDERR_FILENO, text.c_str(), text.length());
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        auto console = GetStdHandle(STD_ERROR_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return false;
+        auto w_str = string2Wide(text);
+        if (!WriteConsoleW(console, w_str.c_str(), w_str.length(), nullptr, nullptr)) {
+            return false;
+        }
+#endif
+        return true;
+    }
+
     bool TUI::Terminal::clearScreen() {
 #ifdef TINY_CPP_MY_OS_UNIX
         write(STDOUT_FILENO, "\x1b[2J", 5);
@@ -1158,12 +1172,12 @@ namespace Tiny {
 #endif
     }
 
-    bool TUI::Terminal::printFormattedText(const std::string &str) {
+    bool TUI::Terminal::printFormattedText(const std::string &str, bool use_output_term) {
 #ifdef TINY_CPP_MY_OS_UNIX
-        write(STDOUT_FILENO, str.data(), str.size());
+        write(use_output_term ? STDOUT_FILENO : STDERR_FILENO, str.data(), str.size());
         return true;
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
-        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        auto console = GetStdHandle(use_output_term ? STD_OUTPUT_HANDLE : STD_ERROR_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return false;
         auto w_str = string2Wide(str);
         if (!WriteConsoleW(console, w_str.c_str(), w_str.size(), nullptr, nullptr)) return false;

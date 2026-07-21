@@ -113,7 +113,7 @@ bool list_all(const OS::Path& f_path, bool& stop_all) {
     found_cnt += 1;
     if (!is_confirm && found_cnt > 127) {
         Terminal::setForegroundColor(Color::Yellow, true);
-        Terminal::print("Tree: There are more than 128 files in this directory. Do you still want to list all? (y) ");
+        Terminal::printError("Tree: There are more than 128 files in this directory. Do you still want to list all? (y) ");
         Terminal::reset();
         auto key = Terminal::readLine();
         is_confirm = true;
@@ -193,7 +193,7 @@ uint8_t print_tree(const std::string& path, bool is_recursive, bool used_color =
     auto ls_paths = OS::FileSystem::listPath(root, 1);
     size_t sz = ls_paths.size();
     if (sz >= 128) {
-        Terminal::printFormat("Tree: There are {} files in this directory. Do you still want to continue? (y) ", sz);
+        Terminal::printError("Tree: There are {} files in this directory. Do you still want to continue? (y) ", sz);
         auto ok = Terminal::getKey();
         if (ok != 'y' && ok != 'Y') return 0;
     }
@@ -213,10 +213,10 @@ int main(int argc, char** argv) {
     auto success = cmd_parser.exec(nullptr, &n, &missing);
     if (success != CommandParser::ParseError::NoError) {
         if (!missing.empty()) {
-            Terminal::printFormat("Tree: Missing argument: {}.\r\nType '-h' or '--help' for help.\r\n", missing.front());
+            Terminal::printError("Tree: Missing argument: {}.\r\nType '-h' or '--help' for help.\r\n", missing.front());
             return 1;
         }
-        Terminal::printFormat("Tree: Unknown option: {}.\r\nType '-h' or '--help' for help.\r\n", argv[n]);
+        Terminal::printError("Tree: Unknown option: {}.\r\nType '-h' or '--help' for help.\r\n", argv[n]);
     }
     bool exec_tree = false, exec_recursive = false, exec_colorful = false;
     std::string path;
@@ -243,11 +243,11 @@ int main(int argc, char** argv) {
     if (exec_tree) {
         auto err = print_tree(path, exec_recursive, exec_colorful);
         if (err == 1) {
-            Terminal::printFormat("Tree: The specified path \"{}\" is not exist or recognizable!\r\n", path);
+            Terminal::printError("Tree: The specified path \"{}\" is not exist or recognizable!\r\n", path);
             return 1;
         }
         if (err == 2) {
-            Terminal::printFormat("Tree: The specified path \"{}\" is not a directory!\r\n", path);
+            Terminal::printError("Tree: The specified path \"{}\" is not a directory!\r\n", path);
             return 2;
         }
     }

@@ -229,6 +229,9 @@ namespace Tiny {
             static bool printFormat(const char* format, Args... args);
             template<typename ... Args>
             static std::string formatString(const char* format, Args... args);
+            template<typename ... Args>
+            static bool printError(const char* format, Args... args);
+            static bool printError(const std::string& text);
             static bool clearScreen();
             static bool clearInRow(uint8_t row);
             static bool moveCursor(Position position);
@@ -274,7 +277,7 @@ namespace Tiny {
             template<typename T>
             static void appendArgs(std::ostringstream& ostream, T&& t);
             static void appendFormatText(std::ostringstream& ostream, const char* format);
-            static bool printFormattedText(const std::string& str);
+            static bool printFormattedText(const std::string& str, bool use_output_term = true);
 #ifdef TINY_CPP_MY_OS_WINDOWS
             static InputEvent parseInputRecord(void *input_record);
             static void* _old_console;

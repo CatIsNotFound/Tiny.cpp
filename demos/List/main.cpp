@@ -133,7 +133,7 @@ bool find_item(const OS::Path& path, bool& keep) {
     cnt += 1;
     if (!is_confirm && cnt >= 127) {
         Terminal::setForegroundColor(Color::Yellow, true);
-        Terminal::printLine("List: There are more than 128 files in this directory. Do you still want to list all? (y) ");
+        Terminal::printError("List: There are more than 128 files in this directory. Do you still want to list all? (y) ");
         auto user_opt = Terminal::readLine();
         is_confirm = true;
         if (user_opt != "y" && user_opt != "Y") {
@@ -155,7 +155,7 @@ bool find_all_item(const OS::Path& path, bool& keep) {
     cnt += 1;
     if (!is_confirm && cnt >= 127) {
         Terminal::setForegroundColor(Color::Yellow, true);
-        Terminal::printLine("List: There are more than 128 files in this directory. Do you still want to list all? (y) ");
+        Terminal::printError("List: There are more than 128 files in this directory. Do you still want to list all? (y) ");
         auto user_opt = Terminal::readLine();
         is_confirm = true;
         if (user_opt != "y" && user_opt != "Y") {
@@ -255,12 +255,12 @@ void print_filename_only(const OS::Path& path, bool one, bool color, bool shown_
 int exec_list_item(const std::string& path, uint8_t opt) {
     OS::Path my_path(path);
     if (!my_path.isValid()) {
-        Terminal::printLine("List: No such path to list!");
+        Terminal::printError("List: No such path to list!");
         return 3;
     }
 
     if (!my_path.isDirectory()) {
-        Terminal::printLine("List: Not a directory!");
+        Terminal::printError("List: Not a directory!");
         return 4;
     }
 
@@ -288,10 +288,10 @@ int main(int argc, char** argv) {
     auto ok = cmd_parser.exec(nullptr, nullptr, &missing);
     if (ok != CommandParser::ParseError::NoError) {
         if (ok == CommandParser::ParseError::MissingArgument || ok == CommandParser::ParseError::MissingDefaultCommand) {
-            Terminal::printFormat("List: {}! Missing option: {}, please type '-?' or '--help' for help!\r\n", CommandParser::getParseErrorName(ok), missing.front());
+            Terminal::printError("List: {}! Missing option: {}, please type '-?' or '--help' for help!\r\n", CommandParser::getParseErrorName(ok), missing.front());
             return 1;
         }
-        Terminal::printFormat("List: {}! Type '-?' or '--help' for help!\r\n", CommandParser::getParseErrorName(ok));
+        Terminal::printError("List: {}! Type '-?' or '--help' for help!\r\n", CommandParser::getParseErrorName(ok));
         return 1;
     }
     auto exec_list = cmd_parser.execCommandList();
@@ -321,7 +321,7 @@ int main(int argc, char** argv) {
         }
     }
     if (passed.empty()) {
-        Terminal::printLine("List: No specified path!\r\n");
+        Terminal::printError("List: No specified path!\r\n");
         return 2;
     }
     return exec_list_item(passed, opt);

@@ -243,7 +243,7 @@ namespace Tiny {
     bool TUI::Terminal::printFormat(const char *format, Args... args) {
         std::ostringstream oss;
         formatImpl(oss, format, std::forward<Args>(args)...);
-        return printFormattedText(oss.str());
+        return printFormattedText(oss.str(), true);
     }
 
     template<typename... Args>
@@ -251,6 +251,13 @@ namespace Tiny {
         std::ostringstream oss;
         formatImpl(oss, format, std::forward<Args>(args)...);
         return oss.str();
+    }
+
+    template<typename ... Args>
+    bool TUI::Terminal::printError(const char *format, Args... args) {
+        std::ostringstream oss;
+        formatImpl(oss, format, std::forward<Args>(args)...);
+        return printFormattedText(oss.str(), false);
     }
 
     template<typename T, typename ... Args>

@@ -50,11 +50,13 @@ add_library(${PROJECT_NAME} STATIC
         src/TUI/TUI.cpp
         src/Parser/CommandParser.hpp
         src/Parser/CommandParser.cpp
+        src/Net/Socket.cpp
+        src/Net/Socket.hpp
 )
 
 # Link Windows libraries
 if(WIN32)
-    target_link_libraries(${PROJECT_NAME} PRIVATE pdh advapi32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE pdh advapi32 ws2_32)
 endif()
 
 # Link Linux libraries

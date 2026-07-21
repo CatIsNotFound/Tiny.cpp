@@ -360,21 +360,21 @@ int main(int argc, char** argv) {
     if (err != CommandParser::ParseError::NoError) {
         if (err_pos > 0) {
             ter::setForegroundColor(tui::Color::Red, true);
-            ter::printFormat("Error: {} at pos \"{}\".\r\n", CommandParser::getParseErrorName(err), argv[err_pos]);
-            ter::printLine("p.s: Type '-h' or '--help' to display the help info.");
+            ter::printError("Error: {} at pos \"{}\".\r\n", CommandParser::getParseErrorName(err), argv[err_pos]);
+            ter::printError("p.s: Type '-h' or '--help' to display the help info.\r\n");
             ter::reset();
             return 2;
         }
         if (!err_arg.empty()) {
             ter::setForegroundColor(tui::Color::Red, true);
-            ter::printFormat("Error: {} (Missing option: {})\r\n", CommandParser::getParseErrorName(err), err_arg.front());
-            ter::printLine("p.s: Type '-h' or '--help' to display the help info.");
+            ter::printError("Error: {} (Missing option: {})\r\n", CommandParser::getParseErrorName(err), err_arg.front());
+            ter::printError("p.s: Type '-h' or '--help' to display the help info.\r\n");
             ter::reset();
             return 3;
         }
         ter::setForegroundColor(tui::Color::Red, true);
-        ter::printFormat("Error: {}\r\n", CommandParser::getParseErrorName(err));
-        ter::printLine("p.s: Type '-h' or '--help' to display the help info.");
+        ter::printError("Error: {}\r\n", CommandParser::getParseErrorName(err));
+        ter::printError("p.s: Type '-h' or '--help' to display the help info.\r\n");
         ter::reset();
         return 1;
     }
@@ -437,9 +437,9 @@ int main(int argc, char** argv) {
                 msg_box.default_option = 1;
             } else {
                 ter::setForegroundColor(tui::Color::Red, true);
-                ter::printFormat("Error: Unknown type name: \"{}\"\r\n", cmd.value);
-                ter::printLine("Available type names are: info, error, warn, none, custom\r\n");
-                ter::printLine("p.s: Type '-h' or '--help' to display the help info.");
+                ter::printError("Error: Unknown type name: \"{}\"\r\n", cmd.value);
+                ter::printError("Available type names are: info, error, warn, none, custom\r\n");
+                ter::printError("p.s: Type '-h' or '--help' to display the help info.\r\n");
                 ter::reset();
                 return 8;
             }
@@ -479,8 +479,8 @@ int main(int argc, char** argv) {
         msg_box = parseTextToMsgBox(file, ok, pos);
         if (!ok) {
             ter::setForegroundColor(tui::Color::Red, true);
-            ter::printFormat("Error: Parsing failed at {}:{}:{}.\r\n", file.path(), pos.row, pos.column);
-            ter::printLine("p.s: Type '-h' or '--help' to display the help info.");
+            ter::printError("Error: Parsing failed at {}:{}:{}.\r\n", file.path(), pos.row, pos.column);
+            ter::printError("p.s: Type '-h' or '--help' to display the help info.\r\n");
             ter::reset();
             return 32;
         }

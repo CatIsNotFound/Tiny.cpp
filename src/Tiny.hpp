@@ -33,6 +33,7 @@
 #include "TUI/Terminal.hpp"
 #include "TUI/TUI.hpp"
 #include "Parser/CommandParser.hpp"
+#include "Net/Socket.hpp"
 
 #endif //TINY_HPP
 

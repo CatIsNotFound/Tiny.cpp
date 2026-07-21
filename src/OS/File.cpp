@@ -334,7 +334,7 @@ namespace Tiny {
         while (_path.back() == '\0') _path.pop_back();
         if (_path.back() == '\\') _path.pop_back();
         _short_file_name = _path.substr(_path.find_last_of('\\') + 1);
-#elif defined(__linux__) || defined(__unix__) || defined(__APPLE__)
+#elif defined(TINY_CPP_MY_OS_UNIX)
         char* new_path = realpath(_path.c_str(), nullptr);
         if (new_path) {
             _path = new_path;
@@ -359,14 +359,10 @@ namespace Tiny {
         _last_access_time = file_stat.st_atim.tv_sec * 1000 + (file_stat.st_atim.tv_nsec / 1000);
         _last_write_time = file_stat.st_mtim.tv_sec * 1000 + (file_stat.st_mtim.tv_nsec / 1000);
         _last_create_time = file_stat.st_ctim.tv_sec * 1000 + (file_stat.st_ctim.tv_nsec / 1000);
-#elif defined(__APPLE__)
+#else
         _last_access_time = file_stat.st_atimespec.tv_sec * 1000 + (file_stat.st_atimespec.tv_nsec / 1000);
         _last_write_time = file_stat.st_mtimespec.tv_sec * 1000 + (file_stat.st_mtimespec.tv_nsec / 1000);
         _last_create_time = file_stat.st_ctimespec.tv_sec * 1000 + (file_stat.st_ctimespec.tv_nsec / 1000);
-#else
-        _last_access_time = file_stat.st_atime * 1000;
-        _last_write_time = file_stat.st_mtime * 1000;
-        _last_create_time = file_stat.st_ctime * 1000;
 #endif
         _file_size = file_stat.st_size;
         uint8_t perm = 0;
@@ -415,7 +411,7 @@ namespace Tiny {
         else if (is_link)   type = FileType::SymbolLink;
         else if (is_file)   type = FileType::File;
         else                type = FileType::Unknown;
-#elif defined(__linux__) || defined(__unix__) || defined(__APPLE__)
+#elif defined(TINY_CPP_MY_OS_UNIX)
         char* new_path = realpath(path.c_str(), nullptr);
         if (new_path) {
             free(new_path);
