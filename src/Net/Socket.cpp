@@ -23,8 +23,13 @@
  *                                                                                   *
  *************************************************************************************/
 
+#include "Socket.hpp"
+#include "Socket.hpp"
+#include "Socket.hpp"
+
 #include "SocketAdv.hpp"
 #include <sstream>
+#define SET_SOCK_OPT_ERR static_cast<int>(Net::SocketError::SetOptionError) * (-1)
 
 namespace Tiny {
 #ifdef TINY_CPP_MY_OS_WINDOWS
@@ -129,6 +134,7 @@ namespace Tiny {
             {ENFILE,            Net::SocketError::SystemResourceLimit},
             {EINTR,             Net::SocketError::OperationCancelled},
             {EOPNOTSUPP,        Net::SocketError::OperationNotSupported},
+            {ENOTSUPP,          Net::SocketError::OperationNotSupported},
             {ENOTSOCK,          Net::SocketError::OperationNotSupported},
             {EFAULT,            Net::SocketError::SegmentationFault}
     };
@@ -137,8 +143,9 @@ namespace Tiny {
     static std::unordered_map<Net::SocketError, const char*> __SocketErrorStrings__{
             {Net::SocketError::Success,                 "Tiny::Net::SocketError::Success"},
             {Net::SocketError::InvalidParameter,        "Tiny::Net::SocketError::InvalidParameter"},
+            {Net::SocketError::SetOptionError,          "Tiny::Net::SocketError::SetOptionError"},
             {Net::SocketError::ProtoNotSupported,       "Tiny::Net::SocketError::ProtoNotSupported"},
-            {Net::SocketError::SocketIsNotOpenned,      "Tiny::Net::SocketError::SocketIsNotOpenned"},
+            {Net::SocketError::SocketIsNotOpened,       "Tiny::Net::SocketError::SocketIsNotOpened"},
             {Net::SocketError::SocketClosed,            "Tiny::Net::SocketError::SocketClosed"},
             {Net::SocketError::SocketInUse,             "Tiny::Net::SocketError::SocketInUse"},
             {Net::SocketError::AddressInUse,            "Tiny::Net::SocketError::AddressInUse"},
@@ -166,11 +173,190 @@ namespace Tiny {
 
     struct SocketSetting {
         Net::OptionValue::ValueType real_type;
-        std::function<bool(Net::Handle, const Net::OptionValue&)> setter;
-        std::function<bool(Net::Handle, Net::OptionValue&)> getter;
+        Net::Advanced::Setter setter;
+        Net::Advanced::Getter getter;
     };
 
     namespace Socket_Impl {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        constexpr const bool USING_WIN32 = true;
+#else
+        constexpr const bool USING_WIN32 = false;
+#endif
+
+        static std::unordered_map<uint32_t, int> __SOL_SOCKET_LEVEL_MAP__{
+            {static_cast<uint32_t>(Net::SocketOption::AllowedBroadcast), SO_BROADCAST},
+            {static_cast<uint32_t>(Net::SocketOption::DontRoute),        SO_DONTROUTE},
+            {static_cast<uint32_t>(Net::SocketOption::KeepAlive),        SO_KEEPALIVE},
+            {static_cast<uint32_t>(Net::SocketOption::SendBufSize),      SO_SNDBUF},
+            {static_cast<uint32_t>(Net::SocketOption::RecvBufSize),      SO_RCVBUF},
+            {static_cast<uint32_t>(Net::SocketOption::SendBufTimeout),   SO_SNDTIMEO},
+            {static_cast<uint32_t>(Net::SocketOption::RecvBufTimeout),   SO_RCVTIMEO},
+            {static_cast<uint32_t>(Net::SocketOption::Linger),           SO_LINGER},
+            {static_cast<uint32_t>(Net::SocketOption::ReuseAddr),        SO_REUSEADDR}
+        };
+
+        static std::unordered_map<uint32_t, Net::OptionValue::ValueType> __SOL_SOCKET_LEVEL_VALUE_TYPE_MAP__{
+              {static_cast<uint32_t>(Net::SocketOption::AllowedBroadcast), Net::OptionValue::ValueType::Int},
+              {static_cast<uint32_t>(Net::SocketOption::DontRoute),        Net::OptionValue::ValueType::Int},
+              {static_cast<uint32_t>(Net::SocketOption::KeepAlive),        Net::OptionValue::ValueType::Int},
+              {static_cast<uint32_t>(Net::SocketOption::SendBufSize),      Net::OptionValue::ValueType::Int},
+              {static_cast<uint32_t>(Net::SocketOption::RecvBufSize),      Net::OptionValue::ValueType::Int},
+              {static_cast<uint32_t>(Net::SocketOption::SendBufTimeout),
+                    USING_WIN32 ? Net::OptionValue::ValueType::UInt : Net::OptionValue::ValueType::Custom},
+              {static_cast<uint32_t>(Net::SocketOption::RecvBufTimeout),
+                    USING_WIN32 ? Net::OptionValue::ValueType::UInt : Net::OptionValue::ValueType::Custom},
+              {static_cast<uint32_t>(Net::SocketOption::Linger),           Net::OptionValue::ValueType::Custom},
+              {static_cast<uint32_t>(Net::SocketOption::ReuseAddr),        Net::OptionValue::ValueType::Int}
+        };
+
+        bool setSocketLevelOption(Net::Handle handle, uint32_t opt_id, const Net::OptionValue& value) {
+            if (__SOL_SOCKET_LEVEL_MAP__.find(opt_id) != __SOL_SOCKET_LEVEL_MAP__.end()) {
+                auto& so_id = __SOL_SOCKET_LEVEL_MAP__[opt_id];
+#ifdef TINY_CPP_MY_OS_WINDOWS
+                char* set_val;
+                Net::OptionValue::Value v{};
+                switch (value.type) {
+                    case Net::OptionValue::Int:
+                        v.i = value.var.i;
+                        set_val = reinterpret_cast<char*>(&v.i);
+                        break;
+                    case Net::OptionValue::UInt:
+                        v.u = value.var.u;
+                        set_val = reinterpret_cast<char*>(&v.u);
+                        break;
+                    case Net::OptionValue::Float:
+                        v.f = value.var.f;
+                        set_val = reinterpret_cast<char*>(&v.f);
+                        break;
+                    case Net::OptionValue::String:
+                        v.s = value.var.s;
+                        set_val = v.s;
+                        break;
+                    case Net::OptionValue::Custom:
+                        v.v = value.var.v;
+                        set_val = static_cast<char*>(v.v);
+                        break;
+                    default:
+                        v.v = nullptr;
+                        set_val = nullptr;
+                        break;
+                }
+                return ::setsockopt(handle, SOL_SOCKET, so_id, set_val, value.size) != SOCKET_ERROR;
+#else
+                const void* VAL;
+                switch (value.type) {
+                    case Net::OptionValue::Int:
+                        VAL = &value.var.i;
+                        break;
+                    case Net::OptionValue::UInt:
+                        VAL = &value.var.u;
+                        break;
+                    case Net::OptionValue::Float:
+                        VAL = &value.var.f;
+                        break;
+                    case Net::OptionValue::String:
+                        VAL = value.var.s;
+                        break;
+                    default:
+                        VAL = value.var.v;
+                        break;
+                }
+                return ::setsockopt(handle, SOL_SOCKET, so_id, VAL, value.size) != SOCKET_ERROR;
+#endif
+            }
+#ifdef TINY_CPP_MY_OS_WINDOWS
+            ::WSASetLastError(WSAEOPNOTSUPP);
+#else
+            ::_set_errno(ENOTSUPP);
+#endif
+            return false;
+        }
+
+        bool getSocketLevelOption(Net::Handle handle, uint32_t opt_id, Net::OptionValue& value) {
+            if (__SOL_SOCKET_LEVEL_MAP__.find(opt_id) != __SOL_SOCKET_LEVEL_MAP__.end()) {
+                auto& so_id = __SOL_SOCKET_LEVEL_MAP__[opt_id];
+                int ok{};
+                if (__SOL_SOCKET_LEVEL_VALUE_TYPE_MAP__.find(opt_id) == __SOL_SOCKET_LEVEL_VALUE_TYPE_MAP__.end()) {
+                    value.unset();
+                    return true;
+                }
+                int err{};
+                auto var_type = __SOL_SOCKET_LEVEL_VALUE_TYPE_MAP__[opt_id];
+                value.type = var_type;
+#ifdef TINY_CPP_MY_OS_WINDOWS
+                switch (var_type) {
+                    case Net::OptionValue::Int:
+                        value.size = sizeof(int);
+                        err = ::getsockopt(handle, SOL_SOCKET, so_id,
+                                           reinterpret_cast<char*>(&value.var.i), &value.size);
+                        break;
+                    case Net::OptionValue::String:
+                        /// Need user to manually set size of the value.
+                        err = ::getsockopt(handle, SOL_SOCKET, so_id,
+                                           value.var.s, &value.size);
+                        break;
+                    case Net::OptionValue::UInt:
+                        value.size = sizeof(uint32_t);
+                        err = ::getsockopt(handle, SOL_SOCKET, so_id,
+                                           reinterpret_cast<char*>(&value.var.u), &value.size);
+                        break;
+                    case Net::OptionValue::Float:
+                        value.size = sizeof(float);
+                        err = ::getsockopt(handle, SOL_SOCKET, so_id,
+                                           reinterpret_cast<char*>(&value.var.f), &value.size);
+                        break;
+                    case Net::OptionValue::Custom:
+                        /// Need user to manually set size of the value.
+                        err = ::getsockopt(handle, SOL_SOCKET, so_id,
+                                           reinterpret_cast<char*>(value.var.v), &value.size);
+                        break;
+                    default:
+                        value.unset();
+                        break;
+                }
+#else
+                switch (var_type) {
+                    case Net::OptionValue::Int:
+                        value.size = sizeof(int);
+                        err = ::getsockopt(handle, SOL_SOCKET, so_id,
+                                           reinterpret_cast<void*>(&value.var.i), &value.size);
+                        break;
+                    case Net::OptionValue::String:
+                        /// Need user to manually set size of the value.
+                        err = ::getsockopt(handle, SOL_SOCKET, so_id,
+                                           value.var.s, &value.size);
+                        break;
+                    case Net::OptionValue::UInt:
+                        value.size = sizeof(uint32_t);
+                        err = ::getsockopt(handle, SOL_SOCKET, so_id,
+                                           reinterpret_cast<void*>(&value.var.u), &value.size);
+                        break;
+                    case Net::OptionValue::Float:
+                        value.size = sizeof(float);
+                        err = ::getsockopt(handle, SOL_SOCKET, so_id,
+                                           reinterpret_cast<void*>(&value.var.f), &value.size);
+                        break;
+                    case Net::OptionValue::Custom:
+                        /// Need user to manually set size of the value.
+                        err = ::getsockopt(handle, SOL_SOCKET, so_id,
+                                           value.var.v, &value.size);
+                        break;
+                    default:
+                        value.unset();
+                        break;
+                }
+#endif
+                return err != SOCKET_ERROR;
+            }
+#ifdef TINY_CPP_MY_OS_WINDOWS
+            ::WSASetLastError(WSAEOPNOTSUPP);
+#else
+            ::_set_errno(ENOTSUPP);
+#endif
+            return false;
+        }
+
         Net::Handle create(const Net::Address& address, Net::SocketType sock_type, int type = 0, int protocol = 0) {
             switch (sock_type) {
                 case Net::SocketType::TCP:
@@ -297,23 +483,119 @@ namespace Tiny {
             return ::recvfrom(socket, &datas[0], datas.size(), flag,
                             static_cast<sockaddr*>(src.address()), &sz);
         }
+
+        bool setUnblockEnabled(Net::Handle socket, uint32_t, const Net::OptionValue& value) {
+            if (value.type == Net::OptionValue::Int) {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+                auto val = static_cast<u_long>(value.var.i);
+                return ioctlsocket(socket, FIONBIO, &val) == NO_ERROR;
+#else
+                bool enabled = value.var.i != 0;
+                auto ret = fcntl(socket, F_GETFL, 0);
+                if (ret == -1) return false;
+                if (enabled) ret |= O_NONBLOCK;
+                else ret &= ~O_NONBLOCK;
+                return fcntl(socket, F_SETFL, ret) != -1;
+#endif
+            }
+            return false;
+        }
     }
 
 
     static std::unordered_map<uint32_t, SocketSetting> __SocketSettingsMap__{
-        {
-            static_cast<uint32_t>(Net::SocketOption::AllowedBroadcast),
-            {Net::OptionValue::ValueType::Int, {}, {}}
-        },
-        {
-            static_cast<uint32_t>(Net::SocketOption::KeepAlive),
-            {Net::OptionValue::ValueType::Int, {}, {}}
-        }
+            {
+                static_cast<uint32_t>(Net::SocketOption::AllowedBroadcast),
+                {
+                    Net::OptionValue::ValueType::Int,
+                    &Socket_Impl::setSocketLevelOption,
+                    &Socket_Impl::getSocketLevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::DontRoute),
+                {
+                    Net::OptionValue::ValueType::Int,
+                    &Socket_Impl::setSocketLevelOption,
+                    &Socket_Impl::getSocketLevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::KeepAlive),
+                {
+                    Net::OptionValue::ValueType::Int,
+                    &Socket_Impl::setSocketLevelOption,
+                    &Socket_Impl::getSocketLevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::SendBufSize),
+                {
+                    Net::OptionValue::ValueType::Int,
+                    &Socket_Impl::setSocketLevelOption,
+                    &Socket_Impl::getSocketLevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::RecvBufSize),
+                {
+                    Net::OptionValue::ValueType::Int,
+                    &Socket_Impl::setSocketLevelOption,
+                    &Socket_Impl::getSocketLevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::SendBufTimeout),
+                {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+                    Net::OptionValue::ValueType::UInt,
+#else
+                    Net::OptionValue::ValueType::Custom,
+#endif
+                    &Socket_Impl::setSocketLevelOption,
+                    &Socket_Impl::getSocketLevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::RecvBufTimeout),
+                {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+                    Net::OptionValue::ValueType::UInt,
+#else
+                    Net::OptionValue::ValueType::Custom,
+#endif
+                    &Socket_Impl::setSocketLevelOption,
+                    &Socket_Impl::getSocketLevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::Linger),
+                {
+                    Net::OptionValue::ValueType::Custom,
+                    &Socket_Impl::setSocketLevelOption,
+                    &Socket_Impl::getSocketLevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::ReuseAddr),
+                {
+                    Net::OptionValue::ValueType::Int,
+                    &Socket_Impl::setSocketLevelOption,
+                    &Socket_Impl::getSocketLevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::NonBlocking),
+                {
+                    Net::OptionValue::ValueType::Int,
+                    &Socket_Impl::setUnblockEnabled,
+                    {}
+                }
+            }
     };
 
     bool Net::Advanced::setSocketOption(Net::SocketOption option, Net::OptionValue::ValueType val_type,
-                                        const std::function<bool(Handle, const OptionValue &)> &setter,
-                                        const std::function<bool(Handle, OptionValue &)> &getter) {
+                                        const Setter &setter, const Getter &getter) {
         auto id = static_cast<uint32_t>(option);
         if (__SocketSettingsMap__.find(id) != __SocketSettingsMap__.end()) {
             auto& socket_settings = __SocketSettingsMap__.at(id);
@@ -326,8 +608,8 @@ namespace Tiny {
     }
 
     void Net::Advanced::setCustomSocketOption(uint32_t option_id, Net::OptionValue::ValueType val_type,
-                                              const std::function<bool(Handle, const OptionValue &)> &setter,
-                                              const std::function<bool(Handle, OptionValue &)> &getter) {
+                                              const Setter &setter,
+                                              const Getter &getter) {
         if (__SocketSettingsMap__.find(option_id) != __SocketSettingsMap__.end()) {
             auto& socket_settings = __SocketSettingsMap__.at(option_id);
             socket_settings.real_type = val_type;
@@ -351,7 +633,7 @@ namespace Tiny {
         if (__SocketSettingsMap__.find(option_id) != __SocketSettingsMap__.end()) {
             auto& setting = __SocketSettingsMap__.at(option_id);
             if (setting.real_type != value.type || !setting.getter) return false;
-            return setting.getter(socket, value);
+            return setting.getter(socket, option_id, value);
         }
         return false;
     }
@@ -360,7 +642,7 @@ namespace Tiny {
         if (__SocketSettingsMap__.find(option_id) != __SocketSettingsMap__.end()) {
             auto& setting = __SocketSettingsMap__.at(option_id);
             if (setting.real_type != value.type || !setting.setter) return false;
-            return setting.setter(socket, value);
+            return setting.setter(socket, option_id, value);
         }
         return false;
     }
@@ -531,11 +813,10 @@ namespace Tiny {
     }
 
     const char *Net::getSocketErrorName(SocketError err) {
-        try {
+        if (__SocketErrorStrings__.find(err) != __SocketErrorStrings__.end()) {
             return __SocketErrorStrings__[err];
-        } catch (const std::exception&) {
-            return "NaN";
         }
+        return __SocketErrorStrings__.at(SocketError::UnknownError);
     }
 
     Net::Socket::Socket(SocketType type) : _handle(INVALID_SOCKET_VAL), _type(type), _err(), _state() {}
@@ -822,7 +1103,7 @@ Failed:
     bool Net::Socket::send(const std::string &message, int *sended_length) {
         if (_handle == INVALID_SOCKET_VAL) {
             _sys_errno = 0;
-            _err = SocketError::SocketIsNotOpenned;
+            _err = SocketError::SocketIsNotOpened;
             return false;
         }
         auto ok = Socket_Impl::send(_handle, message);
@@ -838,7 +1119,7 @@ Failed:
     bool Net::Socket::send(const Datas &data, int *sended_length) {
         if (_handle == INVALID_SOCKET_VAL) {
             _sys_errno = 0;
-            _err = SocketError::SocketIsNotOpenned;
+            _err = SocketError::SocketIsNotOpened;
             return false;
         }
         auto ok = Socket_Impl::send(_handle, data);
@@ -854,7 +1135,7 @@ Failed:
     bool Net::Socket::recv(Datas &data, size_t max_length, int* received_length) {
         if (_handle == INVALID_SOCKET_VAL) {
             _sys_errno = 0;
-            _err = SocketError::SocketIsNotOpenned;
+            _err = SocketError::SocketIsNotOpened;
             return false;
         }
         auto ok = Socket_Impl::recv(_handle, data, max_length);
@@ -870,7 +1151,7 @@ Failed:
     bool Net::Socket::recv(std::string &message, size_t max_length, int* received_length) {
         if (_handle == INVALID_SOCKET_VAL) {
             _sys_errno = 0;
-            _err = SocketError::SocketIsNotOpenned;
+            _err = SocketError::SocketIsNotOpened;
             return false;
         }
         auto ok = Socket_Impl::recv(_handle, message, max_length);
@@ -991,8 +1272,10 @@ Failed:
         if (_handle != INVALID_SOCKET_VAL) {
             if (__SocketSettingsMap__.find(option_id) != __SocketSettingsMap__.end()) {
                 auto& setting = __SocketSettingsMap__.at(option_id);
-                is_ok = (setting.setter && setting.setter(_handle, value));
+                is_ok = (setting.setter && setting.setter(_handle, option_id, value));
             } else {
+                _err_opt_id = option_id;
+                _err = SocketError::SetOptionError;
                 is_ok = false;
             }
         }
@@ -1015,13 +1298,14 @@ Failed:
         if (__SocketSettingsMap__.find(option_id) != __SocketSettingsMap__.end()) {
             auto& setting = __SocketSettingsMap__.at(option_id);
             OptionValue ret;
-            if (setting.getter && !setting.getter(_handle, ret)) {
+            if (setting.getter && !setting.getter(_handle, option_id, ret)) {
                 if (ok) *ok = false;
                 return {};
             }
             if (ok) *ok = true;
             return ret;
         }
+
         if (ok) *ok = false;
         return {};
     }
@@ -1038,7 +1322,7 @@ Failed:
         return _state;
     }
 
-    int Net::Socket::errorSocketOptionID() const {
+    uint32_t Net::Socket::errorSocketOptionID() const {
         return _err_opt_id;
     }
 
@@ -1052,19 +1336,6 @@ Failed:
         } else {
             _err = SocketError::UnknownError;
         }
-    }
-
-    bool Net::Socket::setUnblockEnabled(bool enabled) {
-#ifdef TINY_CPP_MY_OS_WINDOWS
-        auto val = static_cast<u_long>(enabled);
-        return ioctlsocket(_handle, FIONBIO, &val) == NO_ERROR;
-#else
-        auto ret = fcntl(_handle, F_GETFL, 0);
-        if (ret == -1) return false;
-        if (enabled) ret |= O_NONBLOCK;
-        else ret &= ~O_NONBLOCK;
-        return fcntl(_handle, F_SETFL, ret) != -1;
-#endif
     }
 
     void Net::Socket::copeFailed() {
@@ -1081,7 +1352,7 @@ Failed:
         for (auto& opt : _options) {
             try {
                 auto& setting = __SocketSettingsMap__.at(opt.first);
-                if (setting.setter && !setting.setter(_handle, opt.second)) {
+                if (setting.setter && !setting.setter(_handle, opt.first, opt.second)) {
                     _err_opt_id = opt.first;
                     return false;
                 }

@@ -50,23 +50,25 @@
     #include <fcntl.h>
     #include <errno.h>
     #define INVALID_SOCKET_VAL (-1)
-        #ifndef SOCKET_ERROR
-            #define SOCKET_ERROR (-1)
-        #endif
-        #ifndef SOCKET
-            #define SOCKET int
-        #endif
+    #ifndef SOCKET_ERROR
+        #define SOCKET_ERROR (-1)
+    #endif
+    #ifndef SOCKET
+        #define SOCKET int
+    #endif
 #endif
 
 namespace Tiny {
     namespace Net {
         namespace Advanced {
+            using Setter = std::function<bool(Handle, uint32_t, const OptionValue &)>;
+            using Getter = std::function<bool(Handle, uint32_t, OptionValue &)>;
             bool setSocketOption(SocketOption option, OptionValue::ValueType val_type,
-                                 const std::function<bool(Handle, const OptionValue &)> &setter,
-                                 const std::function<bool(Handle, OptionValue &)> &getter);
+                                 const Setter &setter,
+                                 const Getter &getter);
             void setCustomSocketOption(uint32_t option_id, OptionValue::ValueType val_type,
-                                       const std::function<bool(Handle, const OptionValue &)> &setter,
-                                       const std::function<bool(Handle, OptionValue &)> &getter);
+                                       const Setter &setter,
+                                       const Getter &getter);
             bool removeCustomSocketOption(uint32_t option_id);
             bool getValueFromCustomOption(uint32_t option_id, OptionValue& value, Handle socket);
             bool setValueFromCustomOption(uint32_t option_id, const OptionValue& value, Handle socket);

@@ -158,7 +158,7 @@ namespace Tiny {
             SetOptionError,
             /// The specified protocol is not supported, or the socket type does not match the protocol.
             ProtoNotSupported,
-            SocketIsNotOpenned,
+            SocketIsNotOpened,
             SocketClosed,
             SocketInUse,
             /// Requested address or port is in used.
@@ -221,6 +221,10 @@ namespace Tiny {
             ///
             /// ValueType: bool 0/1
             AllowedBroadcast = 1,
+            /// Bypass the outgoing routing table lookup and send directly to the network interface.
+            ///
+            /// ValueType: bool 0/1
+            DontRoute,
             /// Enabled TCP keepalive detection.
             ///
             /// ValueType: bool 0/1
@@ -239,16 +243,24 @@ namespace Tiny {
             RecvBufSize,
             /// Set timeout of sending buffer.
             ///
-            /// ValueType: uint32_t (Stored milliseconds)
+            /// ValueType:
+            /// - Windows: uint32_t (Stored as milliseconds)
+            /// - Others: The pointer of timeval
             SendBufTimeout,
             /// Set timeout of receiving buffer.
             ///
-            /// ValueType: uint32_t (Stored milliseconds)
+            /// ValueType:
+            /// - Windows: uint32_t (Stored as milliseconds)
+            /// - Others: The pointer of timeval
             RecvBufTimeout,
             /// Decided how to close socket smoothly.
             ///
             /// ValueType: The pointer of linger.
             Linger,
+            /// Allowed reuse local address.
+            ///
+            /// ValueType: bool 0/1
+            ReuseAddr,
             /// Disabled map IPv4 address. (Only for mapping IPv6 address)
             ///
             /// ValueType: bool 0/1
@@ -267,12 +279,12 @@ namespace Tiny {
                 Float,
                 Custom
             } type;
-            uint32_t size;      // Size of the data type. (By sizeof() function.)
+            int size;           // Size of the data type. (By sizeof() function.)
             union Value {
                 int         i;  // Integer value
                 uint32_t    u;  // Unsigned integer value
                 float       f;  // Floating value
-                const char* s;  // String value
+                char*       s;  // String value
                 void*       v;  // Custom value (Stored as pointer)
             } var;              // Stored variable
 
@@ -292,7 +304,7 @@ namespace Tiny {
                 var.f = v;
             }
 
-            OptionValue(const char* v) : type(String), size(strlen(v)), var() {
+            OptionValue(char* v) : type(String), size(strlen(v)), var() {
                 var.s = v;
             }
 
@@ -318,7 +330,7 @@ namespace Tiny {
                 var.f = v;
             }
 
-            void set(const char* v) {
+            void set(char* v) {
                 type = String;
                 size = strlen(v);
                 var.s = v;
@@ -389,7 +401,8 @@ namespace Tiny {
             SocketError lastError() const;
             SocketType  type() const;
             SocketState state() const;
-            int         errorSocketOptionID() const;
+
+            uint32_t errorSocketOptionID() const;
             int         nativeErrorNo() const;
 
             Socket(const Socket&) = delete;
@@ -397,7 +410,6 @@ namespace Tiny {
         protected:
             void mapErrorNum(int error_code);
         private:
-            bool setUnblockEnabled(bool enabled);
             void copeFailed();
             void copeSuccess();
             bool setAllOptions();

@@ -12,7 +12,16 @@ static uint64_t ID = 0;
 void test_server() {
     Socket server;
     DT::Duration start = DT::currentTimestamps();
+    server.setOption(SocketOption::KeepAlive, 3.14f);
+    server.setOption(SocketOption::NonBlocking, true);
+    server.setOption(SocketOption::ReuseAddr, true);
     if (server.listen(8080)) {
+        if (server.lastError() != SocketError::Success) {
+            TUI::Terminal::printFormat("Server starting error! Exception: {}\r\n",
+                getSocketErrorName(server.lastError()));
+            server.close();
+            exit(1);
+        }
         Socket client;
         while (true) {
             DT::Duration now = DT::currentTimestamps();
@@ -40,7 +49,11 @@ void test_server() {
         }
         server.close();
     } else {
-        TUI::Terminal::printFormat("Failed to start! Exception: {}\r\n", Net::getSocketErrorName(server.lastError()));
+        auto err = server.lastError();
+        TUI::Terminal::printFormat("Failed to start! Exception: {}\r\n", Net::getSocketErrorName(err));
+        if (err == SocketError::SetOptionError) {
+            TUI::Terminal::printFormat("Option \"{}\" has error!\r\n", server.errorSocketOptionID());
+        }
     }
 }
 
