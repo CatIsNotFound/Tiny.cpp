@@ -1,5 +1,8 @@
 ﻿
-#include "../src/Tiny.hpp"
+#include "../src/TUI/Terminal.hpp"
+#include "../src/Parser/CommandParser.hpp"
+#include "../src/DateTime/DateTime.hpp"
+#include "../src/Net/Socket.hpp"
 
 using namespace Tiny;
 using namespace Net;
@@ -10,22 +13,19 @@ void test_server() {
     Socket server;
     DT::Duration start = DT::currentTimestamps();
     if (server.listen(8080)) {
-        if (server.setUnblockEnabled(true)) {
-            TUI::Terminal::printLine("No blocking mode: ON");
-        }
         Socket client;
         while (true) {
             DT::Duration now = DT::currentTimestamps();
-            if (client.isNull()) client = server.accept();
+            if (client.state() != SocketState::Connected) client = server.accept();
             if (now - start > 1000) {
-                if (client.isNull()) {
+                if (client.state() != SocketState::Connected) {
                     TUI::Terminal::printFormat("[{:>16s}] Waiting...\r", std::to_string(DT::currentTimestamps()));
                 } else {
                     std::string msg;
-                    auto ok = client.send(std::to_string(DT::currentTimestamps()));
+                    auto ok = client.send(std::to_string(DT::currentTimestamps()), nullptr);
                     if (ok) {
-                        client.recv(msg, 255);
-                        if (!msg.empty()) TUI::Terminal::printFormat("\r\nRecv: {}\r\n", msg);
+                        bool is_ok = client.recv(msg, 255);
+                        if (is_ok) TUI::Terminal::printFormat("\r\nRecv: {}\r\n", msg);
                     } else {
                         client.close();
                     }
@@ -39,20 +39,23 @@ void test_server() {
             }
         }
         server.close();
+    } else {
+        TUI::Terminal::printFormat("Failed to start! Exception: {}\r\n", Net::getSocketErrorName(server.lastError()));
     }
 }
 
 void test_client() {
     Socket client;
     DT::Duration start = DT::currentTimestamps();
+    client.setOption(SocketOption::KeepAlive, true);
+    client.setOption(SocketOption::NonBlocking, true);
     if (client.connect("127.0.0.1", 8080)) {
-        client.setUnblockEnabled(true);
         while (true) {
             DT::Duration now = DT::currentTimestamps();
             if (now - start > 1000) {
                 std::string msg;
                 auto recv_sz = client.recv(msg, 255);
-                bool is_sent = client.send("Hello!\r\n");
+                bool is_sent = client.send("Hello!\r\n", nullptr);
                 if (recv_sz) {
                     TUI::Terminal::printFormat("Recv: {}\r\n", msg);
                 } else {
@@ -68,7 +71,7 @@ void test_client() {
         }
         client.close();
     } else {
-        TUI::Terminal::printFormat("Failed to connect! Exception: {}\r\n", Net::getLastError());
+        TUI::Terminal::printFormat("Failed to connect! Exception: {}\r\n", Net::getSocketErrorName(client.lastError()));
     }
 }
 
@@ -94,6 +97,5 @@ int main(int argc, char **argv) {
             return 0;
         }
     }
-
     return 0;
 }

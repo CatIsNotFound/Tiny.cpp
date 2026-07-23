@@ -23,28 +23,8 @@
  *                                                                                   *
  *************************************************************************************/
 
-#include "Socket.hpp"
-#ifdef TINY_CPP_MY_OS_WINDOWS
-#include <winsock2.h>
-#include <ws2ipdef.h>
-#include <ws2tcpip.h>
-#pragma comment(lib, "ws2_32.lib")
-#define INVALID_SOCKET_VAL INVALID_SOCKET
-#elif defined(TINY_CPP_MY_OS_UNIX)
+#include "SocketAdv.hpp"
 #include <sstream>
-#include <cstring>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
-#define INVALID_SOCKET_VAL (-1)
-#ifndef SOCKET_ERROR
-#define SOCKET_ERROR (-1)
-#endif
-#endif
-
 
 namespace Tiny {
 #ifdef TINY_CPP_MY_OS_WINDOWS
@@ -68,12 +48,142 @@ namespace Tiny {
     };
 
     WinSocketInit WinSocketInit::_instance{};
+#else
+    class SocketInit {
+    public:
+        SocketInit() {
+            signal(SIGPIPE, SIG_IGN);
+        }
+
+        ~SocketInit() = default;
+
+        SocketInit(const SocketInit&) = delete;
+        SocketInit& operator=(const SocketInit&) = delete;
+        SocketInit(SocketInit&&) = delete;
+        SocketInit& operator=(SocketInit&&) = delete;
+    private:
+        static SocketInit _instance;
+    };
+
+    SocketInit SocketInit::_instance{};
 #endif
 
+#ifdef TINY_CPP_MY_OS_WINDOWS
+    static std::unordered_map<int, Net::SocketError> __SocketErrorsMap__{
+        {0,                 Net::SocketError::Success},
+        {WSAEINVAL,         Net::SocketError::InvalidParameter},
+        {WSAEPROTONOSUPPORT,Net::SocketError::ProtoNotSupported},
+        {WSAEPROTOTYPE,     Net::SocketError::ProtoNotSupported},
+        {WSAENOTCONN,       Net::SocketError::SocketClosed},
+        {WSAESHUTDOWN,      Net::SocketError::SocketClosed},
+        {WSAEISCONN,        Net::SocketError::SocketInUse},
+        {WSAEADDRINUSE,     Net::SocketError::AddressInUse},
+        {WSAEADDRNOTAVAIL,  Net::SocketError::AddressNotAvailable},
+        {WSAEAFNOSUPPORT,   Net::SocketError::AddressNotSupport},
+        {WSAECONNREFUSED,   Net::SocketError::ConnectionRefused},
+        {WSAEINPROGRESS,    Net::SocketError::ConnectionInProgress},
+        {WSAEALREADY,       Net::SocketError::ConnectionInProgress},
+        {WSAECONNRESET,     Net::SocketError::ConnectionReset},
+        {WSAECONNABORTED,   Net::SocketError::ConnectionAborted},
+        {WSAETIMEDOUT,      Net::SocketError::ConnectionTimeout},
+        {WSAENETUNREACH,    Net::SocketError::NetworkUnreachable},
+        {WSAEHOSTUNREACH,   Net::SocketError::HostUnreachable},
+        {WSAENETDOWN,       Net::SocketError::NetworkDown},
+        {WSAEMSGSIZE,       Net::SocketError::MessageTooLong},
+        {WSAEWOULDBLOCK,    Net::SocketError::ResourceUnavailable},
+        {WSAEACCES,         Net::SocketError::OperationDenied},
+        {WSAENOBUFS,        Net::SocketError::SystemResourceLimit},
+        {WSAEMFILE,         Net::SocketError::SystemResourceLimit},
+        {WSAEINTR,          Net::SocketError::OperationCancelled},
+        {WSAEOPNOTSUPP,     Net::SocketError::OperationNotSupported},
+        {WSAENOTSOCK,       Net::SocketError::OperationNotSupported},
+        {WSAEFAULT,         Net::SocketError::SegmentationFault}
+    };
+#else
+    static std::unordered_map<int, Net::SocketError> __SocketErrorsMap__{
+            {0,                 Net::SocketError::Success},
+            {EINVAL,            Net::SocketError::InvalidParameter},
+            {EPROTONOSUPPORT,   Net::SocketError::ProtoNotSupported},
+            {EPROTOTYPE,        Net::SocketError::ProtoNotSupported},
+            {ENOTCONN,          Net::SocketError::SocketClosed},
+            {ESHUTDOWN,         Net::SocketError::SocketClosed},
+            {EISCONN,           Net::SocketError::SocketInUse},
+            {EADDRINUSE,        Net::SocketError::AddressInUse},
+            {EADDRNOTAVAIL,     Net::SocketError::AddressNotAvailable},
+            {EAFNOSUPPORT,      Net::SocketError::AddressNotSupport},
+            {ECONNREFUSED,      Net::SocketError::ConnectionRefused},
+            {EINPROGRESS,       Net::SocketError::ConnectionInProgress},
+            {EALREADY,          Net::SocketError::ConnectionInProgress},
+            {ECONNRESET,        Net::SocketError::ConnectionReset},
+            {EPIPE,             Net::SocketError::ConnectionReset},
+            {ECONNABORTED,      Net::SocketError::ConnectionAborted},
+            {ETIMEDOUT,         Net::SocketError::ConnectionTimeout},
+            {ENETUNREACH,       Net::SocketError::NetworkUnreachable},
+            {EHOSTUNREACH,      Net::SocketError::HostUnreachable},
+            {ENETDOWN,          Net::SocketError::NetworkDown},
+            {EMSGSIZE,          Net::SocketError::MessageTooLong},
+            {EWOULDBLOCK,       Net::SocketError::ResourceUnavailable},
+            {EACCES,            Net::SocketError::OperationDenied},
+            {ENOBUFS,           Net::SocketError::SystemResourceLimit},
+            {EMFILE,            Net::SocketError::SystemResourceLimit},
+            {ENFILE,            Net::SocketError::SystemResourceLimit},
+            {EINTR,             Net::SocketError::OperationCancelled},
+            {EOPNOTSUPP,        Net::SocketError::OperationNotSupported},
+            {ENOTSOCK,          Net::SocketError::OperationNotSupported},
+            {EFAULT,            Net::SocketError::SegmentationFault}
+    };
+#endif
+
+    static std::unordered_map<Net::SocketError, const char*> __SocketErrorStrings__{
+            {Net::SocketError::Success,                 "Tiny::Net::SocketError::Success"},
+            {Net::SocketError::InvalidParameter,        "Tiny::Net::SocketError::InvalidParameter"},
+            {Net::SocketError::ProtoNotSupported,       "Tiny::Net::SocketError::ProtoNotSupported"},
+            {Net::SocketError::SocketIsNotOpenned,      "Tiny::Net::SocketError::SocketIsNotOpenned"},
+            {Net::SocketError::SocketClosed,            "Tiny::Net::SocketError::SocketClosed"},
+            {Net::SocketError::SocketInUse,             "Tiny::Net::SocketError::SocketInUse"},
+            {Net::SocketError::AddressInUse,            "Tiny::Net::SocketError::AddressInUse"},
+            {Net::SocketError::AddressNotAvailable,     "Tiny::Net::SocketError::AddressNotAvailable"},
+            {Net::SocketError::AddressNotSupport,       "Tiny::Net::SocketError::AddressNotSupport"},
+            {Net::SocketError::ConnectionRefused,       "Tiny::Net::SocketError::ConnectionRefused"},
+            {Net::SocketError::ConnectionInProgress,    "Tiny::Net::SocketError::ConnectionInProgress"},
+            {Net::SocketError::ConnectionInUsed,        "Tiny::Net::SocketError::ConnectionInUsed"},
+            {Net::SocketError::ConnectionReset,         "Tiny::Net::SocketError::ConnectionReset"},
+            {Net::SocketError::ConnectionAborted,       "Tiny::Net::SocketError::ConnectionAborted"},
+            {Net::SocketError::ConnectionTimeout,       "Tiny::Net::SocketError::ConnectionTimeout"},
+            {Net::SocketError::NetworkUnreachable,      "Tiny::Net::SocketError::NetworkUnreachable"},
+            {Net::SocketError::HostUnreachable,         "Tiny::Net::SocketError::HostUnreachable"},
+            {Net::SocketError::NetworkDown,             "Tiny::Net::SocketError::NetworkDown"},
+            {Net::SocketError::MessageTooLong,          "Tiny::Net::SocketError::MessageTooLong"},
+            {Net::SocketError::ResourceUnavailable,     "Tiny::Net::SocketError::ResourceUnavailable"},
+            {Net::SocketError::OperationDenied,         "Tiny::Net::SocketError::OperationDenied"},
+            {Net::SocketError::SystemResourceLimit,     "Tiny::Net::SocketError::SystemResourceLimit"},
+            {Net::SocketError::OperationInProgress,     "Tiny::Net::SocketError::OperationInProgress"},
+            {Net::SocketError::OperationCancelled,      "Tiny::Net::SocketError::OperationCancelled"},
+            {Net::SocketError::OperationNotSupported,   "Tiny::Net::SocketError::OperationNotSupported"},
+            {Net::SocketError::SegmentationFault,       "Tiny::Net::SocketError::SegmentationFault"},
+            {Net::SocketError::UnknownError,            "Tiny::Net::SocketError::UnknownError"}
+    };
+
+    struct SocketSetting {
+        Net::OptionValue::ValueType real_type;
+        std::function<bool(Net::Handle, const Net::OptionValue&)> setter;
+        std::function<bool(Net::Handle, Net::OptionValue&)> getter;
+    };
+
     namespace Socket_Impl {
-        Net::Handle create(const Net::Address& address, bool use_udp = false) {
-            return ::socket(address.isIPv6() ? AF_INET6 : AF_INET, use_udp ? SOCK_DGRAM : SOCK_STREAM,
-                use_udp ? IPPROTO_UDP : IPPROTO_TCP);
+        Net::Handle create(const Net::Address& address, Net::SocketType sock_type, int type = 0, int protocol = 0) {
+            switch (sock_type) {
+                case Net::SocketType::TCP:
+                    return ::socket(address.isIPv6() ? AF_INET6 : AF_INET, SOCK_STREAM, IPPROTO_TCP);
+                case Net::SocketType::UDP:
+                    return ::socket(address.isIPv6() ? AF_INET6 : AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+                case Net::SocketType::SCTP:
+                    return ::socket(address.isIPv6() ? AF_INET6 : AF_INET, SOCK_SEQPACKET, IPPROTO_SCTP);
+                case Net::SocketType::Custom:
+                    return ::socket(address.isIPv6() ? AF_INET6 : AF_INET, type, protocol);
+                default:
+                    return INVALID_SOCKET_VAL;
+            }
         }
 
         int close(Net::Handle socket) {
@@ -81,6 +191,14 @@ namespace Tiny {
             return ::closesocket(socket);
 #else
             return ::close(socket);
+#endif
+        }
+
+        int shutdown(Net::Handle socket) {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+            return ::shutdown(socket, SD_BOTH);
+#else
+            return ::shutdown(socket, SHUT_RDWR);
 #endif
         }
 
@@ -98,9 +216,9 @@ namespace Tiny {
             return ::listen(socket, max_connections);
         }
 
-        Net::Handle accept(Net::Handle socket, Net::Address& address) {
+        Net::Handle accept(Net::Handle socket, Net::Address& address, bool use_ipv6 = false) {
             SOCKET new_client{};
-            if (address.isIPv6()) {
+            if (use_ipv6) {
                 sockaddr_in6 ipv6{};
                 socklen_t ipv6_size = sizeof(sockaddr_in6);
                 new_client = ::accept(socket, reinterpret_cast<sockaddr*>(&ipv6), &ipv6_size);
@@ -122,20 +240,32 @@ namespace Tiny {
             return new_client;
         }
 
-        bool send(Net::Handle socket, const Net::Datas& datas) {
+        int send(Net::Handle socket, const Net::Datas& datas) {
 #ifdef TINY_CPP_MY_OS_WINDOWS
-            return ::send(socket, datas.data(), datas.size(), 0) > 0;
+            return ::send(socket, datas.data(), datas.size(), 0);
 #else
-            return ::send(socket, datas.data(), datas.size(), MSG_NOSIGNAL) > 0;
+            return ::send(socket, datas.data(), datas.size(), MSG_NOSIGNAL);
 #endif
         }
 
-        bool send(Net::Handle socket, const std::string& datas) {
+        int send(Net::Handle socket, const std::string& datas) {
 #ifdef TINY_CPP_MY_OS_WINDOWS
-            return ::send(socket, datas.data(), datas.size(), 0) > 0;
+            return ::send(socket, datas.data(), datas.size(), 0);
 #else
-            return ::send(socket, datas.data(), datas.size(), MSG_NOSIGNAL) > 0;
+            return ::send(socket, datas.data(), datas.size(), MSG_NOSIGNAL);
 #endif
+        }
+
+        int sendto(Net::Handle socket, const Net::Datas& datas, const Net::Address& dest, int flag = 0) {
+            return ::sendto(socket, datas.data(), datas.size(), flag,
+                            static_cast<sockaddr*>(dest.address()),
+                            dest.isIPv6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in));
+        }
+
+        int sendto(Net::Handle socket, const std::string& datas, const Net::Address& dest, int flag = 0) {
+            return ::sendto(socket, datas.data(), datas.size(), flag,
+                            static_cast<sockaddr*>(dest.address()),
+                            dest.isIPv6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in));
         }
 
         int recv(Net::Handle socket, Net::Datas& datas, size_t max_len) {
@@ -155,13 +285,92 @@ namespace Tiny {
             return ::recv(socket, &datas[0], datas.size(), MSG_NOSIGNAL);
 #endif
         }
+
+        int recvfrom(Net::Handle socket, Net::Datas& datas, const Net::Address& src, int flag = 0) {
+            int sz = src.isIPv6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
+            return ::recvfrom(socket, &datas[0], datas.size(), flag,
+                            static_cast<sockaddr*>(src.address()), &sz);
+        }
+
+        int recvfrom(Net::Handle socket, std::string& datas, const Net::Address& src, int flag = 0) {
+            int sz = src.isIPv6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
+            return ::recvfrom(socket, &datas[0], datas.size(), flag,
+                            static_cast<sockaddr*>(src.address()), &sz);
+        }
     }
+
+
+    static std::unordered_map<uint32_t, SocketSetting> __SocketSettingsMap__{
+        {
+            static_cast<uint32_t>(Net::SocketOption::AllowedBroadcast),
+            {Net::OptionValue::ValueType::Int, {}, {}}
+        },
+        {
+            static_cast<uint32_t>(Net::SocketOption::KeepAlive),
+            {Net::OptionValue::ValueType::Int, {}, {}}
+        }
+    };
+
+    bool Net::Advanced::setSocketOption(Net::SocketOption option, Net::OptionValue::ValueType val_type,
+                                        const std::function<bool(Handle, const OptionValue &)> &setter,
+                                        const std::function<bool(Handle, OptionValue &)> &getter) {
+        auto id = static_cast<uint32_t>(option);
+        if (__SocketSettingsMap__.find(id) != __SocketSettingsMap__.end()) {
+            auto& socket_settings = __SocketSettingsMap__.at(id);
+            socket_settings.real_type = val_type;
+            if (setter) socket_settings.setter = setter;
+            if (getter) socket_settings.getter = getter;
+            return true;
+        }
+        return false;
+    }
+
+    void Net::Advanced::setCustomSocketOption(uint32_t option_id, Net::OptionValue::ValueType val_type,
+                                              const std::function<bool(Handle, const OptionValue &)> &setter,
+                                              const std::function<bool(Handle, OptionValue &)> &getter) {
+        if (__SocketSettingsMap__.find(option_id) != __SocketSettingsMap__.end()) {
+            auto& socket_settings = __SocketSettingsMap__.at(option_id);
+            socket_settings.real_type = val_type;
+            if (setter) socket_settings.setter = setter;
+            if (getter) socket_settings.getter = getter;
+        } else {
+            SocketSetting socket_setting = {val_type, setter, getter};
+            __SocketSettingsMap__.emplace(option_id, std::move(socket_setting));
+        }
+    }
+
+    bool Net::Advanced::removeCustomSocketOption(uint32_t option_id) {
+        if (__SocketSettingsMap__.find(option_id) != __SocketSettingsMap__.end()) {
+            __SocketSettingsMap__.erase(option_id);
+            return true;
+        }
+        return false;
+    }
+
+    bool Net::Advanced::getValueFromCustomOption(uint32_t option_id, OptionValue &value, Handle socket) {
+        if (__SocketSettingsMap__.find(option_id) != __SocketSettingsMap__.end()) {
+            auto& setting = __SocketSettingsMap__.at(option_id);
+            if (setting.real_type != value.type || !setting.getter) return false;
+            return setting.getter(socket, value);
+        }
+        return false;
+    }
+
+    bool Net::Advanced::setValueFromCustomOption(uint32_t option_id, const OptionValue &value, Handle socket) {
+        if (__SocketSettingsMap__.find(option_id) != __SocketSettingsMap__.end()) {
+            auto& setting = __SocketSettingsMap__.at(option_id);
+            if (setting.real_type != value.type || !setting.setter) return false;
+            return setting.setter(socket, value);
+        }
+        return false;
+    }
+
 
     Net::Address::Address(const char *address, uint16_t port, bool use_ipv6) {
         validate(address, port, use_ipv6);
     }
 
-    Net::Address::Address(const char *address, Protocol protocol_num, bool use_ipv6) {
+    Net::Address::Address(const char *address, PortProtocol protocol_num, bool use_ipv6) {
         validate(address, static_cast<uint16_t>(protocol_num), use_ipv6);
     }
 
@@ -212,7 +421,7 @@ namespace Tiny {
         validate(address, port, use_ipv6);
     }
 
-    void Net::Address::setAddress(const char *address, Protocol port, bool use_ipv6) {
+    void Net::Address::setAddress(const char *address, PortProtocol port, bool use_ipv6) {
         validate(address, static_cast<uint16_t>(port), use_ipv6);
     }
 
@@ -228,7 +437,7 @@ namespace Tiny {
         }
     }
 
-    void Net::Address::setPort(Protocol protocol_num) {
+    void Net::Address::setPort(PortProtocol protocol_num) {
         if (!_valid) return;
         _port = static_cast<uint16_t>(protocol_num);
         if (_use_ipv6) {
@@ -321,245 +530,528 @@ namespace Tiny {
         _use_ipv6 = use_ipv6;
     }
 
-
-    Net::Socket::Socket() : _handle(INVALID_SOCKET_VAL) {}
-
-    Net::Socket::Socket(Address &&address) {
-        _address = std::move(address);
-        _handle = INVALID_SOCKET_VAL;
+    const char *Net::getSocketErrorName(SocketError err) {
+        try {
+            return __SocketErrorStrings__[err];
+        } catch (const std::exception&) {
+            return "NaN";
+        }
     }
+
+    Net::Socket::Socket(SocketType type) : _handle(INVALID_SOCKET_VAL), _type(type), _err(), _state() {}
 
     Net::Socket::Socket(Socket &&other) noexcept {
         _handle = other._handle;
-        _address = std::move(other._address);
+        _local_addr = std::move(other._local_addr);
+        _peer_addr = std::move(other._peer_addr);
         other._handle = INVALID_SOCKET_VAL;
+        _err = other._err;
+        _state = other._state;
+        _type = other._type;
     }
 
     Net::Socket &Net::Socket::operator=(Socket &&other) noexcept {
         _handle = other._handle;
-        _address = std::move(other._address);
+        _local_addr = std::move(other._local_addr);
+        _peer_addr = std::move(other._peer_addr);
         other._handle = INVALID_SOCKET_VAL;
+        _err = other._err;
+        _state = other._state;
+        _type = other._type;
         return *this;
     }
 
     Net::Socket::~Socket() {
-        if (_handle != INVALID_SOCKET_VAL) close();
+        if (_handle != INVALID_SOCKET_VAL) shutdown();
     }
 
-    bool Net::Socket::connect(const char *address, uint16_t port, bool use_udp) {
-        _address.setAddress(address, port);
-        if (!_address.isValid() || _handle != INVALID_SOCKET_VAL) return false;
-        _handle = Socket_Impl::create(_address, use_udp);
-        if (_handle == INVALID_SOCKET_VAL) return false;
-        auto ret = Socket_Impl::connect(_handle, _address);
+    void Net::Socket::setLocalAddress(const char *address, uint16_t port, bool use_ipv6) {
+        if (_state != SocketState::Unused) {
+            _sys_errno = 0;
+            _err = SocketError::SocketInUse;
+            return;
+        }
+        _local_addr.setAddress(address, port, use_ipv6);
+        _err = _local_addr.isValid() ? SocketError::Success : SocketError::InvalidParameter;
+        _sys_errno = 0;
+    }
+
+    void Net::Socket::setLocalAddress(Address &&address) {
+        if (_state != SocketState::Unused) {
+            _sys_errno = 0;
+            _err = SocketError::SocketInUse;
+            return;
+        }
+        _local_addr = std::move(address);
+        _err = _local_addr.isValid() ? SocketError::Success : SocketError::InvalidParameter;
+        _sys_errno = 0;
+    }
+
+    void Net::Socket::setLocalPort(uint16_t port) {
+        if (_state != SocketState::Unused) {
+            _sys_errno = 0;
+            _err = SocketError::SocketInUse;
+            return;
+        }
+        _local_addr.setPort(port);
+        _err = SocketError::Success;
+        _sys_errno = 0;
+    }
+
+    void Net::Socket::setPeerAddress(const char *address, uint16_t port, bool use_ipv6) {
+        if (_state != SocketState::Unused) {
+            _sys_errno = 0;
+            _err = SocketError::SocketInUse;
+            return;
+        }
+        _peer_addr.setAddress(address, port, use_ipv6);
+        _err = _peer_addr.isValid() ? SocketError::Success : SocketError::InvalidParameter;
+        _sys_errno = 0;
+    }
+
+    void Net::Socket::setPeerAddress(Address &&address) {
+        if (_state != SocketState::Unused) {
+            _sys_errno = 0;
+            _err = SocketError::SocketInUse;
+            return;
+        }
+        _peer_addr = std::move(address);
+        _err = _peer_addr.isValid() ? SocketError::Success : SocketError::InvalidParameter;
+        _sys_errno = 0;
+    }
+
+    void Net::Socket::setPeerPort(uint16_t port) {
+        if (_state != SocketState::Unused) {
+            _sys_errno = 0;
+            _err = SocketError::SocketInUse;
+            return;
+        }
+        _peer_addr.setPort(port);
+        _err = SocketError::Success;
+        _sys_errno = 0;
+    }
+
+    void Net::Socket::setSocketType(SocketType type) {
+        if (_state == SocketState::Unused) {
+            _type = type;
+            copeSuccess();
+        } else {
+            _err = SocketError::SocketInUse;
+            _sys_errno = 0;
+        }
+    }
+
+    bool Net::Socket::connect(const char *address, uint16_t port) {
+        _peer_addr.setAddress(address, port);
+        return connect();
+    }
+
+    bool Net::Socket::connect(const char *address, PortProtocol port) {
+        _peer_addr.setAddress(address, port);
+        return connect();
+    }
+
+    bool Net::Socket::connect(Address &&address) {
+        _peer_addr = std::move(address);
+        return connect();
+    }
+
+    bool Net::Socket::connect() {
+        if (!_peer_addr.isValid()) {
+            _err = SocketError::InvalidParameter;
+            _sys_errno = 0;
+            return false;
+        }
+        _state = SocketState::Connecting;
+        _handle = Socket_Impl::create(_local_addr, _type);
+        if (_handle == INVALID_SOCKET_VAL) {
+            copeFailed();
+            _state = SocketState::Unused;
+            return false;
+        }
+        if (!setAllOptions()) {
+            copeFailed();
+            if (_sys_errno == 0) _err = SocketError::SetOptionError;
+            return false;
+        }
+        auto ret = Socket_Impl::connect(_handle, _peer_addr);
         if (ret == SOCKET_ERROR) {
+            copeFailed();
             Socket_Impl::close(_handle);
+            _state = SocketState::Unused;
             _handle = INVALID_SOCKET_VAL;
             return false;
         }
+        _state = SocketState::Connected;
+        copeSuccess();
         return true;
     }
 
-    bool Net::Socket::connect(const char *address, Protocol port, bool use_udp) {
-        _address.setAddress(address, port);
-        if (!_address.isValid() || _handle != INVALID_SOCKET_VAL) return false;
-        _handle = Socket_Impl::create(_address, use_udp);
-        if (_handle == INVALID_SOCKET_VAL) return false;
-        auto ret = Socket_Impl::connect(_handle, _address);
+    bool Net::Socket::bind() {
+        if (!_local_addr.isValid()) {
+            _err = SocketError::InvalidParameter;
+            _sys_errno = 0;
+            return false;
+        }
+        _handle = Socket_Impl::create(_local_addr, _type);
+        if (_handle == INVALID_SOCKET_VAL) {
+            copeFailed();
+            return false;
+        }
+        auto ret = Socket_Impl::bind(_handle, _local_addr);
         if (ret == SOCKET_ERROR) {
+            copeFailed();
             Socket_Impl::close(_handle);
             _handle = INVALID_SOCKET_VAL;
             return false;
         }
+        _state = SocketState::Bound;
+        copeSuccess();
         return true;
     }
 
-    bool Net::Socket::connect(Address &&address, bool use_udp) {
-        _address = std::move(address);
-        if (!_address.isValid() || _handle != INVALID_SOCKET_VAL) return false;
-        _handle = Socket_Impl::create(_address, use_udp);
-        if (_handle == INVALID_SOCKET_VAL) return false;
-        auto ret = Socket_Impl::connect(_handle, _address);
-        if (ret == SOCKET_ERROR) {
-            Socket_Impl::close(_handle);
-            _handle = INVALID_SOCKET_VAL;
-            return false;
-        }
-        return true;
+    bool Net::Socket::bind(const char *address, uint16_t port) {
+        _local_addr.setAddress(address, port);
+        return bind();
     }
 
-    bool Net::Socket::connect(bool use_udp) {
-        if (!_address.isValid() || _handle != INVALID_SOCKET_VAL) return false;
-        _handle = Socket_Impl::create(_address, use_udp);
-        if (_handle == INVALID_SOCKET_VAL) return false;
-        auto ret = Socket_Impl::connect(_handle, _address);
-        if (ret == SOCKET_ERROR) {
-            Socket_Impl::close(_handle);
-            _handle = INVALID_SOCKET_VAL;
-            return false;
-        }
-        return true;
+    bool Net::Socket::bind(const char *address, PortProtocol port) {
+        _local_addr.setAddress(address, port);
+        return bind();
     }
 
-    bool Net::Socket::bind(bool use_udp) {
-        if (!_address.isValid() || _handle != INVALID_SOCKET_VAL) return false;
-        _handle = Socket_Impl::create(_address, use_udp);
-        if (_handle == INVALID_SOCKET_VAL) return false;
-        auto ret = Socket_Impl::bind(_handle, _address);
-        if (ret == SOCKET_ERROR) {
-            Socket_Impl::close(_handle);
-            _handle = INVALID_SOCKET_VAL;
-            return false;
-        }
-        return true;
+    bool Net::Socket::bind(Address &&address) {
+        _local_addr = std::move(address);
+        return bind();
     }
 
-    bool Net::Socket::bind(const char *address, uint16_t port, bool use_udp) {
-        _address.setAddress(address, port);
-        if (!_address.isValid() || _handle != INVALID_SOCKET_VAL) return false;
-        _handle = Socket_Impl::create(_address, use_udp);
-        if (_handle == INVALID_SOCKET_VAL) return false;
-        auto ret = Socket_Impl::bind(_handle, _address);
-        if (ret == SOCKET_ERROR) {
-            Socket_Impl::close(_handle);
-            _handle = INVALID_SOCKET_VAL;
-            return false;
-        }
-        return true;
+    bool Net::Socket::listen(uint16_t port) {
+        _local_addr.setAddress("0.0.0.0", port);
+        return listen();
     }
 
-    bool Net::Socket::bind(const char *address, Protocol port, bool use_udp) {
-        _address.setAddress(address, port);
-        if (!_address.isValid() || _handle != INVALID_SOCKET_VAL) return false;
-        _handle = Socket_Impl::create(_address, use_udp);
-        if (_handle == INVALID_SOCKET_VAL) return false;
-        auto ret = Socket_Impl::bind(_handle, _address);
-        if (ret == SOCKET_ERROR) {
-            Socket_Impl::close(_handle);
-            _handle = INVALID_SOCKET_VAL;
-            return false;
-        }
-        return true;
-    }
-
-    bool Net::Socket::bind(Address &&address, bool use_udp) {
-        _address = std::move(address);
-        if (!_address.isValid() || _handle != INVALID_SOCKET_VAL) return false;
-        _handle = Socket_Impl::create(_address, use_udp);
-        if (_handle == INVALID_SOCKET_VAL) return false;
-        auto ret = Socket_Impl::bind(_handle, _address);
-        if (ret == SOCKET_ERROR) {
-            Socket_Impl::close(_handle);
-            _handle = INVALID_SOCKET_VAL;
-            return false;
-        }
-        return true;
-    }
-
-    bool Net::Socket::listen(uint16_t port, bool use_udp) {
-        _address.setAddress("0.0.0.0", port);
-        if (!_address.isValid() || _handle != INVALID_SOCKET_VAL) return false;
-        _handle = Socket_Impl::create(_address, use_udp);
-        if (_handle == INVALID_SOCKET_VAL) return false;
-
-        auto ret = Socket_Impl::bind(_handle, _address);
-        if (ret == SOCKET_ERROR) {
-            Socket_Impl::close(_handle);
-            _handle = INVALID_SOCKET_VAL;
-            return false;
-        }
-        ret = Socket_Impl::listen(_handle, UINT16_MAX);
-        if (ret == SOCKET_ERROR) {
-            Socket_Impl::close(_handle);
-            _handle = INVALID_SOCKET_VAL;
-            return false;
-        }
-        return true;
-    }
-
-    bool Net::Socket::listen(Protocol protocol_num, bool use_udp) {
+    bool Net::Socket::listen(PortProtocol protocol_num) {
         auto port = static_cast<uint16_t>(protocol_num);
-        _address.setAddress("0.0.0.0", port);
-        if (!_address.isValid() || _handle != INVALID_SOCKET_VAL) return false;
-        _handle = Socket_Impl::create(_address, use_udp);
-        if (_handle == INVALID_SOCKET_VAL) return false;
-#ifdef TINY_CPP_MY_OS_WINDOWS
-        setsockopt(_handle, SOL_SOCKET, SO_REUSEADDR, "\1", 1);
-        if (!use_udp) setsockopt(_handle, SOL_SOCKET, SO_KEEPALIVE, "\1", 1);
-#else
-        int opt_val = 1;
-        setsockopt(_handle, SOL_SOCKET, SO_REUSEADDR, &opt_val, sizeof(opt_val));
-        if (!use_udp) setsockopt(_handle, SOL_SOCKET, SO_KEEPALIVE, &opt_val, sizeof(opt_val));
-#endif
-        auto ret = Socket_Impl::bind(_handle, _address);
-        if (ret == SOCKET_ERROR) {
-            Socket_Impl::close(_handle);
-            _handle = INVALID_SOCKET_VAL;
-            return false;
-        }
-        ret = Socket_Impl::listen(_handle, port);
-        if (ret == SOCKET_ERROR) {
-            Socket_Impl::close(_handle);
-            _handle = INVALID_SOCKET_VAL;
-            return false;
-        }
-        return true;
+        _local_addr.setAddress("0.0.0.0", port);
+        return listen();
     }
 
-    bool Net::Socket::accept(Socket &socket) const {
+    bool Net::Socket::listen() {
+        if (!_local_addr.isValid()) {
+            _err = SocketError::InvalidParameter;
+            _sys_errno = 0;
+            return false;
+        }
+        _handle = Socket_Impl::create(_local_addr, _type);
+        if (_handle == INVALID_SOCKET_VAL) {
+            copeFailed();
+            return false;
+        }
+        if (!setAllOptions()) {
+            copeFailed();
+            if (_sys_errno == 0) _err = SocketError::SetOptionError;
+            return false;
+        }
+        _state = SocketState::Listening;
+        auto ret = Socket_Impl::bind(_handle, _local_addr);
+        if (ret == SOCKET_ERROR) {
+            goto Failed;
+        }
+        ret = Socket_Impl::listen(_handle, _local_addr.port());
+        if (ret == SOCKET_ERROR) {
+            goto Failed;
+        }
+        copeSuccess();
+        return true;
+Failed:
+        copeFailed();
+        Socket_Impl::close(_handle);
+        _state = SocketState::Unused;
+        _handle = INVALID_SOCKET_VAL;
+        return false;
+    }
+
+    bool Net::Socket::accept(Socket &socket) {
         bool ok;
         socket = accept(&ok);
         return ok;
     }
 
-    Net::Socket Net::Socket::accept(bool *ok) const {
-        if (!_address.isValid() || _handle == INVALID_SOCKET_VAL) {
+    Net::Socket Net::Socket::accept(bool *ok) {
+        if (!_local_addr.isValid() || _handle == INVALID_SOCKET_VAL) {
+            _err = SocketError::InvalidParameter;
+            _sys_errno = 0;
             if (ok) *ok = false;
             return {};
         }
-        Address new_address(_address.toString().data(), _address.port(), _address.isIPv6());
-        auto handle = Socket_Impl::accept(_handle, new_address);
+        Address new_address;
+        auto handle = Socket_Impl::accept(_handle, new_address, _local_addr.isIPv6());
         if (handle == INVALID_SOCKET_VAL) {
+            copeFailed();
             if (ok) *ok = false;
             return {};
         }
-        Socket cli_socket;
+        Socket cli_socket(_type);
         cli_socket._handle = handle;
-        cli_socket._address = std::move(new_address);
+        cli_socket._local_addr = std::move(new_address);
+        cli_socket._state = SocketState::Connected;
         if (ok) *ok = true;
+        copeSuccess();
         return cli_socket;
     }
 
 
-    void Net::Socket::close() {
-        if (_handle != INVALID_SOCKET_VAL) {
-            Socket_Impl::close(_handle);
-            _handle = INVALID_SOCKET_VAL;
+    bool Net::Socket::close() {
+        _state = SocketState::Closing;
+        bool ok = Socket_Impl::close(_handle) == 0;
+        _handle = INVALID_SOCKET_VAL;
+        if (ok) copeSuccess(); else copeFailed();
+        _state = SocketState::Unused;
+        return ok;
+    }
+
+    bool Net::Socket::shutdown() {
+        _state = SocketState::Closing;
+        bool ok = Socket_Impl::shutdown(_handle) == 0;
+        _handle = INVALID_SOCKET_VAL;
+        if (ok) copeSuccess(); else copeFailed();
+        _state = SocketState::Unused;
+        return ok;
+    }
+
+    bool Net::Socket::send(const std::string &message, int *sended_length) {
+        if (_handle == INVALID_SOCKET_VAL) {
+            _sys_errno = 0;
+            _err = SocketError::SocketIsNotOpenned;
+            return false;
         }
+        auto ok = Socket_Impl::send(_handle, message);
+        if (ok < 0) {
+            copeFailed();
+            return false;
+        }
+        copeSuccess();
+        if (sended_length) *sended_length = ok;
+        return true;
     }
 
-    bool Net::Socket::send(const std::string &message) {
-        if (!_address.isValid() || _handle == INVALID_SOCKET_VAL) return false;
-        return Socket_Impl::send(_handle, message);
-    }
-
-    bool Net::Socket::send(const Datas &data) {
-        if (!_address.isValid() || _handle == INVALID_SOCKET_VAL) return false;
-        return Socket_Impl::send(_handle, data);
+    bool Net::Socket::send(const Datas &data, int *sended_length) {
+        if (_handle == INVALID_SOCKET_VAL) {
+            _sys_errno = 0;
+            _err = SocketError::SocketIsNotOpenned;
+            return false;
+        }
+        auto ok = Socket_Impl::send(_handle, data);
+        if (ok < 0) {
+            copeFailed();
+            return false;
+        }
+        copeSuccess();
+        if (sended_length) *sended_length = ok;
+        return true;
     }
 
     bool Net::Socket::recv(Datas &data, size_t max_length, int* received_length) {
-        if (!_address.isValid() || _handle == INVALID_SOCKET_VAL) return false;
-        auto len = Socket_Impl::recv(_handle, data, max_length);
-        if (received_length) *received_length = len;
-        return len != SOCKET_ERROR;
+        if (_handle == INVALID_SOCKET_VAL) {
+            _sys_errno = 0;
+            _err = SocketError::SocketIsNotOpenned;
+            return false;
+        }
+        auto ok = Socket_Impl::recv(_handle, data, max_length);
+        if (ok < 0) {
+            copeFailed();
+            return false;
+        }
+        copeSuccess();
+        if (received_length) *received_length = ok;
+        return true;
     }
 
     bool Net::Socket::recv(std::string &message, size_t max_length, int* received_length) {
-        if (!_address.isValid() || _handle == INVALID_SOCKET_VAL) return false;
-        auto len = Socket_Impl::recv(_handle, message, max_length);
+        if (_handle == INVALID_SOCKET_VAL) {
+            _sys_errno = 0;
+            _err = SocketError::SocketIsNotOpenned;
+            return false;
+        }
+        auto ok = Socket_Impl::recv(_handle, message, max_length);
+        if (ok < 0) {
+            copeFailed();
+            return false;
+        }
+        copeSuccess();
+        if (received_length) *received_length = ok;
+        return true;
+    }
+
+    bool Net::Socket::sendTo(const std::string &message, const Address &address, int *sended_length) {
+        if (_handle == INVALID_SOCKET_VAL) {
+            _handle = Socket_Impl::create(_local_addr, _type);
+            if (_handle == INVALID_SOCKET_VAL) {
+                copeFailed();
+                return false;
+            }
+            if (!setAllOptions()) {
+                copeFailed();
+                if (_sys_errno == 0) _err = SocketError::SetOptionError;
+                return false;
+            }
+        }
+        auto len = Socket_Impl::sendto(_handle, message, address);
+        if (len < 0) {
+            copeFailed();
+            return false;
+        }
+        if (sended_length) *sended_length = len;
+        copeSuccess();
+        return true;
+    }
+
+    bool Net::Socket::sendTo(const Datas &message, const Address &address, int *sended_length) {
+        if (_handle == INVALID_SOCKET_VAL) {
+            _handle = Socket_Impl::create(_local_addr, _type);
+            if (_handle == INVALID_SOCKET_VAL) {
+                copeFailed();
+                return false;
+            }
+            if (!setAllOptions()) {
+                copeFailed();
+                if (_sys_errno == 0) _err = SocketError::SetOptionError;
+                return false;
+            }
+        }
+        auto len = Socket_Impl::sendto(_handle, message, address);
+        if (len < 0) {
+            copeFailed();
+            return false;
+        }
+        if (sended_length) *sended_length = len;
+        copeSuccess();
+        return true;
+    }
+
+    bool Net::Socket::recvFrom(std::string &message, size_t max_length, const Address &address, int *received_length) {
+        if (_handle == INVALID_SOCKET_VAL) {
+            _handle = Socket_Impl::create(_local_addr, _type);
+            if (_handle == INVALID_SOCKET_VAL) {
+                copeFailed();
+                return false;
+            }
+            if (!setAllOptions()) {
+                copeFailed();
+                if (_sys_errno == 0) _err = SocketError::SetOptionError;
+                return false;
+            }
+        }
+        if (max_length > 0) message.resize(max_length);
+        auto len = Socket_Impl::recvfrom(_handle, message, address);
+        if (len < 0) {
+            copeFailed();
+            return false;
+        }
         if (received_length) *received_length = len;
-        return len != SOCKET_ERROR;
+        copeSuccess();
+        return true;
+    }
+
+    bool Net::Socket::recvFrom(Datas &data, size_t max_length, const Address &address, int *received_length) {
+        if (_handle == INVALID_SOCKET_VAL) {
+            _handle = Socket_Impl::create(_local_addr, _type);
+            if (_handle == INVALID_SOCKET_VAL) {
+                copeFailed();
+                return false;
+            }
+            if (!setAllOptions()) {
+                copeFailed();
+                if (_sys_errno == 0) _err = SocketError::SetOptionError;
+                return false;
+            }
+        }
+        if (max_length > 0) data.resize(max_length);
+        auto len = Socket_Impl::recvfrom(_handle, data, address);
+        if (len < 0) {
+            copeFailed();
+            return false;
+        }
+        if (received_length) *received_length = len;
+        copeSuccess();
+        return true;
+    }
+
+    void Net::Socket::setOption(SocketOption option, OptionValue value, bool *ok) {
+        setOption(static_cast<uint32_t>(option), value, ok);
+    }
+
+    void Net::Socket::setOption(uint32_t option_id, OptionValue value, bool *ok) {
+        if (_options.find(option_id) != _options.end()) {
+            _options.at(option_id) = value;
+        } else {
+            _options.emplace(option_id, value);
+        }
+        bool is_ok = true;
+        if (_handle != INVALID_SOCKET_VAL) {
+            if (__SocketSettingsMap__.find(option_id) != __SocketSettingsMap__.end()) {
+                auto& setting = __SocketSettingsMap__.at(option_id);
+                is_ok = (setting.setter && setting.setter(_handle, value));
+            } else {
+                is_ok = false;
+            }
+        }
+        if (ok) *ok = is_ok;
+    }
+
+    const Net::Address & Net::Socket::localAddress() const {
+        return _local_addr;
+    }
+
+    const Net::Address & Net::Socket::peerAddress() const {
+        return _peer_addr;
+    }
+
+    Net::OptionValue Net::Socket::option(SocketOption option, bool *ok) const {
+        return this->option(static_cast<uint32_t>(option), ok);
+    }
+
+    Net::OptionValue Net::Socket::option(uint32_t option_id, bool *ok) const {
+        if (__SocketSettingsMap__.find(option_id) != __SocketSettingsMap__.end()) {
+            auto& setting = __SocketSettingsMap__.at(option_id);
+            OptionValue ret;
+            if (setting.getter && !setting.getter(_handle, ret)) {
+                if (ok) *ok = false;
+                return {};
+            }
+            if (ok) *ok = true;
+            return ret;
+        }
+        if (ok) *ok = false;
+        return {};
+    }
+
+    Net::SocketError Net::Socket::lastError() const {
+        return _err;
+    }
+
+    Net::SocketType Net::Socket::type() const {
+        return _type;
+    }
+
+    Net::SocketState Net::Socket::state() const {
+        return _state;
+    }
+
+    int Net::Socket::errorSocketOptionID() const {
+        return _err_opt_id;
+    }
+
+    int Net::Socket::nativeErrorNo() const {
+        return _sys_errno;
+    }
+
+    void Net::Socket::mapErrorNum(int error_code) {
+        if (__SocketErrorsMap__.find(error_code) != __SocketErrorsMap__.end()) {
+            _err = __SocketErrorsMap__.at(error_code);
+        } else {
+            _err = SocketError::UnknownError;
+        }
     }
 
     bool Net::Socket::setUnblockEnabled(bool enabled) {
@@ -575,18 +1067,48 @@ namespace Tiny {
 #endif
     }
 
-    bool Net::Socket::isNull() const {
-        return _handle == INVALID_SOCKET_VAL;
+    void Net::Socket::copeFailed() {
+        _sys_errno = getLastSystemError();
+        mapErrorNum(_sys_errno);
     }
 
-    std::string Net::getLastError(int* err_code) {
+    void Net::Socket::copeSuccess() {
+        _sys_errno = 0;
+        mapErrorNum(_sys_errno);
+    }
+
+    bool Net::Socket::setAllOptions() {
+        for (auto& opt : _options) {
+            try {
+                auto& setting = __SocketSettingsMap__.at(opt.first);
+                if (setting.setter && !setting.setter(_handle, opt.second)) {
+                    _err_opt_id = opt.first;
+                    return false;
+                }
+            } catch (const std::exception&) {
+                _err_opt_id = opt.first;
+                return false;
+            }
+        }
+        _err_opt_id = 0;
+        return true;
+    }
+
+    int Net::getLastSystemError(std::string *info) {
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        auto err = WSAGetLastError();
-        if (err_code) *err_code = err;
+        int err = WSAGetLastError();
+#else
+        int err = errno;
+#endif
+        if (info) *info = getSystemErrorByErrno(err);
+        return err;
+    }
+
+    std::string Net::getSystemErrorByErrno(int err) {
+#ifdef TINY_CPP_MY_OS_WINDOWS
         if (err == 0) {
             return "No errors found!";
         }
-        WSASetLastError(0);
         void* msg_buf = nullptr;
         auto out_size = FormatMessageA(
             FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
@@ -605,13 +1127,10 @@ namespace Tiny {
             return info;
         }
         if (msg_buf) LocalFree(msg_buf);
-        char out[32]{};
-        snprintf(out, 32, "Unknown error! code: 0x%x", err);
-        out[31] = '\0';
-        return out;
+        std::ostringstream oss;
+        oss << "Unknown error! code: 0x" << std::hex << err;
+        return oss.str();
 #else
-        int err = errno;
-        if (err_code) *err_code = err;
         if (err == 0) {
             return "No errors found!";
         }

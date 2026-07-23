@@ -52,6 +52,7 @@ add_library(${PROJECT_NAME} STATIC
         src/Parser/CommandParser.cpp
         src/Net/Socket.cpp
         src/Net/Socket.hpp
+        src/Net/SocketAdv.hpp
 )
 
 # Link Windows libraries
