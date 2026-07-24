@@ -219,54 +219,82 @@ namespace Tiny {
         enum class SocketOption : uint8_t {
             /// Allowed send/receive broadcast. (for IPv4 address)
             ///
-            /// ValueType: bool 0/1
+            /// - ValueType: int(bool) false/true
+            ///
+            /// - Supported: Set/Get
             AllowedBroadcast = 1,
             /// Bypass the outgoing routing table lookup and send directly to the network interface.
             ///
-            /// ValueType: bool 0/1
+            /// - ValueType: int(bool) false/true
+            ///
+            /// - Supported: Set/Get
             DontRoute,
             /// Enabled TCP keepalive detection.
             ///
-            /// ValueType: bool 0/1
+            /// - ValueType: int(bool) false/true
+            ///
+            /// - Supported: Set/Get
             KeepAlive,
             /// Try to optimize the socket for low latency. (for TCP)
             ///
-            /// ValueType: bool 0/1
+            /// - ValueType: int(bool) false/true
+            ///
+            /// - Supported: Set/Get
             NoDelay,
             /// Send maximum of buffers size.
             ///
-            /// ValueType: int
+            /// - ValueType: int
+            ///
+            /// - Supported: Set/Get
             SendBufSize,
             /// Receive maximum of buffers size.
             ///
-            /// ValueType: int
+            /// - ValueType: int
+            ///
+            /// - Supported: Set/Get
             RecvBufSize,
             /// Set timeout of sending buffer.
             ///
-            /// ValueType:
-            /// - Windows: uint32_t (Stored as milliseconds)
-            /// - Others: The pointer of timeval
+            /// - ValueType:
+            ///     - Windows: uint32_t (Stored as milliseconds)
+            ///     - Others: The pointer of timeval
+            ///
+            /// - Supported: Set/Get
             SendBufTimeout,
             /// Set timeout of receiving buffer.
             ///
-            /// ValueType:
-            /// - Windows: uint32_t (Stored as milliseconds)
-            /// - Others: The pointer of timeval
+            /// - ValueType:
+            ///     - Windows: uint32_t (Stored as milliseconds)
+            ///     - Others: The pointer of timeval
+            ///
+            /// - Supported: Set/Get
             RecvBufTimeout,
             /// Decided how to close socket smoothly.
             ///
-            /// ValueType: The pointer of linger.
+            /// - ValueType: The pointer of linger.
+            ///
+            /// - Supported: Set/Get
             Linger,
             /// Allowed reuse local address.
             ///
-            /// ValueType: bool 0/1
+            /// - ValueType: int(bool) false/true
+            ///
+            /// - Supported: Set/Get
             ReuseAddr,
             /// Disabled map IPv4 address. (Only for mapping IPv6 address)
             ///
-            /// ValueType: bool 0/1
+            /// - ValueType: int(bool) false/true
+            ///
+            /// - Supported: Set/Get
             MapIPv6Only,
             MulticastTTL,
             MulticastLoopback,
+            /// Allows the program to immediately return and continue execution
+            /// if the conditions for a certain function are not met.
+            ///
+            /// - ValueType: int(bool) false/true
+            ///
+            /// - Supported: Set
             NonBlocking
         };
 
@@ -304,8 +332,8 @@ namespace Tiny {
                 var.f = v;
             }
 
-            OptionValue(char* v) : type(String), size(strlen(v)), var() {
-                var.s = v;
+            OptionValue(const char* v) : type(String), size(strlen(v)), var() {
+                var.s = const_cast<char *>(v);
             }
 
             OptionValue(void* v, uint32_t size) : type(Custom), size(size), var() {
@@ -330,10 +358,10 @@ namespace Tiny {
                 var.f = v;
             }
 
-            void set(char* v) {
+            void set(const char* v) {
                 type = String;
                 size = strlen(v);
-                var.s = v;
+                var.s = const_cast<char *>(v);
             }
 
             void set(void* v, uint32_t len) {
@@ -372,9 +400,9 @@ namespace Tiny {
             bool bind(const char* address, PortProtocol port);
             bool bind(Address &&address);
             bool bind();
-            bool listen(uint16_t port);
-            bool listen(PortProtocol protocol_num);
-            bool listen();
+            bool listen(uint16_t port, int max_connection_count = 255);
+            bool listen(PortProtocol protocol_num, int max_connection_count = 255);
+            bool listen(int max_connection_count);
 
             bool accept(Socket& socket);
             Socket accept(bool* ok = nullptr);
@@ -402,7 +430,7 @@ namespace Tiny {
             SocketType  type() const;
             SocketState state() const;
 
-            uint32_t errorSocketOptionID() const;
+            uint32_t    errorSocketOptionID() const;
             int         nativeErrorNo() const;
 
             Socket(const Socket&) = delete;

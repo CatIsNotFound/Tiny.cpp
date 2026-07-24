@@ -12,10 +12,10 @@ static uint64_t ID = 0;
 void test_server() {
     Socket server;
     DT::Duration start = DT::currentTimestamps();
-    server.setOption(SocketOption::KeepAlive, 3.14f);
+    server.setOption(SocketOption::KeepAlive, "true");
     server.setOption(SocketOption::NonBlocking, true);
     server.setOption(SocketOption::ReuseAddr, true);
-    if (server.listen(8080)) {
+    if (server.listen(8080, 65535)) {
         if (server.lastError() != SocketError::Success) {
             TUI::Terminal::printFormat("Server starting error! Exception: {}\r\n",
                 getSocketErrorName(server.lastError()));
@@ -30,6 +30,8 @@ void test_server() {
                 if (client.state() != SocketState::Connected) {
                     TUI::Terminal::printFormat("[{:>16s}] Waiting...\r", std::to_string(DT::currentTimestamps()));
                 } else {
+                    TUI::Terminal::printFormat("[{:>16s}] Found host: {}:{}\r", std::to_string(DT::currentTimestamps()),
+                        client.localAddress().toString(), client.localAddress().port());
                     std::string msg;
                     auto ok = client.send(std::to_string(DT::currentTimestamps()), nullptr);
                     if (ok) {
@@ -38,7 +40,6 @@ void test_server() {
                     } else {
                         client.close();
                     }
-                    TUI::Terminal::printLine(ok ? "\r\nOk!" : "\r\nDisconnected!");
                 }
                 start = now;
             }
@@ -62,6 +63,7 @@ void test_client() {
     DT::Duration start = DT::currentTimestamps();
     client.setOption(SocketOption::KeepAlive, true);
     client.setOption(SocketOption::NonBlocking, true);
+    client.setOption(SocketOption::ReuseAddr, true);
     if (client.connect("127.0.0.1", 8080)) {
         while (true) {
             DT::Duration now = DT::currentTimestamps();

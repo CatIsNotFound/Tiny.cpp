@@ -213,57 +213,60 @@ namespace Tiny {
         bool setSocketLevelOption(Net::Handle handle, uint32_t opt_id, const Net::OptionValue& value) {
             if (__SOL_SOCKET_LEVEL_MAP__.find(opt_id) != __SOL_SOCKET_LEVEL_MAP__.end()) {
                 auto& so_id = __SOL_SOCKET_LEVEL_MAP__[opt_id];
+                auto& expected_type = __SOL_SOCKET_LEVEL_VALUE_TYPE_MAP__.at(so_id);
+                if (expected_type == value.type) {
 #ifdef TINY_CPP_MY_OS_WINDOWS
-                char* set_val;
-                Net::OptionValue::Value v{};
-                switch (value.type) {
-                    case Net::OptionValue::Int:
-                        v.i = value.var.i;
-                        set_val = reinterpret_cast<char*>(&v.i);
-                        break;
-                    case Net::OptionValue::UInt:
-                        v.u = value.var.u;
-                        set_val = reinterpret_cast<char*>(&v.u);
-                        break;
-                    case Net::OptionValue::Float:
-                        v.f = value.var.f;
-                        set_val = reinterpret_cast<char*>(&v.f);
-                        break;
-                    case Net::OptionValue::String:
-                        v.s = value.var.s;
-                        set_val = v.s;
-                        break;
-                    case Net::OptionValue::Custom:
-                        v.v = value.var.v;
-                        set_val = static_cast<char*>(v.v);
-                        break;
-                    default:
-                        v.v = nullptr;
-                        set_val = nullptr;
-                        break;
-                }
-                return ::setsockopt(handle, SOL_SOCKET, so_id, set_val, value.size) != SOCKET_ERROR;
+                    char* set_val;
+                    Net::OptionValue::Value v{};
+                    switch (value.type) {
+                        case Net::OptionValue::Int:
+                            v.i = value.var.i;
+                            set_val = reinterpret_cast<char*>(&v.i);
+                            break;
+                        case Net::OptionValue::UInt:
+                            v.u = value.var.u;
+                            set_val = reinterpret_cast<char*>(&v.u);
+                            break;
+                        case Net::OptionValue::Float:
+                            v.f = value.var.f;
+                            set_val = reinterpret_cast<char*>(&v.f);
+                            break;
+                        case Net::OptionValue::String:
+                            v.s = value.var.s;
+                            set_val = v.s;
+                            break;
+                        case Net::OptionValue::Custom:
+                            v.v = value.var.v;
+                            set_val = static_cast<char*>(v.v);
+                            break;
+                        default:
+                            v.v = nullptr;
+                            set_val = nullptr;
+                            break;
+                    }
+                    return ::setsockopt(handle, SOL_SOCKET, so_id, set_val, value.size) != SOCKET_ERROR;
 #else
-                const void* VAL;
-                switch (value.type) {
-                    case Net::OptionValue::Int:
-                        VAL = &value.var.i;
-                        break;
-                    case Net::OptionValue::UInt:
-                        VAL = &value.var.u;
-                        break;
-                    case Net::OptionValue::Float:
-                        VAL = &value.var.f;
-                        break;
-                    case Net::OptionValue::String:
-                        VAL = value.var.s;
-                        break;
-                    default:
-                        VAL = value.var.v;
-                        break;
-                }
-                return ::setsockopt(handle, SOL_SOCKET, so_id, VAL, value.size) != SOCKET_ERROR;
+                    const void* VAL;
+                    switch (value.type) {
+                        case Net::OptionValue::Int:
+                            VAL = &value.var.i;
+                            break;
+                        case Net::OptionValue::UInt:
+                            VAL = &value.var.u;
+                            break;
+                        case Net::OptionValue::Float:
+                            VAL = &value.var.f;
+                            break;
+                        case Net::OptionValue::String:
+                            VAL = value.var.s;
+                            break;
+                        default:
+                            VAL = value.var.v;
+                            break;
+                    }
+                    return ::setsockopt(handle, SOL_SOCKET, so_id, VAL, value.size) != SOCKET_ERROR;
 #endif
+                }
             }
 #ifdef TINY_CPP_MY_OS_WINDOWS
             ::WSASetLastError(WSAEOPNOTSUPP);
@@ -398,7 +401,7 @@ namespace Tiny {
                 address.isIPv6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in));
         }
 
-        int listen(Net::Handle socket, uint16_t max_connections) {
+        int listen(Net::Handle socket, int max_connections) {
             return ::listen(socket, max_connections);
         }
 
@@ -420,7 +423,7 @@ namespace Tiny {
                 if (new_client != INVALID_SOCKET_VAL) {
                     char ip_addr[INET_ADDRSTRLEN] = {};
                     inet_ntop(AF_INET, &ipv4.sin_addr, ip_addr, INET_ADDRSTRLEN);
-                    address.setAddress(ip_addr, ntohs(ipv4.sin_port), true);
+                    address.setAddress(ip_addr, ntohs(ipv4.sin_port), false);
                 }
             }
             return new_client;
@@ -944,7 +947,7 @@ namespace Tiny {
             return false;
         }
         _state = SocketState::Connecting;
-        _handle = Socket_Impl::create(_local_addr, _type);
+        _handle = Socket_Impl::create(_peer_addr, _type);
         if (_handle == INVALID_SOCKET_VAL) {
             copeFailed();
             _state = SocketState::Unused;
@@ -1006,18 +1009,18 @@ namespace Tiny {
         return bind();
     }
 
-    bool Net::Socket::listen(uint16_t port) {
+    bool Net::Socket::listen(uint16_t port, int max_connection_count) {
         _local_addr.setAddress("0.0.0.0", port);
-        return listen();
+        return listen(max_connection_count);
     }
 
-    bool Net::Socket::listen(PortProtocol protocol_num) {
+    bool Net::Socket::listen(PortProtocol protocol_num, int max_connection_count) {
         auto port = static_cast<uint16_t>(protocol_num);
         _local_addr.setAddress("0.0.0.0", port);
-        return listen();
+        return listen(max_connection_count);
     }
 
-    bool Net::Socket::listen() {
+    bool Net::Socket::listen(int max_connection_count) {
         if (!_local_addr.isValid()) {
             _err = SocketError::InvalidParameter;
             _sys_errno = 0;
@@ -1036,15 +1039,15 @@ namespace Tiny {
         _state = SocketState::Listening;
         auto ret = Socket_Impl::bind(_handle, _local_addr);
         if (ret == SOCKET_ERROR) {
-            goto Failed;
+            goto ListenFailed;
         }
-        ret = Socket_Impl::listen(_handle, _local_addr.port());
+        ret = Socket_Impl::listen(_handle, max_connection_count);
         if (ret == SOCKET_ERROR) {
-            goto Failed;
+            goto ListenFailed;
         }
         copeSuccess();
         return true;
-Failed:
+ListenFailed:
         copeFailed();
         Socket_Impl::close(_handle);
         _state = SocketState::Unused;
