@@ -23,10 +23,6 @@
  *                                                                                   *
  *************************************************************************************/
 
-#include "Socket.hpp"
-#include "Socket.hpp"
-#include "Socket.hpp"
-
 #include "SocketAdv.hpp"
 #include <sstream>
 #define SET_SOCK_OPT_ERR static_cast<int>(Net::SocketError::SetOptionError) * (-1)
