@@ -313,7 +313,11 @@ namespace Tiny {
                 Float,
                 Custom
             } type;
+#ifdef TINY_CPP_MY_OS_WINDOWS
             int size;           // Size of the data type. (By sizeof() function.)
+#else
+            unsigned int size;  // Size of the data type. (By sizeof() function.)
+#endif
             union Value {
                 int         i;  // Integer value
                 uint32_t    u;  // Unsigned integer value

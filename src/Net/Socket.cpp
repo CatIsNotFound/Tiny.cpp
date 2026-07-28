@@ -26,6 +26,11 @@
 #include "SocketAdv.hpp"
 #include <sstream>
 #define SET_SOCK_OPT_ERR static_cast<int>(Net::SocketError::SetOptionError) * (-1)
+#ifdef TINY_CPP_MY_OS_WINDOWS
+#define SOCK_LEN_T int
+#else
+#define SOCK_LEN_T unsigned int
+#endif
 
 namespace Tiny {
 #ifdef TINY_CPP_MY_OS_WINDOWS
@@ -130,7 +135,7 @@ namespace Tiny {
             {ENFILE,            Net::SocketError::SystemResourceLimit},
             {EINTR,             Net::SocketError::OperationCancelled},
             {EOPNOTSUPP,        Net::SocketError::OperationNotSupported},
-            {ENOTSUPP,          Net::SocketError::OperationNotSupported},
+            {ENOTSUP,          Net::SocketError::OperationNotSupported},
             {ENOTSOCK,          Net::SocketError::OperationNotSupported},
             {EFAULT,            Net::SocketError::SegmentationFault}
     };
@@ -250,7 +255,7 @@ namespace Tiny {
                     }
                     return ::setsockopt(handle, SOL_SOCKET, so_id, set_val, value.size) != SOCKET_ERROR;
 #else
-                    void* VAL;
+                    const void* VAL;
                     switch (value.type) {
                         case Net::OptionValue::Int:
                             VAL = &value.var.i;
@@ -275,7 +280,7 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_WINDOWS
             ::WSASetLastError(WSAEOPNOTSUPP);
 #else
-            ::_set_errno(ENOTSUPP);
+            errno = ENOTSUP;
 #endif
             return false;
         }
@@ -363,7 +368,7 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_WINDOWS
             ::WSASetLastError(WSAEOPNOTSUPP);
 #else
-            ::_set_errno(ENOTSUPP);
+            errno = ENOTSUP;
 #endif
             return false;
         }
@@ -484,13 +489,14 @@ namespace Tiny {
         }
 
         int recvfrom(Net::Handle socket, Net::Datas& datas, const Net::Address& src, int flag = 0) {
-            int sz = src.isIPv6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
+            SOCK_LEN_T sz = src.isIPv6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
             return ::recvfrom(socket, &datas[0], datas.size(), flag,
                             static_cast<sockaddr*>(src.address()), &sz);
         }
 
         int recvfrom(Net::Handle socket, std::string& datas, const Net::Address& src, int flag = 0) {
-            int sz = src.isIPv6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
+            SOCK_LEN_T sz = src.isIPv6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
+            
             return ::recvfrom(socket, &datas[0], datas.size(), flag,
                             static_cast<sockaddr*>(src.address()), &sz);
         }
