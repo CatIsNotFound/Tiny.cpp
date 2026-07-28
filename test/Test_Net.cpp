@@ -12,9 +12,10 @@ static uint64_t ID = 0;
 void test_server() {
     Socket server;
     DT::Duration start = DT::currentTimestamps();
-    server.setOption(SocketOption::KeepAlive, "true");
+    server.setOption(SocketOption::KeepAlive, true);
     server.setOption(SocketOption::NonBlocking, true);
     server.setOption(SocketOption::ReuseAddr, true);
+
     if (server.listen(8080, 65535)) {
         if (server.lastError() != SocketError::Success) {
             TUI::Terminal::printFormat("Server starting error! Exception: {}\r\n",

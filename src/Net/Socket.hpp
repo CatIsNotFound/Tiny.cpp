@@ -295,7 +295,13 @@ namespace Tiny {
             /// - ValueType: int(bool) false/true
             ///
             /// - Supported: Set
-            NonBlocking
+            NonBlocking,
+            /// Get current native socket error code
+            ///
+            /// - ValueType: int(bool) false/true
+            ///
+            /// - Supported: Get
+            NativeSocketError
         };
 
         struct OptionValue {

@@ -193,7 +193,8 @@ namespace Tiny {
             {static_cast<uint32_t>(Net::SocketOption::SendBufTimeout),   SO_SNDTIMEO},
             {static_cast<uint32_t>(Net::SocketOption::RecvBufTimeout),   SO_RCVTIMEO},
             {static_cast<uint32_t>(Net::SocketOption::Linger),           SO_LINGER},
-            {static_cast<uint32_t>(Net::SocketOption::ReuseAddr),        SO_REUSEADDR}
+            {static_cast<uint32_t>(Net::SocketOption::ReuseAddr),        SO_REUSEADDR},
+            {static_cast<uint32_t>(Net::SocketOption::NativeSocketError),SO_ERROR}
         };
 
         static std::unordered_map<uint32_t, Net::OptionValue::ValueType> __SOL_SOCKET_LEVEL_VALUE_TYPE_MAP__{
@@ -207,13 +208,20 @@ namespace Tiny {
               {static_cast<uint32_t>(Net::SocketOption::RecvBufTimeout),
                     USING_WIN32 ? Net::OptionValue::ValueType::UInt : Net::OptionValue::ValueType::Custom},
               {static_cast<uint32_t>(Net::SocketOption::Linger),           Net::OptionValue::ValueType::Custom},
-              {static_cast<uint32_t>(Net::SocketOption::ReuseAddr),        Net::OptionValue::ValueType::Int}
+              {static_cast<uint32_t>(Net::SocketOption::ReuseAddr),        Net::OptionValue::ValueType::Int},
+              {static_cast<uint32_t>(Net::SocketOption::NativeSocketError),Net::OptionValue::ValueType::Int},
+        };
+
+        static std::unordered_map<uint32_t, int> __SOL_SOCKET_SIZE_OF_MAP__{
+            {static_cast<uint32_t>(Net::SocketOption::SendBufTimeout), sizeof(timeval)},
+            {static_cast<uint32_t>(Net::SocketOption::RecvBufTimeout), sizeof(timeval)},
+            {static_cast<uint32_t>(Net::SocketOption::Linger), sizeof(linger)}
         };
 
         bool setSocketLevelOption(Net::Handle handle, uint32_t opt_id, const Net::OptionValue& value) {
             if (__SOL_SOCKET_LEVEL_MAP__.find(opt_id) != __SOL_SOCKET_LEVEL_MAP__.end()) {
                 auto& so_id = __SOL_SOCKET_LEVEL_MAP__[opt_id];
-                auto& expected_type = __SOL_SOCKET_LEVEL_VALUE_TYPE_MAP__.at(so_id);
+                auto& expected_type = __SOL_SOCKET_LEVEL_VALUE_TYPE_MAP__.at(opt_id);
                 if (expected_type == value.type) {
 #ifdef TINY_CPP_MY_OS_WINDOWS
                     char* set_val;
@@ -246,7 +254,7 @@ namespace Tiny {
                     }
                     return ::setsockopt(handle, SOL_SOCKET, so_id, set_val, value.size) != SOCKET_ERROR;
 #else
-                    const void* VAL;
+                    void* VAL;
                     switch (value.type) {
                         case Net::OptionValue::Int:
                             VAL = &value.var.i;
@@ -310,7 +318,9 @@ namespace Tiny {
                                            reinterpret_cast<char*>(&value.var.f), &value.size);
                         break;
                     case Net::OptionValue::Custom:
-                        /// Need user to manually set size of the value.
+                        if (__SOL_SOCKET_SIZE_OF_MAP__.find(opt_id) != __SOL_SOCKET_SIZE_OF_MAP__.end()) {
+                            value.size = __SOL_SOCKET_SIZE_OF_MAP__[opt_id];
+                        }
                         err = ::getsockopt(handle, SOL_SOCKET, so_id,
                                            reinterpret_cast<char*>(value.var.v), &value.size);
                         break;
@@ -341,7 +351,9 @@ namespace Tiny {
                                            reinterpret_cast<void*>(&value.var.f), &value.size);
                         break;
                     case Net::OptionValue::Custom:
-                        /// Need user to manually set size of the value.
+                        if (__SOL_SOCKET_SIZE_OF_MAP__.find(opt_id) != __SOL_SOCKET_SIZE_OF_MAP__.end()) {
+                            value.size = __SOL_SOCKET_SIZE_OF_MAP__[opt_id];
+                        }
                         err = ::getsockopt(handle, SOL_SOCKET, so_id,
                                            value.var.v, &value.size);
                         break;
@@ -958,13 +970,46 @@ namespace Tiny {
             if (_sys_errno == 0) _err = SocketError::SetOptionError;
             return false;
         }
+
         auto ret = Socket_Impl::connect(_handle, _peer_addr);
         if (ret == SOCKET_ERROR) {
             copeFailed();
-            Socket_Impl::close(_handle);
-            _state = SocketState::Unused;
-            _handle = INVALID_SOCKET_VAL;
-            return false;
+            if (_err == SocketError::ConnectionInProgress || _err == SocketError::ResourceUnavailable) {
+                _state = SocketState::Connecting;
+                fd_set e_sets, w_sets;
+                FD_ZERO(&e_sets);
+                FD_ZERO(&w_sets);
+                FD_SET(_handle, &e_sets);
+                FD_SET(_handle, &w_sets);
+                timeval timeout = {5, 0};
+#ifdef TINY_CPP_MY_OS_WINDOWS
+                int ncnt = 0;
+#else
+                int ncnt = static_cast<int>(_handle) + 1;
+#endif
+                auto err = select(ncnt, nullptr, &w_sets, &e_sets, &timeout);
+                if (err <= 0) {
+                    Socket_Impl::close(_handle);
+                    _state = SocketState::Unused;
+                    _handle = INVALID_SOCKET_VAL;
+                    if (err == 0) _err = SocketError::ConnectionTimeout;
+                    return false;
+                }
+                OptionValue val;
+                auto ok = Socket_Impl::getSocketLevelOption(_handle, static_cast<uint32_t>(SocketOption::NativeSocketError), val);
+                if (!ok || val.type != OptionValue::Int || val.var.i != 0) {
+                    _err = __SocketErrorsMap__[val.var.i];
+                    Socket_Impl::close(_handle);
+                    _state = SocketState::Unused;
+                    _handle = INVALID_SOCKET_VAL;
+                    return false;
+                }
+            } else {
+                Socket_Impl::close(_handle);
+                _state = SocketState::Unused;
+                _handle = INVALID_SOCKET_VAL;
+                return false;
+            }
         }
         _state = SocketState::Connected;
         copeSuccess();
