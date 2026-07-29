@@ -25,6 +25,8 @@
 
 #include "SocketAdv.hpp"
 #include <sstream>
+#include <mutex>
+#include <memory>
 #define SET_SOCK_OPT_ERR static_cast<int>(Net::SocketError::SetOptionError) * (-1)
 #ifdef TINY_CPP_MY_OS_WINDOWS
 #define SOCK_LEN_T int
@@ -75,7 +77,7 @@ namespace Tiny {
 #endif
 
 #ifdef TINY_CPP_MY_OS_WINDOWS
-    static std::unordered_map<int, Net::SocketError> __SocketErrorsMap__{
+    const std::unordered_map<int, Net::SocketError> __SocketErrorsMap__{
         {0,                 Net::SocketError::Success},
         {WSAEINVAL,         Net::SocketError::InvalidParameter},
         {WSAEPROTONOSUPPORT,Net::SocketError::ProtoNotSupported},
@@ -141,7 +143,7 @@ namespace Tiny {
     };
 #endif
 
-    static std::unordered_map<Net::SocketError, const char*> __SocketErrorStrings__{
+    const std::unordered_map<Net::SocketError, const char*> __SocketErrorStrings__{
             {Net::SocketError::Success,                 "Tiny::Net::SocketError::Success"},
             {Net::SocketError::InvalidParameter,        "Tiny::Net::SocketError::InvalidParameter"},
             {Net::SocketError::SetOptionError,          "Tiny::Net::SocketError::SetOptionError"},
@@ -184,44 +186,79 @@ namespace Tiny {
 #else
         constexpr const bool USING_WIN32 = false;
 #endif
+        class InitMapSet {
+            InitMapSet() {
+                _SOCKET_LEVEL_MAP = {
+                    {static_cast<uint32_t>(Net::SocketOption::AllowedBroadcast), SO_BROADCAST},
+                    {static_cast<uint32_t>(Net::SocketOption::DontRoute),        SO_DONTROUTE},
+                    {static_cast<uint32_t>(Net::SocketOption::KeepAlive),        SO_KEEPALIVE},
+                    {static_cast<uint32_t>(Net::SocketOption::SendBufSize),      SO_SNDBUF},
+                    {static_cast<uint32_t>(Net::SocketOption::RecvBufSize),      SO_RCVBUF},
+                    {static_cast<uint32_t>(Net::SocketOption::SendBufTimeout),   SO_SNDTIMEO},
+                    {static_cast<uint32_t>(Net::SocketOption::RecvBufTimeout),   SO_RCVTIMEO},
+                    {static_cast<uint32_t>(Net::SocketOption::Linger),           SO_LINGER},
+                    {static_cast<uint32_t>(Net::SocketOption::ReuseAddr),        SO_REUSEADDR},
+                    {static_cast<uint32_t>(Net::SocketOption::NativeSocketError),SO_ERROR}
+                };
+                _SOC_LV_TYPE_MAP = {
+                    {static_cast<uint32_t>(Net::SocketOption::AllowedBroadcast), Net::OptionValue::ValueType::Int},
+                    {static_cast<uint32_t>(Net::SocketOption::DontRoute),        Net::OptionValue::ValueType::Int},
+                    {static_cast<uint32_t>(Net::SocketOption::KeepAlive),        Net::OptionValue::ValueType::Int},
+                    {static_cast<uint32_t>(Net::SocketOption::SendBufSize),      Net::OptionValue::ValueType::Int},
+                    {static_cast<uint32_t>(Net::SocketOption::RecvBufSize),      Net::OptionValue::ValueType::Int},
+                    {static_cast<uint32_t>(Net::SocketOption::SendBufTimeout),
+                          USING_WIN32 ? Net::OptionValue::ValueType::UInt : Net::OptionValue::ValueType::Custom},
+                    {static_cast<uint32_t>(Net::SocketOption::RecvBufTimeout),
+                          USING_WIN32 ? Net::OptionValue::ValueType::UInt : Net::OptionValue::ValueType::Custom},
+                    {static_cast<uint32_t>(Net::SocketOption::Linger),           Net::OptionValue::ValueType::Custom},
+                    {static_cast<uint32_t>(Net::SocketOption::ReuseAddr),        Net::OptionValue::ValueType::Int},
+                    {static_cast<uint32_t>(Net::SocketOption::NativeSocketError),Net::OptionValue::ValueType::Int},
+                };
+                _SOC_SIZE_OF_MAP = {
+                    {static_cast<uint32_t>(Net::SocketOption::SendBufTimeout), sizeof(timeval)},
+                    {static_cast<uint32_t>(Net::SocketOption::RecvBufTimeout), sizeof(timeval)},
+                    {static_cast<uint32_t>(Net::SocketOption::Linger), sizeof(linger)}
+                };
+            }
 
-        static std::unordered_map<uint32_t, int> __SOL_SOCKET_LEVEL_MAP__{
-            {static_cast<uint32_t>(Net::SocketOption::AllowedBroadcast), SO_BROADCAST},
-            {static_cast<uint32_t>(Net::SocketOption::DontRoute),        SO_DONTROUTE},
-            {static_cast<uint32_t>(Net::SocketOption::KeepAlive),        SO_KEEPALIVE},
-            {static_cast<uint32_t>(Net::SocketOption::SendBufSize),      SO_SNDBUF},
-            {static_cast<uint32_t>(Net::SocketOption::RecvBufSize),      SO_RCVBUF},
-            {static_cast<uint32_t>(Net::SocketOption::SendBufTimeout),   SO_SNDTIMEO},
-            {static_cast<uint32_t>(Net::SocketOption::RecvBufTimeout),   SO_RCVTIMEO},
-            {static_cast<uint32_t>(Net::SocketOption::Linger),           SO_LINGER},
-            {static_cast<uint32_t>(Net::SocketOption::ReuseAddr),        SO_REUSEADDR},
-            {static_cast<uint32_t>(Net::SocketOption::NativeSocketError),SO_ERROR}
+        public:
+            static InitMapSet& instance() {
+                std::call_once(_once, [] {
+                    _instance.reset(new InitMapSet());
+                });
+                return *_instance.get();
+            }
+
+            std::unordered_map<uint32_t, int>& socketLevelMap() {
+                return _instance->_SOCKET_LEVEL_MAP;
+            }
+
+            std::unordered_map<uint32_t, Net::OptionValue::ValueType>& socketLevelTypeMap() {
+                return _instance->_SOC_LV_TYPE_MAP;
+            }
+
+            std::unordered_map<uint32_t, int>& socketSizeOfMap() {
+                return _instance->_SOC_SIZE_OF_MAP;
+            }
+
+        private:
+            std::unordered_map<uint32_t, int> _SOCKET_LEVEL_MAP;
+            std::unordered_map<uint32_t, Net::OptionValue::ValueType> _SOC_LV_TYPE_MAP;
+            std::unordered_map<uint32_t, int> _SOC_SIZE_OF_MAP;
+
+            static std::once_flag _once;
+            static std::unique_ptr<InitMapSet> _instance;
         };
 
-        static std::unordered_map<uint32_t, Net::OptionValue::ValueType> __SOL_SOCKET_LEVEL_VALUE_TYPE_MAP__{
-              {static_cast<uint32_t>(Net::SocketOption::AllowedBroadcast), Net::OptionValue::ValueType::Int},
-              {static_cast<uint32_t>(Net::SocketOption::DontRoute),        Net::OptionValue::ValueType::Int},
-              {static_cast<uint32_t>(Net::SocketOption::KeepAlive),        Net::OptionValue::ValueType::Int},
-              {static_cast<uint32_t>(Net::SocketOption::SendBufSize),      Net::OptionValue::ValueType::Int},
-              {static_cast<uint32_t>(Net::SocketOption::RecvBufSize),      Net::OptionValue::ValueType::Int},
-              {static_cast<uint32_t>(Net::SocketOption::SendBufTimeout),
-                    USING_WIN32 ? Net::OptionValue::ValueType::UInt : Net::OptionValue::ValueType::Custom},
-              {static_cast<uint32_t>(Net::SocketOption::RecvBufTimeout),
-                    USING_WIN32 ? Net::OptionValue::ValueType::UInt : Net::OptionValue::ValueType::Custom},
-              {static_cast<uint32_t>(Net::SocketOption::Linger),           Net::OptionValue::ValueType::Custom},
-              {static_cast<uint32_t>(Net::SocketOption::ReuseAddr),        Net::OptionValue::ValueType::Int},
-              {static_cast<uint32_t>(Net::SocketOption::NativeSocketError),Net::OptionValue::ValueType::Int},
-        };
+        std::once_flag InitMapSet::_once;
+        std::unique_ptr<InitMapSet> InitMapSet::_instance;
 
-        static std::unordered_map<uint32_t, int> __SOL_SOCKET_SIZE_OF_MAP__{
-            {static_cast<uint32_t>(Net::SocketOption::SendBufTimeout), sizeof(timeval)},
-            {static_cast<uint32_t>(Net::SocketOption::RecvBufTimeout), sizeof(timeval)},
-            {static_cast<uint32_t>(Net::SocketOption::Linger), sizeof(linger)}
-        };
 
         bool setSocketLevelOption(Net::Handle handle, uint32_t opt_id, const Net::OptionValue& value) {
+            auto& __SOL_SOCKET_LEVEL_MAP__ = InitMapSet::instance().socketLevelMap();
+            auto& __SOL_SOCKET_LEVEL_VALUE_TYPE_MAP__ = InitMapSet::instance().socketLevelTypeMap();
             if (__SOL_SOCKET_LEVEL_MAP__.find(opt_id) != __SOL_SOCKET_LEVEL_MAP__.end()) {
-                auto& so_id = __SOL_SOCKET_LEVEL_MAP__[opt_id];
+                auto& so_id = __SOL_SOCKET_LEVEL_MAP__.at(opt_id);
                 auto& expected_type = __SOL_SOCKET_LEVEL_VALUE_TYPE_MAP__.at(opt_id);
                 if (expected_type == value.type) {
 #ifdef TINY_CPP_MY_OS_WINDOWS
@@ -286,15 +323,17 @@ namespace Tiny {
         }
 
         bool getSocketLevelOption(Net::Handle handle, uint32_t opt_id, Net::OptionValue& value) {
+            auto& __SOL_SOCKET_LEVEL_MAP__ = InitMapSet::instance().socketLevelMap();
+            auto& __SOL_SOCKET_LEVEL_VALUE_TYPE_MAP__ = InitMapSet::instance().socketLevelTypeMap();
+            auto& __SOL_SOCKET_SIZE_OF_MAP__ = InitMapSet::instance().socketSizeOfMap();
             if (__SOL_SOCKET_LEVEL_MAP__.find(opt_id) != __SOL_SOCKET_LEVEL_MAP__.end()) {
-                auto& so_id = __SOL_SOCKET_LEVEL_MAP__[opt_id];
-                int ok{};
+                auto& so_id = __SOL_SOCKET_LEVEL_MAP__.at(opt_id);
                 if (__SOL_SOCKET_LEVEL_VALUE_TYPE_MAP__.find(opt_id) == __SOL_SOCKET_LEVEL_VALUE_TYPE_MAP__.end()) {
                     value.unset();
                     return true;
                 }
                 int err{};
-                auto var_type = __SOL_SOCKET_LEVEL_VALUE_TYPE_MAP__[opt_id];
+                auto var_type = __SOL_SOCKET_LEVEL_VALUE_TYPE_MAP__.at(opt_id);
                 value.type = var_type;
 #ifdef TINY_CPP_MY_OS_WINDOWS
                 switch (var_type) {
@@ -320,7 +359,7 @@ namespace Tiny {
                         break;
                     case Net::OptionValue::Custom:
                         if (__SOL_SOCKET_SIZE_OF_MAP__.find(opt_id) != __SOL_SOCKET_SIZE_OF_MAP__.end()) {
-                            value.size = __SOL_SOCKET_SIZE_OF_MAP__[opt_id];
+                            value.size = __SOL_SOCKET_SIZE_OF_MAP__.at(opt_id);
                         }
                         err = ::getsockopt(handle, SOL_SOCKET, so_id,
                                            reinterpret_cast<char*>(value.var.v), &value.size);
@@ -831,7 +870,7 @@ namespace Tiny {
 
     const char *Net::getSocketErrorName(SocketError err) {
         if (__SocketErrorStrings__.find(err) != __SocketErrorStrings__.end()) {
-            return __SocketErrorStrings__[err];
+            return __SocketErrorStrings__.at(err);
         }
         return __SocketErrorStrings__.at(SocketError::UnknownError);
     }
@@ -1000,7 +1039,7 @@ namespace Tiny {
                 OptionValue val;
                 auto ok = Socket_Impl::getSocketLevelOption(_handle, static_cast<uint32_t>(SocketOption::NativeSocketError), val);
                 if (!ok || val.type != OptionValue::Int || val.var.i != 0) {
-                    _err = __SocketErrorsMap__[val.var.i];
+                    _err = __SocketErrorsMap__.at(val.var.i);
                     Socket_Impl::close(_handle);
                     _state = SocketState::Unused;
                     _handle = INVALID_SOCKET_VAL;
@@ -1436,7 +1475,7 @@ ListenFailed:
             nullptr,
             err,
             MAKELANGID(LANG_ENGLISH, SUBLANG_DEFAULT),
-            (LPSTR)&msg_buf,
+            reinterpret_cast<LPSTR>(&msg_buf),
             0,
             nullptr);
 

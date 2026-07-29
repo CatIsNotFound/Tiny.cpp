@@ -385,7 +385,100 @@ namespace Tiny {
                 size = 0;
                 var.v = nullptr;
             }
+
+            OptionValue& operator=(int v) {
+                set(v);
+                return *this;
+            }
+
+            OptionValue& operator=(uint32_t v) {
+                set(v);
+                return *this;
+            }
+
+            OptionValue& operator=(float v) {
+                set(v);
+                return *this;
+            }
+
+            OptionValue& operator=(char* v) {
+                set(v);
+                return *this;
+            }
+
+            OptionValue& operator=(std::nullptr_t) {
+                unset();
+                return *this;
+            }
+
+            OptionValue& operator=(const OptionValue& other) {
+                this->type = other.type;
+                this->size = other.size;
+                switch (type) {
+                    case None:
+                        this->var.v = nullptr;
+                        break;
+                    case String:
+                        this->var.s = const_cast<char *>(other.var.s);
+                        break;
+                    case Int:
+                        this->var.i = other.var.i;
+                        break;
+                    case UInt:
+                        this->var.u = other.var.u;
+                        break;
+                    case Float:
+                        this->var.f = other.var.f;
+                        break;
+                    case Custom:
+                        this->var.v = other.var.v;
+                        break;
+                }
+                return *this;
+            }
+
+            bool operator==(const OptionValue& other) const {
+                if (type != other.type) return false;
+                if (size != other.size) return false;
+                switch (type) {
+                    case None:
+                        return true;
+                    case String:
+                        return strcmp(var.s, other.var.s) == 0;
+                    case Int:
+                        return var.i == other.var.i;
+                    case UInt:
+                        return var.u == other.var.u;
+                    case Float:
+                        return var.f == other.var.f;
+                    case Custom:
+                        return var.v == other.var.v;
+                }
+                return false;
+            }
+
+            bool operator!=(const OptionValue& other) const {
+                if (type != other.type) return true;
+                if (size != other.size) return true;
+                switch (type) {
+                    case None:
+                        return false;
+                    case String:
+                        return strcmp(var.s, other.var.s) != 0;
+                    case Int:
+                        return var.i != other.var.i;
+                    case UInt:
+                        return var.u != other.var.u;
+                    case Float:
+                        return var.f != other.var.f;
+                    case Custom:
+                        return var.v != other.var.v;
+                }
+                return true;
+            }
         };
+
+
 
         class Socket {
         public:

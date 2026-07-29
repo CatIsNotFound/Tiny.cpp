@@ -135,7 +135,7 @@ jobs:
           name: ${{ steps.package.outputs.artifact_name }}
           path: ~/MyLibs/${{ steps.package.outputs.artifact_name }}.tar.gz
 
-  env-windows:
+  env-windows-msvc:
     runs-on: windows-latest
 
     steps:
@@ -146,7 +146,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\MyLibs"
-          cmake -B build -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp" -DCMAKE_BUILD_TYPE=Release
+          cmake -B build -G "Visual Studio 15 2017 Win64" -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp"
           if ($LASTEXITCODE -ne 0) {
               Write-Host "* Failed to configure project!"
               exit 1
@@ -182,9 +182,72 @@ jobs:
         shell: pwsh
         run: |
           $libDir = Join-Path $env:USERPROFILE "MyLibs"
-          $arch = $env:PROCESSOR_ARCHITECTURE.ToLower()
-          if ($arch -eq "amd64") { $arch = "x86_64" }
-          $artifactName = "Tiny_cpp_v${{ steps.version.outputs.version }}_windows_${arch}"
+          $artifactName = "Tiny_cpp_v${{ steps.version.outputs.version }}_MSVC_windows_x86_64"
+          $dest = Join-Path $env:GITHUB_WORKSPACE "$artifactName.zip"
+          Compress-Archive -Path (Join-Path $libDir "Tiny.cpp") -DestinationPath $dest
+          echo "artifact_name=$artifactName" >> $env:GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: ${{ github.workspace }}/${{ steps.package.outputs.artifact_name }}.zip
+
+  env-windows-mingw:
+    runs-on: windows-latest
+
+    steps:
+      - name: pull project
+        uses: actions/checkout@v4
+
+      - name: Install MinGW
+        shell: pwsh
+        run: |
+          choco install mingw -y
+
+      - name: Compiling project
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\MyLibs"
+          $env:Path += ";C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin"
+          cmake -B build -G "MinGW Makefiles" -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp" -DCMAKE_BUILD_TYPE=Release
+          if ($LASTEXITCODE -ne 0) {
+              Write-Host "* Failed to configure project!"
+              exit 1
+          }
+          cmake --build build --target install -j8
+          if ($LASTEXITCODE -ne 0) {
+              Write-Host "* Failed to compile and install!"
+              exit 1
+          }
+
+      - name: Test for project
+        shell: pwsh
+        run: |
+          $env:Path += ";C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin"
+          cd build\test
+          $exes = Get-ChildItem -Filter *.exe
+          foreach ($exe in $exes) {
+              & $exe.FullName
+              if ($LASTEXITCODE -ne 0) {
+                  Write-Host "* Test failed: " $exe.Name
+                  exit 1
+              }
+          }
+
+      - name: Get version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content .github\current_version.txt -Raw).Trim()
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Package artifact
+        id: package
+        shell: pwsh
+        run: |
+          $libDir = Join-Path $env:USERPROFILE "MyLibs"
+          $artifactName = "Tiny_cpp_v${{ steps.version.outputs.version }}_mingw64_windows_x86_64"
           $dest = Join-Path $env:GITHUB_WORKSPACE "$artifactName.zip"
           Compress-Archive -Path (Join-Path $libDir "Tiny.cpp") -DestinationPath $dest
           echo "artifact_name=$artifactName" >> $env:GITHUB_OUTPUT
