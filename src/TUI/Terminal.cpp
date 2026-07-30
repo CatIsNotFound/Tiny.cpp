@@ -290,6 +290,8 @@ namespace Tiny {
     void* TUI::Terminal::_old_console{};
     unsigned long TUI::Terminal::_old_console_handle{0};
 #endif
+    TUI::Terminal      TUI::Terminal::_terms{};
+    bool               TUI::Terminal::_print_mode{};
 
     bool TUI::Terminal::enterRawMode() {
 #ifdef TINY_CPP_MY_OS_UNIX
@@ -1172,6 +1174,24 @@ namespace Tiny {
 #endif
     }
 
+    TUI::Terminal & TUI::Terminal::self() {
+        return _terms;
+    }
+
+    TUI::Terminal & TUI::Terminal::print() {
+        _print_mode = true;
+        return _terms;
+    }
+
+    TUI::Terminal & TUI::Terminal::perror() {
+        _print_mode = false;
+        return _terms;
+    }
+
+    TUI::Terminal & TUI::Terminal::operator<<(Terminal &) {
+        return _terms;
+    }
+
     bool TUI::Terminal::printFormattedText(const std::string &str, bool use_output_term) {
 #ifdef TINY_CPP_MY_OS_UNIX
         write(use_output_term ? STDOUT_FILENO : STDERR_FILENO, str.data(), str.size());
@@ -1683,6 +1703,81 @@ namespace Tiny {
         return mouse;
     }
 #endif
+
+    TUI::Terminal& TUI::Term::bg(Color color, bool intense) {
+        Terminal::setBackgroundColor(color, intense);
+        return Terminal::self();
+    }
+
+    TUI::Terminal& TUI::Term::bg(uint8_t r, uint8_t g, uint8_t b) {
+        Terminal::setBackgroundColor(r, g, b);
+        return TUI::Terminal::self();
+    }
+
+    TUI::Terminal& TUI::Term::fg(Color color, bool intense) {
+        Terminal::setForegroundColor(color, intense);
+        return TUI::Terminal::self();
+    }
+
+    TUI::Terminal& TUI::Term::fg(uint8_t r, uint8_t g, uint8_t b) {
+        Terminal::setForegroundColor(r, g, b);
+        return TUI::Terminal::self();
+    }
+
+    TUI::Terminal& TUI::Term::bold() {
+        Terminal::setBolder(true);
+        return TUI::Terminal::self();
+    }
+
+    TUI::Terminal& TUI::Term::italic() {
+        Terminal::setItalic(true);
+        return TUI::Terminal::self();
+    }
+
+    TUI::Terminal& TUI::Term::underline() {
+        Terminal::setUnderline(true);
+        return TUI::Terminal::self();
+    }
+
+    TUI::Terminal& TUI::Term::blink() {
+        Terminal::setBlinking(true);
+        return TUI::Terminal::self();
+    }
+
+    TUI::Terminal& TUI::Term::unblink() {
+        Terminal::setBlinking(false);
+        return TUI::Terminal::self();
+    }
+
+    TUI::Terminal& TUI::Term::reverse() {
+        Terminal::setReverseColor(true);
+        return TUI::Terminal::self();
+    }
+
+    TUI::Terminal& TUI::Term::unreverse() {
+        Terminal::setReverseColor(false);
+        return TUI::Terminal::self();
+    }
+
+    TUI::Terminal& TUI::Term::showcur() {
+        Terminal::setCursorVisible(true);
+        return TUI::Terminal::self();
+    }
+
+    TUI::Terminal& TUI::Term::hidecur() {
+        Terminal::setCursorVisible(false);
+        return TUI::Terminal::self();
+    }
+
+    TUI::Terminal &TUI::Term::striketh() {
+        Terminal::setStrikethrough(true);
+        return TUI::Terminal::self();
+    }
+
+    TUI::Terminal& TUI::Term::reset() {
+        Terminal::reset();
+        return TUI::Terminal::self();
+    }
 }
 
 /*************************************************************************************

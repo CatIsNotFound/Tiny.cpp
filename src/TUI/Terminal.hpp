@@ -265,6 +265,13 @@ namespace Tiny {
             static void setCursorVisible(bool enable);
             static void setStrikethrough(bool enable);
             static void reset();
+
+            static Terminal& self();
+            static Terminal& print();
+            static Terminal& perror();
+            template<typename T>
+            Terminal& operator<<(const T& expr);
+            Terminal& operator<<(Terminal&);
         private:
             template<typename T, typename... Args>
             static void formatImpl(std::ostringstream &ostream, const char* format, T arg, Args... args);
@@ -278,6 +285,8 @@ namespace Tiny {
             static void appendArgs(std::ostringstream& ostream, T&& t);
             static void appendFormatText(std::ostringstream& ostream, const char* format);
             static bool printFormattedText(const std::string& str, bool use_output_term = true);
+            static Terminal _terms;
+            static bool _print_mode;
 #ifdef TINY_CPP_MY_OS_WINDOWS
             static InputEvent parseInputRecord(void *input_record);
             static void* _old_console;
@@ -306,6 +315,23 @@ namespace Tiny {
         };
 #endif
 
+        namespace Term {
+            Terminal& bg(Color color, bool intense = false);
+            Terminal& bg(uint8_t r, uint8_t g, uint8_t b);
+            Terminal& fg(Color color, bool intense = true);
+            Terminal& fg(uint8_t r, uint8_t g, uint8_t b);
+            Terminal& bold();
+            Terminal& italic();
+            Terminal& underline();
+            Terminal& blink();
+            Terminal& unblink();
+            Terminal& reverse();
+            Terminal& unreverse();
+            Terminal& showcur();
+            Terminal& hidecur();
+            Terminal& striketh();
+            Terminal& reset();
+        }
     }
 }
 

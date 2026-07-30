@@ -146,7 +146,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\MyLibs"
-          cmake -B build -G "Visual Studio 15 2017 Win64" -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp"
+          cmake -B build -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp"
           if ($LASTEXITCODE -ne 0) {
               Write-Host "* Failed to configure project!"
               exit 1

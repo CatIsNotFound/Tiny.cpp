@@ -479,7 +479,6 @@ namespace Tiny {
         };
 
 
-
         class Socket {
         public:
             Socket(SocketType type = SocketType::TCP);
@@ -503,8 +502,8 @@ namespace Tiny {
             bool bind(const char* address, PortProtocol port);
             bool bind(Address &&address);
             bool bind();
-            bool listen(uint16_t port, int max_connection_count = 255);
-            bool listen(PortProtocol protocol_num, int max_connection_count = 255);
+            bool listen(uint16_t port, int max_connection_count);
+            bool listen(PortProtocol protocol_num, int max_connection_count);
             bool listen(int max_connection_count);
 
             bool accept(Socket& socket);

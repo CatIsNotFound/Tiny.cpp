@@ -448,6 +448,15 @@ namespace Tiny {
             ostream << *(format++);
         }
     }
+
+    template<typename T>
+    TUI::Terminal& TUI::Terminal::operator<<(const T& expr) {
+        std::ostringstream oss;
+        oss << expr;
+        if (_print_mode) print(oss.str());
+        else             printError(oss.str());
+        return *this;
+    }
 }
 
 #endif 

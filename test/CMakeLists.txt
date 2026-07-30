@@ -63,6 +63,10 @@ addModule(TestNet MY_MODULE_WITHOUT_GTEST
         Test_Net.cpp
 )
 
+addModule(TestTerm MY_MODULE_WITHOUT_GTEST
+        Test_Term.cpp
+)
+
 
 foreach (MODULE IN ITEMS ${MY_MODULE})
     set_target_properties(${MODULE} PROPERTIES
