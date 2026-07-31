@@ -34,6 +34,41 @@
 #define SOCK_LEN_T unsigned int
 #endif
 
+#ifdef TINY_CPP_MY_OS_WINDOWS
+    #include <winsock2.h>
+    #include <ws2ipdef.h>
+    #include <ws2tcpip.h>
+    #pragma comment(lib, "ws2_32.lib")
+    #define INVALID_SOCKET_VAL INVALID_SOCKET
+#elif defined(TINY_CPP_MY_OS_UNIX)
+    #include <cstring>
+    #include <csignal>
+    #include <sys/socket.h>
+    #include <netinet/in.h>
+    #include <arpa/inet.h>
+    #include <netdb.h>
+    #include <unistd.h>
+    #include <fcntl.h>
+    #include <errno.h>
+    #define INVALID_SOCKET_VAL (-1)
+    #ifndef SOCKET_ERROR
+        #define SOCKET_ERROR (-1)
+    #endif
+    #ifndef SOCKET
+        #define SOCKET int
+    #endif
+#endif
+
+static std::string num2str(int num) {
+    std::string ret;
+    while (num != 0) {
+        ret.insert(ret.begin(), num % 10 + '0');
+        num /= 10;
+    }
+    if (num * (-1) > 0) ret.insert(ret.begin(), '-');
+    return ret;
+}
+
 namespace Tiny {
 #ifdef TINY_CPP_MY_OS_WINDOWS
     class WinSocketInit {
@@ -866,6 +901,77 @@ namespace Tiny {
         }
         _port = port;
         _use_ipv6 = use_ipv6;
+    }
+
+    std::vector<Net::Address> Net::parseFromHostname(const char *hostname, bool *ok, int *err_cnt) {
+        addrinfo hints = {}, *res;
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_socktype = SOCK_STREAM;
+        int ecnt = 0;
+        auto is_ok = getaddrinfo(hostname, nullptr, &hints, &res) == 0;
+        if (!is_ok) {
+            if (ok) *ok = false;
+            if (err_cnt) *err_cnt = ecnt;
+            return {};
+        }
+        std::vector<Address> result;
+        for (addrinfo *ptr = res; ptr != nullptr; ptr = ptr->ai_next) {
+            void* addr{};
+            char ip_str[128] = {};
+            size_t addr_len{sizeof(ip_str)};
+            uint16_t port{};
+            if (ptr->ai_family == AF_INET) {
+                auto ipv4 = reinterpret_cast<sockaddr_in*>(ptr->ai_addr);
+                addr = &ipv4->sin_addr;
+                port = ipv4->sin_port;
+            } else if (ptr->ai_family == AF_INET6) {
+                auto ipv6 = reinterpret_cast<sockaddr_in6*>(ptr->ai_addr);
+                addr = &ipv6->sin6_addr;
+                port = ipv6->sin6_port;
+            }
+            const bool SUCCESS = inet_ntop(ptr->ai_family, addr, ip_str, addr_len) != nullptr;
+            if (SUCCESS) {
+                result.emplace_back(ip_str, ntohs(port), ptr->ai_family == AF_INET6);
+            } else {
+                ecnt += 1;
+            }
+        }
+        freeaddrinfo(res);
+        if (ok) *ok = (ecnt == 0);
+        if (err_cnt) *err_cnt = ecnt;
+        return result;
+    }
+
+    Net::Address Net::parseFirstHostname(const char *hostname, bool *ok) {
+        addrinfo hints = {}, *res;
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_socktype = SOCK_STREAM;
+        auto is_ok = getaddrinfo(hostname, nullptr, &hints, &res) == 0;
+        if (!is_ok) {
+            if (ok) *ok = false;
+            return {};
+        }
+        Address result{};
+        void* addr{};
+        char ip_str[128] = {};
+        size_t addr_len{sizeof(ip_str)};
+        uint16_t port{};
+        if (res->ai_family == AF_INET) {
+            auto ipv4 = reinterpret_cast<sockaddr_in*>(res->ai_addr);
+            addr = &ipv4->sin_addr;
+            port = ipv4->sin_port;
+        } else if (res->ai_family == AF_INET6) {
+            auto ipv6 = reinterpret_cast<sockaddr_in6*>(res->ai_addr);
+            addr = &ipv6->sin6_addr;
+            port = ipv6->sin6_port;
+        }
+        const bool SUCCESS = inet_ntop(res->ai_family, addr, ip_str, addr_len) != nullptr;
+        if (SUCCESS) {
+            result.setAddress(ip_str, ntohs(port), res->ai_family == AF_INET6);
+        }
+        freeaddrinfo(res);
+        if (ok) *ok = SUCCESS;
+        return result;
     }
 
     const char *Net::getSocketErrorName(SocketError err) {

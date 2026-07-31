@@ -151,6 +151,9 @@ namespace Tiny {
             bool _use_ipv6{};
         };
 
+        std::vector<Address> parseFromHostname(const char *hostname, bool *ok = nullptr, int *err_cnt = nullptr);
+        Address parseFirstHostname(const char* hostname, bool *ok = nullptr);
+
         enum class SocketError : uint8_t {
             Success,
             /// Invalid IP address or protocol.

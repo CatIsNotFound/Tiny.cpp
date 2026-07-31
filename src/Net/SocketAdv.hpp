@@ -33,29 +33,7 @@
 
 #include "Socket.hpp"
 #include <functional>
-#ifdef TINY_CPP_MY_OS_WINDOWS
-    #include <winsock2.h>
-    #include <ws2ipdef.h>
-    #include <ws2tcpip.h>
-    #pragma comment(lib, "ws2_32.lib")
-    #define INVALID_SOCKET_VAL INVALID_SOCKET
-#elif defined(TINY_CPP_MY_OS_UNIX)
-    #include <cstring>
-    #include <csignal>
-    #include <sys/socket.h>
-    #include <netinet/in.h>
-    #include <arpa/inet.h>
-    #include <unistd.h>
-    #include <fcntl.h>
-    #include <errno.h>
-    #define INVALID_SOCKET_VAL (-1)
-    #ifndef SOCKET_ERROR
-        #define SOCKET_ERROR (-1)
-    #endif
-    #ifndef SOCKET
-        #define SOCKET int
-    #endif
-#endif
+
 
 namespace Tiny {
     namespace Net {

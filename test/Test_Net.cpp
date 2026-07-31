@@ -65,6 +65,7 @@ void test_client() {
     client.setOption(SocketOption::KeepAlive, true);
     client.setOption(SocketOption::NonBlocking, true);
     client.setOption(SocketOption::ReuseAddr, true);
+
     if (client.connect("127.0.0.1", 8080)) {
         while (true) {
             DT::Duration now = DT::currentTimestamps();

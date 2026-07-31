@@ -66,6 +66,9 @@ addModule(TestNet MY_MODULE_WITHOUT_GTEST
 addModule(TestTerm MY_MODULE_WITHOUT_GTEST
         Test_Term.cpp
 )
+addModule(TestHostResolver MY_MODULE_WITHOUT_GTEST
+        Test_HostResolver.cpp
+)
 
 
 foreach (MODULE IN ITEMS ${MY_MODULE})
