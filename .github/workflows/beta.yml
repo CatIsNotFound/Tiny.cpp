@@ -137,11 +137,17 @@ jobs:
 
   env-windows-msvc:
     runs-on: windows-latest
-
     steps:
       - name: pull project
         uses: actions/checkout@v4
 
+      - name: setup Visual Stuido
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: amd64
+          sdk: 8.1
+          toolset: 14.0
+        
       - name: Compiling project
         shell: pwsh
         run: |
@@ -200,10 +206,19 @@ jobs:
       - name: pull project
         uses: actions/checkout@v4
 
-      - name: Install MinGW
-        shell: pwsh
-        run: |
-          choco install mingw -y
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-pkg-config
+            mingw-w64-x86_64-catch
+            git
+            make
 
       - name: Compiling project
         shell: pwsh
