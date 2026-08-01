@@ -143,10 +143,6 @@ jobs:
 
       - name: setup Visual Stuido
         uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: amd64
-          sdk: 8.1
-          toolset: 14.0
         
       - name: Compiling project
         shell: pwsh
@@ -221,34 +217,31 @@ jobs:
             make
 
       - name: Compiling project
-        shell: pwsh
+        shell: msys2 {0}
         run: |
-          New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\MyLibs"
-          $env:Path += ";C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin"
-          cmake -B build -G "MinGW Makefiles" -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp" -DCMAKE_BUILD_TYPE=Release
-          if ($LASTEXITCODE -ne 0) {
-              Write-Host "* Failed to configure project!"
+          mkdir -p ~/MyLibs/
+          cmake -B build -G "MinGW Makefiles" -DCMAKE_INSTALL_PREFIX="~\MyLibs\Tiny.cpp" -DCMAKE_BUILD_TYPE=Release
+          if [ $? -ne 0 ]; then
+              echo "* Failed to configure project!"
               exit 1
-          }
+          fi
           cmake --build build --target install -j8
-          if ($LASTEXITCODE -ne 0) {
-              Write-Host "* Failed to compile and install!"
+          if [ $? -ne 0 ]; then
+              echo "* Failed to compile and install!"
               exit 1
-          }
+          fi
 
       - name: Test for project
-        shell: pwsh
+        shell: msys2 {0}
         run: |
-          $env:Path += ";C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin"
-          cd build\test
-          $exes = Get-ChildItem -Filter *.exe
-          foreach ($exe in $exes) {
-              & $exe.FullName
-              if ($LASTEXITCODE -ne 0) {
-                  Write-Host "* Test failed: " $exe.Name
+          cd ~/work/Tiny.cpp/Tiny.cpp/build/gtests
+          for EXE in $(ls -1); do
+              ./$EXE
+              if [ $? -ne 0 ]; then
+                  echo "* Test failed: " $EXE
                   exit 1
-              }
-          }
+              fi
+          done
 
       - name: Get version
         id: version
