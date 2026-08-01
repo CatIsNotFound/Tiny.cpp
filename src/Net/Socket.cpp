@@ -554,12 +554,17 @@ namespace Tiny {
         }
 
         int recv(Net::Handle socket, std::string& datas, size_t max_len) {
-            if (max_len > 0) datas.resize(max_len + 1);
+            std::string temp(max_len > 0 ? max_len + 1 : datas.size(), '\0');
 #ifdef TINY_CPP_MY_OS_WINDOWS
-            return ::recv(socket, &datas[0], datas.size(), 0);
+            int ret = ::recv(socket, &temp[0], temp.size(), 0);
 #else
-            return ::recv(socket, &datas[0], datas.size(), MSG_NOSIGNAL);
+            int ret = ::recv(socket, &temp[0], temp.size(), MSG_NOSIGNAL);
 #endif
+            if (ret > 0) {
+                datas.resize(ret);
+                datas.assign(&temp[0], &temp[ret]);
+            }
+            return ret;
         }
 
         int recvfrom(Net::Handle socket, Net::Datas& datas, const Net::Address& src, int flag = 0) {

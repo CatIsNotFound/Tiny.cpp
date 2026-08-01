@@ -234,7 +234,7 @@ jobs:
       - name: Test for project
         shell: msys2 {0}
         run: |
-          cd ~/work/Tiny.cpp/Tiny.cpp/build/gtests
+          cd build/gtests
           for EXE in $(ls -1); do
               ./$EXE
               if [ $? -ne 0 ]; then
