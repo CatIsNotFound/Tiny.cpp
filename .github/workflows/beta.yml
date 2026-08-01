@@ -220,7 +220,7 @@ jobs:
         shell: msys2 {0}
         run: |
           mkdir -p ~/MyLibs/
-          cmake -B build -G "MinGW Makefiles" -DCMAKE_INSTALL_PREFIX="~\MyLibs\Tiny.cpp" -DCMAKE_BUILD_TYPE=Release
+          cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX="~\MyLibs\Tiny.cpp" -DCMAKE_BUILD_TYPE=Release
           if [ $? -ne 0 ]; then
               echo "* Failed to configure project!"
               exit 1
