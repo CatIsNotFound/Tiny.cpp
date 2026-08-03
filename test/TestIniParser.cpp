@@ -24,6 +24,7 @@
  *************************************************************************************/
 
 #include <gtest/gtest.h>
+#include <algorithm>
 #include "../src/Parser/IniParser.hpp"
 
 using namespace Tiny;
