@@ -50,6 +50,8 @@ add_library(${PROJECT_NAME} STATIC
         src/TUI/TUI.cpp
         src/Parser/CommandParser.hpp
         src/Parser/CommandParser.cpp
+        src/Parser/IniParser.hpp
+        src/Parser/IniParser.cpp
         src/Net/Socket.cpp
         src/Net/Socket.hpp
         src/Net/SocketAdv.hpp

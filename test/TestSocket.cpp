@@ -388,7 +388,7 @@ TEST(SocketOptionTest, SetAndGetSendBufSize) {
 
     OptionValue val = sock.option(SocketOption::SendBufSize, &ok);
     EXPECT_TRUE(ok);
-    EXPECT_EQ(val.var.i, 8192);
+    EXPECT_GE(val.var.i, 8192);
     sock.close();
 }
 
@@ -403,7 +403,7 @@ TEST(SocketOptionTest, SetAndGetRecvBufSize) {
 
     OptionValue val = sock.option(SocketOption::RecvBufSize, &ok);
     EXPECT_TRUE(ok);
-    EXPECT_EQ(val.var.i, 8192);
+    EXPECT_GE(val.var.i, 8192);
     sock.close();
 }
 

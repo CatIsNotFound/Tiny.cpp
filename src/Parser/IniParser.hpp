@@ -1,4 +1,4 @@
-/*************************************************************************************
+﻿/*************************************************************************************
  * MIT License                                                                       *
  *                                                                                   *
  * Copyright (c) 2026 CatIsNotFound                                                  *
@@ -23,20 +23,65 @@
  *                                                                                   *
  *************************************************************************************/
 
-#ifndef TINY_HPP
-#define TINY_HPP
+#ifndef TINY_INIPARSER_HPP
+#define TINY_INIPARSER_HPP
+#include <cstdint>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
-#include "OS/File.hpp"
-#include "OS/System.hpp"
-#include "DateTime/DateTime.hpp"
-#include "Events/Events.hpp"
-#include "TUI/Terminal.hpp"
-#include "TUI/TUI.hpp"
-#include "Parser/CommandParser.hpp"
-#include "Parser/IniParser.hpp"
-#include "Net/Socket.hpp"
+namespace Tiny {
+    using IniConf = std::pair<std::string, std::string>;
+    using IniGroup = std::vector<IniConf>;
+    using IniMap  = std::unordered_map<std::string, IniGroup>;
 
-#endif //TINY_HPP
+    enum class IniParserError : uint8_t {
+        Success,
+        InvalidCharacter,
+        InvalidFormat
+    };
+
+    class IniParser {
+    public:
+        IniParser();
+        IniParser(const std::string& group_name);
+        ~IniParser();
+
+        IniParserError parse();
+        IniParserError parse(const char* context, size_t length);
+        IniParserError parse(const std::string& context);
+        std::string dump(bool include_empty_group = true);
+
+        void setGroup(const std::string& group);
+        const std::string& currentGroupName() const;
+        void removeGroup(const std::string& group = {});
+
+        void setValue(const std::string &key, std::string &value);
+        void unsetValue(const std::string& key);
+        std::string value(const std::string& key, bool parse_escaped_char = true, bool *ok = nullptr);
+        void clearKeys();
+        void clearKeys(const std::string &group);
+
+        bool isKey(const std::string& key) const;
+        std::vector<std::string> keys() const;
+        std::vector<std::string> groups() const;
+        size_t keysCount() const;
+        size_t groupsCount() const;
+
+        std::string& operator[](const std::string& key);
+
+    private:
+        IniParserError parseContext(std::string& buf);
+        IniConf* findConf(const std::string& key);
+        IniMap _ini_map;
+        std::string _context;
+        std::string _cur_group{"ungrouped"};
+    };
+
+}
+
+
+#endif //TINY_INIPARSER_HPP
 
 /*************************************************************************************
  * MIT License                                                                       *

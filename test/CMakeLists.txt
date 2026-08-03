@@ -39,6 +39,10 @@ addModule(TestSocket MY_MODULE
         TestSocket.cpp
 )
 
+addModule(TestIniParser MY_MODULE
+        TestIniParser.cpp
+)
+
 addModule(TestTUI MY_MODULE_WITHOUT_GTEST
         Test_TUI.cpp
 )
@@ -70,6 +74,7 @@ addModule(TestNet MY_MODULE_WITHOUT_GTEST
 addModule(TestTerm MY_MODULE_WITHOUT_GTEST
         Test_Term.cpp
 )
+
 addModule(TestHostResolver MY_MODULE_WITHOUT_GTEST
         Test_HostResolver.cpp
 )

@@ -315,21 +315,19 @@ namespace Tiny {
         };
 #endif
 
-        namespace Term {
+        namespace TStyle {
             Terminal& bg(Color color, bool intense = false);
             Terminal& bg(uint8_t r, uint8_t g, uint8_t b);
             Terminal& fg(Color color, bool intense = true);
             Terminal& fg(uint8_t r, uint8_t g, uint8_t b);
-            Terminal& bold();
-            Terminal& italic();
-            Terminal& underline();
-            Terminal& blink();
-            Terminal& unblink();
-            Terminal& reverse();
-            Terminal& unreverse();
+            Terminal& bold(bool enabled = true);
+            Terminal& italic(bool enabled = true);
+            Terminal& underline(bool enabled = true);
+            Terminal& blink(bool enabled = true);
+            Terminal& reverse(bool enabled = true);
             Terminal& showcur();
             Terminal& hidecur();
-            Terminal& striketh();
+            Terminal& striketh(bool enabled = true);
             Terminal& reset();
         }
     }

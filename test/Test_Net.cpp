@@ -163,6 +163,7 @@ void test_client(Net::Address&& address) {
                     client.close();
                     exit(10);
                 }
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
                 std::string msg;
                 ok = client.recv(msg, 1024);
                 if (!ok) {

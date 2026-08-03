@@ -779,6 +779,7 @@ namespace Tiny {
         if (handler == -1) return false;
         _handler = handler;
 #endif
+        _path.setPath(_path.path());
         _file_size = _path.fileSize();
         _position = (IO & Append) ? _file_size : 0;
         return true;

@@ -1704,77 +1704,67 @@ namespace Tiny {
     }
 #endif
 
-    TUI::Terminal& TUI::Term::bg(Color color, bool intense) {
+    TUI::Terminal& TUI::TStyle::bg(Color color, bool intense) {
         Terminal::setBackgroundColor(color, intense);
         return Terminal::self();
     }
 
-    TUI::Terminal& TUI::Term::bg(uint8_t r, uint8_t g, uint8_t b) {
+    TUI::Terminal& TUI::TStyle::bg(uint8_t r, uint8_t g, uint8_t b) {
         Terminal::setBackgroundColor(r, g, b);
         return TUI::Terminal::self();
     }
 
-    TUI::Terminal& TUI::Term::fg(Color color, bool intense) {
+    TUI::Terminal& TUI::TStyle::fg(Color color, bool intense) {
         Terminal::setForegroundColor(color, intense);
         return TUI::Terminal::self();
     }
 
-    TUI::Terminal& TUI::Term::fg(uint8_t r, uint8_t g, uint8_t b) {
+    TUI::Terminal& TUI::TStyle::fg(uint8_t r, uint8_t g, uint8_t b) {
         Terminal::setForegroundColor(r, g, b);
         return TUI::Terminal::self();
     }
 
-    TUI::Terminal& TUI::Term::bold() {
-        Terminal::setBolder(true);
+    TUI::Terminal& TUI::TStyle::bold(bool enabled) {
+        Terminal::setBolder(enabled);
         return TUI::Terminal::self();
     }
 
-    TUI::Terminal& TUI::Term::italic() {
-        Terminal::setItalic(true);
+    TUI::Terminal& TUI::TStyle::italic(bool enabled) {
+        Terminal::setItalic(enabled);
         return TUI::Terminal::self();
     }
 
-    TUI::Terminal& TUI::Term::underline() {
-        Terminal::setUnderline(true);
+    TUI::Terminal& TUI::TStyle::underline(bool enabled) {
+        Terminal::setUnderline(enabled);
         return TUI::Terminal::self();
     }
 
-    TUI::Terminal& TUI::Term::blink() {
-        Terminal::setBlinking(true);
+    TUI::Terminal& TUI::TStyle::blink(bool enabled) {
+        Terminal::setBlinking(enabled);
         return TUI::Terminal::self();
     }
 
-    TUI::Terminal& TUI::Term::unblink() {
-        Terminal::setBlinking(false);
+    TUI::Terminal& TUI::TStyle::reverse(bool enabled) {
+        Terminal::setReverseColor(enabled);
         return TUI::Terminal::self();
     }
 
-    TUI::Terminal& TUI::Term::reverse() {
-        Terminal::setReverseColor(true);
-        return TUI::Terminal::self();
-    }
-
-    TUI::Terminal& TUI::Term::unreverse() {
-        Terminal::setReverseColor(false);
-        return TUI::Terminal::self();
-    }
-
-    TUI::Terminal& TUI::Term::showcur() {
+    TUI::Terminal& TUI::TStyle::showcur() {
         Terminal::setCursorVisible(true);
         return TUI::Terminal::self();
     }
 
-    TUI::Terminal& TUI::Term::hidecur() {
+    TUI::Terminal& TUI::TStyle::hidecur() {
         Terminal::setCursorVisible(false);
         return TUI::Terminal::self();
     }
 
-    TUI::Terminal &TUI::Term::striketh() {
-        Terminal::setStrikethrough(true);
+    TUI::Terminal &TUI::TStyle::striketh(bool enabled) {
+        Terminal::setStrikethrough(enabled);
         return TUI::Terminal::self();
     }
 
-    TUI::Terminal& TUI::Term::reset() {
+    TUI::Terminal& TUI::TStyle::reset() {
         Terminal::reset();
         return TUI::Terminal::self();
     }

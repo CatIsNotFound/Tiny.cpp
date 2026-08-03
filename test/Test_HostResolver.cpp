@@ -15,8 +15,8 @@ int main(int argc, char** argv) {
         int err_n;
         auto ret = Net::parseFromHostname(argv[i], &ok, &err_n);
         if (!ok) {
-            Terminal::perror() << Term::fg(Color::Red, true) << "Failed to resolve host: " << argv[i]
-                               << "! \r\n" << Term::reset();
+            Terminal::perror() << TStyle::fg(Color::Red, true) << "Failed to resolve host: " << argv[i]
+                               << "! \r\n" << TStyle::reset();
             return 2;
         }
         Terminal::printFormat("From {}: \r\n", argv[i]);
