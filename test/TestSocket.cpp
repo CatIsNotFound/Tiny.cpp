@@ -28,6 +28,11 @@
 #include <thread>
 #include <chrono>
 
+int main(int argc, char** argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+
 using namespace Tiny;
 using namespace Tiny::Net;
 

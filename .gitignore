@@ -1,7 +1,8 @@
 .bin*
 .D*
-.idea
+.idea*
 .vs*
+.xmake*
 a
 build*
 cmake-*
