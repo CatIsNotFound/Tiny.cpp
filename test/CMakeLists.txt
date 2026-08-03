@@ -82,7 +82,7 @@ addModule(TestHostResolver MY_MODULE_WITHOUT_GTEST
 
 foreach (MODULE IN ITEMS ${MY_MODULE})
     set_target_properties(${MODULE} PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/gtests
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/gtests
     )
 
     target_link_libraries(${MODULE}
@@ -96,7 +96,7 @@ endforeach ()
 
 foreach (MODULE IN ITEMS ${MY_MODULE_WITHOUT_GTEST})
     set_target_properties(${MODULE} PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/test
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests
     )
 
     target_link_libraries(${MODULE}

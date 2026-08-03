@@ -8,9 +8,11 @@ option(TINY_BUILD_TEST "Build test module" ON)
 option(TINY_BUILD_DEMO "Build demo module" ON)
 option(TINY_GTEST_SRC "Include Source code from local." ON)
 option(TINY_USE_GPM "Include gpm library for project (Only for linux)." OFF)
+option(TINY_DOCS "Include docs of this project." ON)
 message("-- Tiny.cpp is configuring...")
 message("-- Build Test Module: ${TINY_BUILD_TEST}")
 message("-- Build Demo Module: ${TINY_BUILD_DEMO}")
+message("-- Include documents: ${TINY_DOCS}")
 message("-- Installation path: ${CMAKE_INSTALL_PREFIX}")
 message("-- P.S: To disabled building test module, please set '-DTINY_BUILD_TEST=OFF' option.")
 message("--      If your GTest submodule is already installed by package manager, please set") 
@@ -86,16 +88,18 @@ install(DIRECTORY src/
         FILES_MATCHING PATTERN "*.hpp"
 )
 
-install(FILES
-        LICENSE
-        README.md
-        README_zh.md
-        DESTINATION share/${PROJECT_NAME}
-)
+if (TINY_DOCS)
+    install(FILES
+            LICENSE
+            README.md
+            README_zh.md
+            DESTINATION share/${PROJECT_NAME}
+    )
 
-install(DIRECTORY docs/
-        DESTINATION share/${PROJECT_NAME}/docs
-)
+    install(DIRECTORY docs/
+            DESTINATION share/${PROJECT_NAME}/docs
+    )
+endif ()
 
 install(EXPORT ${PROJECT_NAME}Targets
         FILE ${PROJECT_NAME}Targets.cmake
@@ -143,10 +147,21 @@ if (TINY_BUILD_TEST)
     endif ()
     add_subdirectory(test)
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/test/assets ${CMAKE_BINARY_DIR}/test/assets
+            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/test/assets ${CMAKE_BINARY_DIR}/bin/tests/assets
+    )
+
+    install(DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests
+            DESTINATION bin
+    )
+
+    install(DIRECTORY ${CMAKE_BINARY_DIR}/bin/gtests
+            DESTINATION bin
     )
 endif ()
 
 if (TINY_BUILD_DEMO)
     add_subdirectory(demos)
+    install(DIRECTORY ${CMAKE_BINARY_DIR}/bin/demos
+            DESTINATION bin
+    )
 endif ()
