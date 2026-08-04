@@ -32,7 +32,7 @@ option_end()
 target("Tiny.cpp")
     set_kind("static")
     add_files("src/**.cpp")
-    add_headerfiles("src/(**.hpp)")
+    add_headerfiles("src/(**.hpp)", {prefixdir = "Tiny"})
     if is_plat("windows") then
         add_links("pdh", "advapi32", "ws2_32", "user32", "shell32")
     end
@@ -55,7 +55,10 @@ target("Tiny.cpp")
         add_installfiles("docs/**", {
             prefixdir = "share/Tiny/docs"
         })
-        add_installfiles("README*.md", {
+	add_installfiles("README*.md", {
+            prefixdir = "share/Tiny"
+        })
+	add_installfiles("LICENSE", {
             prefixdir = "share/Tiny"
         })
     end
@@ -64,6 +67,7 @@ target("Tiny.cpp")
             prefixdir = "bin/assets"
         })
     end
+    
 target_end()
 
 if has_config("build_test") then
