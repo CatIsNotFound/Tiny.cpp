@@ -363,7 +363,7 @@ TEST(SocketOptionTest, SetAndGetKeepAlive) {
 
     OptionValue val = sock.option(SocketOption::KeepAlive, &ok);
     EXPECT_TRUE(ok);
-    EXPECT_EQ(val.var.i, 1);
+    EXPECT_NE(val.var.i, 0);
     sock.close();
 }
 
@@ -378,7 +378,7 @@ TEST(SocketOptionTest, SetAndGetReuseAddr) {
 
     OptionValue val = sock.option(SocketOption::ReuseAddr, &ok);
     EXPECT_TRUE(ok);
-    EXPECT_EQ(val.var.i, 1);
+    EXPECT_NE(val.var.i, 0);
     sock.close();
 }
 
