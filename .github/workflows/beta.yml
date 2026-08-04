@@ -89,7 +89,7 @@ jobs:
       matrix:
         include:
           - arch: x86_64
-            runner: macos-13
+            runner: macos-15-intel
           - arch: arm64
             runner: macos-latest
 
@@ -155,22 +155,25 @@ jobs:
           path: ~/MyLibs/${{ steps.package.outputs.artifact_name }}.tar.gz
 
   env-windows-msvc:
-    runs-on: windows-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
         include:
           - arch: x86_64
             cmake_arch: x64
+            runner: windows-2022
           - arch: x86
             cmake_arch: Win32
+            runner: windows-2022
           - arch: arm64
             cmake_arch: ARM64
+            runner: windows-11-arm
 
     steps:
       - name: pull project
         uses: actions/checkout@v4
 
-      - name: setup Visual Stuido
+      - name: setup Visual Studio
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: ${{ matrix.cmake_arch }}
@@ -227,7 +230,7 @@ jobs:
           path: ${{ github.workspace }}/${{ steps.package.outputs.artifact_name }}.zip
 
   env-windows-mingw:
-    runs-on: windows-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
         include:
@@ -235,14 +238,17 @@ jobs:
             msystem: MINGW64
             pkg_prefix: mingw-w64-x86_64
             tool_prefix: mingw64
+            runner: windows-2022
           - arch: x86
             msystem: MINGW32
             pkg_prefix: mingw-w64-i686
             tool_prefix: mingw32
+            runner: windows-2022
           - arch: arm64
             msystem: CLANGARM64
             pkg_prefix: mingw-w64-clang-aarch64
             tool_prefix: clangarm64
+            runner: windows-11-arm
 
     steps:
       - name: pull project
@@ -266,8 +272,7 @@ jobs:
         shell: msys2 {0}
         run: |
           mkdir -p ~/MyLibs/
-          TOOLCHAIN_PREFIX='${{ matrix.pkg_prefix }}'
-          cmake -B build -G Ninja -DCMAKE_C_COMPILER=${TOOLCHAIN_PREFIX}-gcc -DCMAKE_CXX_COMPILER=${TOOLCHAIN_PREFIX}-g++ -DCMAKE_INSTALL_PREFIX="~/MyLibs/Tiny.cpp" -DCMAKE_BUILD_TYPE=Release
+          cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX="~/MyLibs/Tiny.cpp" -DCMAKE_BUILD_TYPE=Release
           if [ $? -ne 0 ]; then
               echo "* Failed to configure project!"
               exit 1
