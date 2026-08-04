@@ -231,6 +231,35 @@ jobs:
               exit 1
           fi
 
+      - name: Set Windows timezone
+        shell: pwsh
+        run: |
+          $tzMap = @{
+              "Asia/Shanghai" = "China Standard Time"
+              "Asia/Tokyo" = "Tokyo Standard Time"
+              "Asia/Hong_Kong" = "China Standard Time"
+              "Asia/Singapore" = "Singapore Standard Time"
+              "Asia/Taipei" = "Taipei Standard Time"
+              "Asia/Seoul" = "Korea Standard Time"
+              "America/New_York" = "Eastern Standard Time"
+              "America/Chicago" = "Central Standard Time"
+              "America/Denver" = "Mountain Standard Time"
+              "America/Los_Angeles" = "Pacific Standard Time"
+              "Europe/London" = "GMT Standard Time"
+              "Europe/Paris" = "Romance Standard Time"
+              "Europe/Berlin" = "W. Europe Standard Time"
+              "UTC" = "UTC"
+          }
+          $ianaTz = curl -s ipconfig.io/json | ConvertFrom-Json | Select-Object -ExpandProperty time_zone
+          Write-Host "Detected IANA timezone: $ianaTz"
+          if ($tzMap.ContainsKey($ianaTz)) {
+              $winTz = $tzMap[$ianaTz]
+              tzutil /s $winTz
+              Write-Host "Windows timezone set to: $(tzutil /g)"
+          } else {
+              Write-Host "Warning: Timezone mapping not found for $ianaTz"
+          }
+
       - name: Test for project
         shell: msys2 {0}
         run: |
