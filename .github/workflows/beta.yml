@@ -13,13 +13,10 @@ on:
 jobs:
   env-linux:
     runs-on: ${{ matrix.runner }}
-    container: ${{ matrix.arch == 'x86' && 'i386/ubuntu:latest' || null }}
     strategy:
       matrix:
         include:
           - arch: x86_64
-            runner: ubuntu-latest
-          - arch: x86
             runner: ubuntu-latest
           - arch: arm64
             runner: ubuntu-24.04-arm
@@ -269,8 +266,8 @@ jobs:
         shell: msys2 {0}
         run: |
           mkdir -p ~/MyLibs/
-          TOOLCHAIN_PREFIX='${{ matrix.tool_prefix }}'
-          cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX="~/MyLibs/Tiny.cpp" -DCMAKE_BUILD_TYPE=Release
+          TOOLCHAIN_PREFIX='${{ matrix.pkg_prefix }}'
+          cmake -B build -G Ninja -DCMAKE_C_COMPILER=${TOOLCHAIN_PREFIX}-gcc -DCMAKE_CXX_COMPILER=${TOOLCHAIN_PREFIX}-g++ -DCMAKE_INSTALL_PREFIX="~/MyLibs/Tiny.cpp" -DCMAKE_BUILD_TYPE=Release
           if [ $? -ne 0 ]; then
               echo "* Failed to configure project!"
               exit 1
