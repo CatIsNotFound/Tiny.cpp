@@ -42,7 +42,7 @@ jobs:
       - name: Test for project
         shell: bash
         run: |
-          cd ~/work/Tiny.cpp/Tiny.cpp/build/gtests
+          cd ~/work/Tiny.cpp/Tiny.cpp/build/bin/gtests
           sudo timedatectl set-timezone `curl ipconfig.io/json | grep time_zone | cut -d'"' -f4`
           for EXE in $(ls -1); do
               ./$EXE
@@ -100,7 +100,7 @@ jobs:
       - name: Test for project
         shell: bash
         run: |
-          cd ~/work/Tiny.cpp/Tiny.cpp/build/gtests
+          cd ~/work/Tiny.cpp/Tiny.cpp/build/bin/gtests
           sudo rm -rf /etc/localtime
           TIMEZONE=`curl ipconfig.io/json | grep time_zone | cut -d'"' -f4`
           sudo ln -s /usr/share/zoneinfo/$TIMEZONE /etc/localtime
@@ -234,7 +234,7 @@ jobs:
       - name: Test for project
         shell: msys2 {0}
         run: |
-          cd build/gtests
+          cd build/bin/gtests
           for EXE in $(ls -1); do
               ./$EXE
               if [ $? -ne 0 ]; then
