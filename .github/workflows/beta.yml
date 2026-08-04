@@ -12,7 +12,17 @@ on:
 
 jobs:
   env-linux:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.arch == 'x86' && 'i386/ubuntu:latest' || null }}
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: x86
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
 
     steps:
       - name: pull project
@@ -21,8 +31,8 @@ jobs:
       - name: Install requirements
         shell: bash
         run: |
-          sudo apt update
-          sudo apt install build-essential git cmake make ninja-build libgpm-dev gpm -y
+          apt update -y
+          apt install -y build-essential git cmake make ninja-build libgpm-dev gpm
 
       - name: Compiling project
         shell: bash
@@ -42,8 +52,10 @@ jobs:
       - name: Test for project
         shell: bash
         run: |
-          cd ~/work/Tiny.cpp/Tiny.cpp/build/bin/gtests
-          sudo timedatectl set-timezone `curl ipconfig.io/json | grep time_zone | cut -d'"' -f4`
+          cd build/bin/gtests
+          TIMEZONE=`curl ipconfig.io/json | grep time_zone | cut -d'"' -f4`
+          sudo rm -f /etc/localtime
+          sudo ln -sf /usr/share/zoneinfo/$TIMEZONE /etc/localtime
           for EXE in $(ls -1); do
               ./$EXE
               if [ $? -ne 0 ]; then
@@ -64,8 +76,7 @@ jobs:
         shell: bash
         run: |
           cd ~/MyLibs
-          ARCH=$(uname -m)
-          ARTIFACT_NAME="Tiny_cpp_v${{ steps.version.outputs.version }}_linux_${ARCH}"
+          ARTIFACT_NAME="Tiny_cpp_v${{ steps.version.outputs.version }}_linux_${{ matrix.arch }}"
           tar -czf ${ARTIFACT_NAME}.tar.gz Tiny.cpp
           echo "artifact_name=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
 
@@ -76,11 +87,23 @@ jobs:
           path: ~/MyLibs/${{ steps.package.outputs.artifact_name }}.tar.gz
 
   env-macos:
-    runs-on: macos-latest
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: macos-13
+          - arch: arm64
+            runner: macos-latest
 
     steps:
       - name: pull project
         uses: actions/checkout@v4
+
+      - name: Install requirements
+        shell: bash
+        run: |
+          brew install cmake ninja
 
       - name: Compiling project
         shell: bash
@@ -100,7 +123,7 @@ jobs:
       - name: Test for project
         shell: bash
         run: |
-          cd ~/work/Tiny.cpp/Tiny.cpp/build/bin/gtests
+          cd build/bin/gtests
           sudo rm -rf /etc/localtime
           TIMEZONE=`curl ipconfig.io/json | grep time_zone | cut -d'"' -f4`
           sudo ln -s /usr/share/zoneinfo/$TIMEZONE /etc/localtime
@@ -124,8 +147,7 @@ jobs:
         shell: bash
         run: |
           cd ~/MyLibs
-          ARCH=$(uname -m)
-          ARTIFACT_NAME="Tiny_cpp_v${{ steps.version.outputs.version }}_macos_${ARCH}"
+          ARTIFACT_NAME="Tiny_cpp_v${{ steps.version.outputs.version }}_macos_${{ matrix.arch }}"
           tar -czf ${ARTIFACT_NAME}.tar.gz Tiny.cpp
           echo "artifact_name=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
 
@@ -137,18 +159,30 @@ jobs:
 
   env-windows-msvc:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            cmake_arch: x64
+          - arch: x86
+            cmake_arch: Win32
+          - arch: arm64
+            cmake_arch: ARM64
+
     steps:
       - name: pull project
         uses: actions/checkout@v4
 
       - name: setup Visual Stuido
         uses: ilammy/msvc-dev-cmd@v1
-        
+        with:
+          arch: ${{ matrix.cmake_arch }}
+
       - name: Compiling project
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\MyLibs"
-          cmake -B build -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp"
+          cmake -B build -G "Visual Studio 17 2022" -A ${{ matrix.cmake_arch }} -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp"
           if ($LASTEXITCODE -ne 0) {
               Write-Host "* Failed to configure project!"
               exit 1
@@ -184,7 +218,7 @@ jobs:
         shell: pwsh
         run: |
           $libDir = Join-Path $env:USERPROFILE "MyLibs"
-          $artifactName = "Tiny_cpp_v${{ steps.version.outputs.version }}_MSVC_windows_x86_64"
+          $artifactName = "Tiny_cpp_v${{ steps.version.outputs.version }}_MSVC_windows_${{ matrix.arch }}"
           $dest = Join-Path $env:GITHUB_WORKSPACE "$artifactName.zip"
           Compress-Archive -Path (Join-Path $libDir "Tiny.cpp") -DestinationPath $dest
           echo "artifact_name=$artifactName" >> $env:GITHUB_OUTPUT
@@ -197,6 +231,21 @@ jobs:
 
   env-windows-mingw:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            msystem: MINGW64
+            pkg_prefix: mingw-w64-x86_64
+            tool_prefix: mingw64
+          - arch: x86
+            msystem: MINGW32
+            pkg_prefix: mingw-w64-i686
+            tool_prefix: mingw32
+          - arch: arm64
+            msystem: CLANGARM64
+            pkg_prefix: mingw-w64-clang-aarch64
+            tool_prefix: clangarm64
 
     steps:
       - name: pull project
@@ -205,14 +254,14 @@ jobs:
       - name: Setup MSYS2
         uses: msys2/setup-msys2@v2
         with:
-          msystem: MINGW64
+          msystem: ${{ matrix.msystem }}
           update: true
           install: >-
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-ninja
-            mingw-w64-x86_64-pkg-config
-            mingw-w64-x86_64-catch
+            ${{ matrix.pkg_prefix }}-gcc
+            ${{ matrix.pkg_prefix }}-cmake
+            ${{ matrix.pkg_prefix }}-ninja
+            ${{ matrix.pkg_prefix }}-pkg-config
+            ${{ matrix.pkg_prefix }}-catch
             git
             make
 
@@ -220,7 +269,8 @@ jobs:
         shell: msys2 {0}
         run: |
           mkdir -p ~/MyLibs/
-          cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX="~\MyLibs\Tiny.cpp" -DCMAKE_BUILD_TYPE=Release
+          TOOLCHAIN_PREFIX='${{ matrix.tool_prefix }}'
+          cmake -B build -G Ninja -DCMAKE_C_COMPILER=${TOOLCHAIN_PREFIX}-gcc -DCMAKE_CXX_COMPILER=${TOOLCHAIN_PREFIX}-g++ -DCMAKE_INSTALL_PREFIX="~/MyLibs/Tiny.cpp" -DCMAKE_BUILD_TYPE=Release
           if [ $? -ne 0 ]; then
               echo "* Failed to configure project!"
               exit 1
@@ -284,7 +334,7 @@ jobs:
         shell: pwsh
         run: |
           $libDir = Join-Path $env:USERPROFILE "MyLibs"
-          $artifactName = "Tiny_cpp_v${{ steps.version.outputs.version }}_mingw64_windows_x86_64"
+          $artifactName = "Tiny_cpp_v${{ steps.version.outputs.version }}_mingw_${{ matrix.tool_prefix }}_windows_${{ matrix.arch }}"
           $dest = Join-Path $env:GITHUB_WORKSPACE "$artifactName.zip"
           Compress-Archive -Path (Join-Path $libDir "Tiny.cpp") -DestinationPath $dest
           echo "artifact_name=$artifactName" >> $env:GITHUB_OUTPUT
@@ -294,4 +344,3 @@ jobs:
         with:
           name: ${{ steps.package.outputs.artifact_name }}
           path: ${{ github.workspace }}/${{ steps.package.outputs.artifact_name }}.zip
-        
