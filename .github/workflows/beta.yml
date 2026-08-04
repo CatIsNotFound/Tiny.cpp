@@ -31,8 +31,8 @@ jobs:
       - name: Install requirements
         shell: bash
         run: |
-          apt update -y
-          apt install -y build-essential git cmake make ninja-build libgpm-dev gpm
+          sudo apt update
+          sudo apt install -y build-essential git cmake make ninja-build libgpm-dev gpm
 
       - name: Compiling project
         shell: bash
@@ -182,7 +182,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\MyLibs"
-          cmake -B build -G "Visual Studio 17 2022" -A ${{ matrix.cmake_arch }} -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp"
+          cmake -B build -A ${{ matrix.cmake_arch }} -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp"
           if ($LASTEXITCODE -ne 0) {
               Write-Host "* Failed to configure project!"
               exit 1
@@ -270,7 +270,7 @@ jobs:
         run: |
           mkdir -p ~/MyLibs/
           TOOLCHAIN_PREFIX='${{ matrix.tool_prefix }}'
-          cmake -B build -G Ninja -DCMAKE_C_COMPILER=${TOOLCHAIN_PREFIX}-gcc -DCMAKE_CXX_COMPILER=${TOOLCHAIN_PREFIX}-g++ -DCMAKE_INSTALL_PREFIX="~/MyLibs/Tiny.cpp" -DCMAKE_BUILD_TYPE=Release
+          cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX="~/MyLibs/Tiny.cpp" -DCMAKE_BUILD_TYPE=Release
           if [ $? -ne 0 ]; then
               echo "* Failed to configure project!"
               exit 1
