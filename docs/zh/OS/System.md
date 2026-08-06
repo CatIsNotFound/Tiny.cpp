@@ -472,6 +472,31 @@ static std::vector<Path> listPath(uint8_t recursion_count = 1,
   - `filter` - 过滤函数（可选）
 - **返回值**: Path 对象数组
 
+#### listPathEx (重载)
+
+```cpp
+using LayerMap = std::unordered_map<size_t, std::vector<Path>>;
+
+static LayerMap listPathEx(const Path& path, 
+                           uint8_t recursion_count = 1,
+                           const std::function<bool(const Path&, bool&)>& found_event = {});
+static LayerMap listPathEx(const std::string& path, 
+                           uint8_t recursion_count = 1,
+                           const std::function<bool(const Path&, bool&)>& found_event = {});
+```
+- **功能**: 增强型目录遍历，按深度层级组织结果
+- **参数**: 
+  - `path` - 目标目录路径
+  - `recursion_count` - 递归深度，0 或 255 表示无限，默认 1（仅当前层）
+  - `found_event` - 回调函数（可选），接收：
+    - `const Path&` - 当前遍历到的路径
+    - `bool& stop` - 设置为 `true` 可立即停止遍历
+- **返回值**: `LayerMap`（unordered_map<size_t, vector<Path>>），其中键为深度层级（0 = 根目录，1 = 第一层子目录，依此类推），值为该深度的 Path 对象数组
+- **注意事项**: 
+  - 与 `listPath` 不同，此方法按目录深度组织结果
+  - `found_event` 回调允许通过将 `stop` 参数设置为 `true` 来提前终止遍历
+  - 适用于层级目录分析或深度限制搜索
+
 ---
 
 ## 7. 使用示例

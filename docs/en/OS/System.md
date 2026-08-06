@@ -472,6 +472,31 @@ static std::vector<Path> listPath(uint8_t recursion_count = 1,
   - `filter` - Filter function (optional)
 - **Return Value**: Array of Path objects
 
+#### listPathEx (overloads)
+
+```cpp
+using LayerMap = std::unordered_map<size_t, std::vector<Path>>;
+
+static LayerMap listPathEx(const Path& path, 
+                           uint8_t recursion_count = 1,
+                           const std::function<bool(const Path&, bool&)>& found_event = {});
+static LayerMap listPathEx(const std::string& path, 
+                           uint8_t recursion_count = 1,
+                           const std::function<bool(const Path&, bool&)>& found_event = {});
+```
+- **Function**: Enhanced directory traversal with layered results organized by depth
+- **Parameter**: 
+  - `path` - Target directory path
+  - `recursion_count` - Recursion depth, 0 or 255 means unlimited, default 1 (current level only)
+  - `found_event` - Callback function (optional) that receives:
+    - `const Path&` - Current path being traversed
+    - `bool& stop` - Set to `true` to halt traversal immediately
+- **Return Value**: `LayerMap` (unordered_map<size_t, vector<Path>>) where the key is the depth level (0 = root directory, 1 = first subdirectory level, etc.) and the value is an array of Path objects at that depth
+- **Notes**: 
+  - Unlike `listPath`, this method organizes results by directory depth
+  - The `found_event` callback allows early termination by setting the `stop` parameter to `true`
+  - Useful for hierarchical directory analysis or depth-limited searches
+
 ---
 
 ## 7. Usage Examples

@@ -121,6 +121,26 @@ bool isPointInRect(const Position& point, Position& start_pos, Position& end_pos
   - `end_pos` - Bottom-right corner of rectangle
 - **Return Value**: `true` if point is inside the rectangle
 
+### 3.8 KEY_BACKSPACE
+
+```cpp
+constexpr bool KEY_BACKSPACE(uint8_t key);
+```
+- **Function**: Check if a key code represents a backspace key
+- **Parameter**: `key` - Key code to check
+- **Return Value**: `true` if key is `KEY_BK` (8) or `KEY_DEL` (127)
+- **Note**: Helper function for convenient backspace key detection
+
+### 3.9 KEY_ENTER
+
+```cpp
+constexpr bool KEY_ENTER(uint8_t key);
+```
+- **Function**: Check if a key code represents an enter key
+- **Parameter**: `key` - Key code to check
+- **Return Value**: `true` if key is `KEY_CR` (13) or `KEY_LF` (10)
+- **Note**: Helper function for convenient enter key detection
+
 ---
 
 ## 4. Data Structures
@@ -381,6 +401,15 @@ Terminal control class providing raw mode switching, screen control, cursor oper
 
 All member functions are static.
 
+#### self
+
+```cpp
+static Terminal& self();
+```
+- **Function**: Get terminal singleton instance
+- **Return Value**: Terminal reference
+- **Note**: Enables stream-style output chaining
+
 ### 5.2 Raw Mode Control
 
 #### enterRawMode
@@ -437,10 +466,63 @@ static bool print(char ch);
 static bool print(const std::string& text);
 ```
 - **Function**: Output a single character or text (no newline)
-- **Parameters**: 
+- **Parameters**:
   - `ch` - Single character
   - `text` - Text to output
 - **Return Value**: `true` means success
+
+#### print (stream-style, v1.2.0)
+
+```cpp
+static Terminal& print(const std::string& text);
+static Terminal& print(char ch);
+static Terminal& print(int value);
+```
+- **Function**: Stream-style output functions that return Terminal reference for chaining
+- **Parameters**:
+  - `text` - Text to output
+  - `ch` - Single character
+  - `value` - Integer value
+- **Return Value**: Terminal reference for method chaining
+- **Note**: New in v1.2.0, enables fluent API style
+
+#### operator<< (stream-style, v1.2.0)
+
+```cpp
+Terminal& operator<<(const std::string& text);
+Terminal& operator<<(char ch);
+Terminal& operator<<(int value);
+```
+- **Function**: Stream-style output operators for chaining
+- **Parameters**:
+  - `text` - Text to output
+  - `ch` - Single character
+  - `value` - Integer value
+- **Return Value**: Terminal reference for method chaining
+- **Note**: New in v1.2.0, allows `Terminal::self() << "Hello" << " World"`
+
+#### perror (v1.2.0)
+
+```cpp
+static Terminal& perror(const std::string& text);
+```
+- **Function**: Output error text to stderr
+- **Parameter**: `text` - Error text to output
+- **Return Value**: Terminal reference for method chaining
+- **Note**: New in v1.2.0
+
+#### printError (v1.2.0)
+
+```cpp
+template<typename ... Args>
+static bool printError(const char* format, Args... args);
+```
+- **Function**: Formatted error output
+- **Parameters**:
+  - `format` - Format string
+  - `args` - Variable arguments
+- **Return Value**: `true` means success
+- **Note**: New in v1.2.0
 
 #### printLine
 
@@ -502,6 +584,46 @@ static bool moveCursor(uint32_t row, uint32_t column);
 - **Function**: Move cursor to specified position
 - **Parameters**: Target position
 - **Return Value**: `true` means success
+
+#### moveUpCursor (v1.2.0)
+
+```cpp
+static bool moveUpCursor(uint32_t rows = 1);
+```
+- **Function**: Move cursor up by specified rows
+- **Parameter**: `rows` - Number of rows to move (default: 1)
+- **Return Value**: `true` means success
+- **Note**: New in v1.2.0
+
+#### moveDownCursor (v1.2.0)
+
+```cpp
+static bool moveDownCursor(uint32_t rows = 1);
+```
+- **Function**: Move cursor down by specified rows
+- **Parameter**: `rows` - Number of rows to move (default: 1)
+- **Return Value**: `true` means success
+- **Note**: New in v1.2.0
+
+#### moveLeftCursor (v1.2.0)
+
+```cpp
+static bool moveLeftCursor(uint32_t cols = 1);
+```
+- **Function**: Move cursor left by specified columns
+- **Parameter**: `cols` - Number of columns to move (default: 1)
+- **Return Value**: `true` means success
+- **Note**: New in v1.2.0
+
+#### moveRightCursor (v1.2.0)
+
+```cpp
+static bool moveRightCursor(uint32_t cols = 1);
+```
+- **Function**: Move cursor right by specified columns
+- **Parameter**: `cols` - Number of columns to move (default: 1)
+- **Return Value**: `true` means success
+- **Note**: New in v1.2.0
 
 #### setScrollRegion
 
@@ -618,6 +740,51 @@ static void setReverseColor(bool enable);  // Reverse
 static void setCursorVisible(bool enable); // Cursor visibility
 static void setStrikethrough(bool enable); // Strikethrough
 static void reset();                       // Reset all styles
+```
+
+### 5.9 TStyle Namespace (v1.2.0)
+
+Stream-style interface for setting terminal colors and styles. All functions return `Terminal&` for method chaining.
+
+```cpp
+namespace TStyle {
+    Terminal& bg(Color color, bool intensity = true);
+    Terminal& fg(Color color, bool intensity = false);
+    Terminal& bg(uint8_t r, uint8_t g, uint8_t b);
+    Terminal& fg(uint8_t r, uint8_t g, uint8_t b);
+    Terminal& bold(bool enable = true);
+    Terminal& italic(bool enable = true);
+    Terminal& underline(bool enable = true);
+    Terminal& blink(bool enable = true);
+    Terminal& reverse(bool enable = true);
+    Terminal& showcur(bool enable = true);
+    Terminal& hidecur(bool enable = true);
+    Terminal& striketh(bool enable = true);
+    Terminal& reset();
+}
+```
+
+| Function | Description | Parameters |
+|----------|-------------|------------|
+| `bg(Color, bool)` | Set background color (ANSI 16 colors) | `color` - Color, `intensity` - Whether bright |
+| `bg(uint8_t, uint8_t, uint8_t)` | Set background color (RGB) | `r, g, b` - Red, green, blue components (0-255) |
+| `fg(Color, bool)` | Set foreground color (ANSI 16 colors) | `color` - Color, `intensity` - Whether bright |
+| `fg(uint8_t, uint8_t, uint8_t)` | Set foreground color (RGB) | `r, g, b` - Red, green, blue components (0-255) |
+| `bold(bool)` | Enable/disable bold | `enable` - Whether to enable (default: `true`) |
+| `italic(bool)` | Enable/disable italic | `enable` - Whether to enable (default: `true`) |
+| `underline(bool)` | Enable/disable underline | `enable` - Whether to enable (default: `true`) |
+| `blink(bool)` | Enable/disable blink | `enable` - Whether to enable (default: `true`) |
+| `reverse(bool)` | Enable/disable reverse video | `enable` - Whether to enable (default: `true`) |
+| `showcur(bool)` | Show cursor | `enable` - Whether to show (default: `true`) |
+| `hidecur(bool)` | Hide cursor | `enable` - Whether to hide (default: `true`) |
+| `striketh(bool)` | Enable/disable strikethrough | `enable` - Whether to enable (default: `true`) |
+| `reset()` | Reset all styles | None |
+
+**Example**:
+```cpp
+Terminal::self() << TStyle::fg(Color::Green) << TStyle::bold() << "Green bold text";
+Terminal::self() << TStyle::bg(255, 0, 0) << "Red background";
+Terminal::self() << TStyle::reset();
 ```
 
 ---
@@ -981,6 +1148,14 @@ void resize(uint32_t w, uint32_t h);
 - **Function**: Resize widget
 - **Parameters**: New size
 
+#### draw (v1.2.0)
+
+```cpp
+void draw();
+```
+- **Function**: Trigger widget rendering
+- **Note**: New in v1.2.0, public method to invoke the render process
+
 #### name
 
 ```cpp
@@ -1005,13 +1180,31 @@ void resize(uint32_t w, uint32_t h);
 - **Function**: Get widget size
 - **Return Value**: Size reference
 
-### 7.5 Protected Virtual Functions
+### 7.5 Protected Virtual Functions (v1.2.0)
 
 ```cpp
-virtual void renderEvent();
+virtual void renderEvent() = 0;
 ```
-- **Function**: Render event handling, can be overridden by subclasses to customize widget rendering
-- **Note**: The base class provides a default empty implementation
+- **Function**: Render event handling, must be overridden by subclasses to customize widget rendering
+- **Note**: Changed to pure virtual in v1.2.0
+
+```cpp
+virtual void resizeEvent(uint32_t width, uint32_t height) = 0;
+```
+- **Function**: Resize event handling, must be overridden by subclasses
+- **Parameters**:
+  - `width` - New width
+  - `height` - New height
+- **Note**: New pure virtual function in v1.2.0
+
+```cpp
+virtual void moveEvent(uint32_t x, uint32_t y) = 0;
+```
+- **Function**: Move event handling, must be overridden by subclasses
+- **Parameters**:
+  - `x` - New x coordinate
+  - `y` - New y coordinate
+- **Note**: New pure virtual function in v1.2.0
 
 ---
 

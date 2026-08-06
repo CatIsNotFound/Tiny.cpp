@@ -165,6 +165,67 @@ double size_in_mb = Tiny::OS::convertDataSize(1048576, Tiny::OS::DataUnit::MiB);
 // 返回：1.0（1048576 字节 = 1 MiB）
 ```
 
+### autoConvertDataSize 函数
+
+```cpp
+inline long double autoConvertDataSize(size_t size, DataUnit& result_unit);
+```
+- **功能**: 自动将数据大小转换为最合适的单位
+- **参数**:
+  - `size` - 要转换的字节大小值
+  - `result_unit` - `DataUnit` 变量的引用，将被设置为合适的单位
+- **返回值**: 转换后的 `long double` 类型值
+- **注意事项**: 函数自动选择值 >= 1 的最大单位。如果大小超过 TiB 范围，则限制为 TiB。
+- **示例**:
+```cpp
+Tiny::OS::DataUnit unit;
+long double value = Tiny::OS::autoConvertDataSize(1048576, unit);
+// 返回：1.0，unit 被设置为 DataUnit::MiB
+std::cout << "Size: " << value << " " << Tiny::OS::dataUnitName(unit) << std::endl;
+```
+
+### dataUnitName 函数
+
+```cpp
+inline const char* dataUnitName(const DataUnit& data_unit);
+```
+- **功能**: 获取给定 `DataUnit` 的单位名称字符串
+- **参数**: `data_unit` - `DataUnit` 枚举值
+- **返回值**: 单位名称字符串（"B"、"KiB"、"MiB"、"GiB"、"TiB"），无效值返回 "NaN"
+- **示例**:
+```cpp
+const char* name = Tiny::OS::dataUnitName(Tiny::OS::DataUnit::MiB);
+// 返回："MiB"
+```
+
+### 4.5 Permission 枚举
+
+```cpp
+enum Permission : uint8_t {
+    P_None,        // 无权限
+    P_Execute = 1, // 仅执行
+    P_Write = 2,   // 仅写入
+    P_WriteExec = 3, // 写入 + 执行
+    P_Read = 4,    // 仅读取
+    P_ReadExec = 5,  // 读取 + 执行
+    P_ReadWrite = 6, // 读取 + 写入
+    P_All = 7      // 读取 + 写入 + 执行
+};
+```
+
+| 枚举值 | 数值 | 说明 |
+|--------|------|------|
+| `P_None` | 0 | 无权限 |
+| `P_Execute` | 1 | 仅执行权限 |
+| `P_Write` | 2 | 仅写入权限 |
+| `P_WriteExec` | 3 | 写入 + 执行权限 |
+| `P_Read` | 4 | 仅读取权限 |
+| `P_ReadExec` | 5 | 读取 + 执行权限 |
+| `P_ReadWrite` | 6 | 读取 + 写入权限 |
+| `P_All` | 7 | 读取 + 写入 + 执行权限 |
+
+**注意事项**: 此枚举使用位标志，其中 Read=4、Write=2、Execute=1。可以使用按位或运算组合值。
+
 ---
 
 ## 5. Path 类
@@ -310,6 +371,60 @@ void unset();
 ```
 - **功能**: 获取文件大小
 - **返回值**: 文件大小（字节），目录返回 0
+
+#### lastAccessTime
+
+```cpp
+int64_t lastAccessTime() const;
+```
+- **功能**: 获取文件/目录的最后访问时间
+- **返回值**: 时间戳，类型为 `int64_t`（平台特定格式，通常为 Unix 时间戳或 Windows FILETIME）
+- **注意事项**: 如果路径无效或无法获取时间，返回 0
+
+#### lastWriteTime
+
+```cpp
+int64_t lastWriteTime() const;
+```
+- **功能**: 获取文件/目录的最后修改时间
+- **返回值**: 时间戳，类型为 `int64_t`（平台特定格式）
+- **注意事项**: 如果路径无效或无法获取时间，返回 0
+
+#### lastCreateTime
+
+```cpp
+int64_t lastCreateTime() const;
+```
+- **功能**: 获取文件/目录的创建时间
+- **返回值**: 时间戳，类型为 `int64_t`（平台特定格式）
+- **注意事项**: 如果路径无效或无法获取时间，返回 0。在某些 Unix 系统上，可能返回元数据更改时间而非创建时间。
+
+#### userPermission
+
+```cpp
+Permission userPermission() const;
+```
+- **功能**: 获取文件/目录的所有者（用户）权限
+- **返回值**: `Permission` 枚举值
+- **注意事项**: 如果路径无效或无法获取权限，返回 `P_None`
+
+#### groupPermission
+
+```cpp
+Permission groupPermission() const;
+```
+- **功能**: 获取文件/目录的组权限
+- **返回值**: `Permission` 枚举值
+- **注意事项**: 如果路径无效或无法获取权限，返回 `P_None`
+
+#### otherPermission
+
+```cpp
+Permission otherPermission() const;
+```
+- **功能**: 获取文件/目录的其他人权限（除所有者和组之外的所有人）
+- **返回值**: `Permission` 枚举值
+- **注意事项**: 如果路径无效或无法获取权限，返回 `P_None`
 
 #### operator/
 

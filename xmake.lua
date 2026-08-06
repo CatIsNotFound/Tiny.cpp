@@ -32,7 +32,11 @@ option_end()
 target("Tiny.cpp")
     set_kind("static")
     add_files("src/**.cpp")
-    add_headerfiles("src/(**.hpp)", {prefixdir = "Tiny"})
+    add_headerfiles("src/(**.hpp)", {
+        prefixdir = "Tiny",
+        install   = true,
+        public    = true
+    })
     if is_plat("windows") then
         add_links("pdh", "advapi32", "ws2_32", "user32", "shell32")
     end
@@ -52,18 +56,18 @@ target("Tiny.cpp")
         end
     end)
     if has_config("include_docs") then
-        add_installfiles("docs/**", {
+        add_installfiles("$(projectdir)/docs/(**.md)", {
             prefixdir = "share/Tiny/docs"
         })
-	add_installfiles("README*.md", {
+        add_installfiles("$(projectdir)/README*.md", {
             prefixdir = "share/Tiny"
         })
-	add_installfiles("LICENSE", {
+        add_installfiles("$(projectdir)/LICENSE", {
             prefixdir = "share/Tiny"
         })
     end
     if has_config("build_test") then
-        add_installfiles("test/assets/(**)", {
+        add_installfiles("$(projectdir)/test/assets/(**)", {
             prefixdir = "bin/assets"
         })
     end
@@ -116,3 +120,38 @@ if has_config("build_demo") then
         target_end()
     end
 end
+
+package("Tiny.cpp")
+    set_homepage("https://github.com/CatIsNotFound/Tiny.cpp/")
+    set_description("An extremely small, lightweight, and easy-to-use foundational library.")
+    set_license("MIT")
+    set_urls("https://github.com/CatIsNotFound/Tiny.cpp.git")
+
+    add_configs("build_test", {description = "Build test module", default = false, type = "boolean"})
+    add_configs("build_demo", {description = "Build demo module", default = false, type = "boolean"})
+    add_configs("include_docs", {description = "Install docs", default = false, type = "boolean"})
+    add_configs("use_gpm", {description = "Enable libgpm (Linux only) ", default = false, type = "boolean"})
+
+    on_load(function (package)
+        if package:is_plat("windows") then
+            package:add("syslinks", "pdh", "advapi32", "ws2_32", "user32", "shell32")
+        else
+            package:add("syslinks")
+        end
+
+        if package:config("use_gpm") and package:is_plat("linux") then
+            package:add("gpm")
+        end
+    end)
+
+    on_install(function (package)
+        import("package.tools.xmake").install(package, {
+            configs = {
+                build_test = package:config("build_test"),
+                build_demo = package:config("build_demo"),
+                include_docs = package:config("include_docs"),
+                use_gpm = package:config("use_gpm")
+            }
+        })
+    end)
+package_end()

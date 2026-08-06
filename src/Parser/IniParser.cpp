@@ -301,7 +301,7 @@ Tiny::IniParserError Tiny::IniParser::parseContext(std::string& buf) {
     strip(buf);
     if (buf.empty()) return IniParserError::Success;
     // If the current context is comment, skip parsing.
-    if (buf[0] == ';') return IniParserError::Success;
+    if (buf[0] == ';' || buf[0] == '#') return IniParserError::Success;
 
     size_t key_pos = buf.find_first_of('=');
     bool group_on = (buf.front() == '[');

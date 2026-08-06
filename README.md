@@ -20,8 +20,10 @@ An extremely small, lightweight, and easy-to-use foundational library.
 |-------------------|----------------|--------------------------------------------------------------------|
 | **TUI**           | `src/TUI`      | Terminal User Interface, providing basic terminal drawing functionality for easier terminal rendering |
 | **OS**            | `src/OS`       | Operating System, supporting basic file and path operations as well as viewing system information |
+| **Net**           | `src/Net`      | Network communication, providing Socket, Address, hostname resolution, and advanced socket options |
 | **DateTime**      | `src/DateTime` | Date and time utilities, supporting construction, formatting, arithmetic, and timestamp conversion |
 | **CommandParser** | `src/Parser`   | Command parser, providing basic command parameter parsing functionality for easy implementation of command-line tools |
+| **IniParser**     | `src/Parser`   | INI configuration file parser, supporting parsing, manipulating, and serializing INI files |
 | **Events**        | `src/Events`   | Event system, providing basic components for easy implementation of timers, asynchronous functions, etc. |
 
 ## Installation
@@ -31,6 +33,8 @@ An extremely small, lightweight, and easy-to-use foundational library.
 You can download the latest precompiled release directly from [Github Release](https://github.com/CatIsNotFound/Tiny.cpp/releases/latest).
 
 ### Compile Source Code Project
+
+#### CMake
 
 1. Download the project source code via Github:
     ```bash
@@ -45,7 +49,7 @@ You can download the latest precompiled release directly from [Github Release](h
     ```bash
     cd Tiny.cpp
     mkdir build ; cd build
-    cmake .. -DCMAKE_INSTALL_PREFIX=/path/to/Tiny.cpp -DCMAKE_BUILD_TYPE=Release -DTINY_BUILD_TEST=OFF
+    cmake .. -DCMAKE_INSTALL_PREFIX=/path/to/Tiny.cpp -DTINY_BUILD_TEST=OFF 
     ```
     **P.S: Please replace `/path/to/Tiny.cpp` with the actual installation path.**
 
@@ -53,6 +57,48 @@ You can download the latest precompiled release directly from [Github Release](h
     ```bash
     cmake --build . --target install
     ```
+
+#### XMake
+
+> If XMake is not installed, execute the following command in the terminal to quickly install XMake:
+> 
+> **Linux/MacOS/Unix-like:** 
+> 
+> ```bash
+> curl -fsSL https://xmake.io/shget.text | bash 
+> ```
+>
+> ```bash
+> wget https://xmake.io/shget.text -O - | bash
+> ```
+>
+> **Windows:** 
+>
+> ```powershell
+> irm https://xmake.io/psget.text | iex
+> ```
+
+1. Download the project source code via Github:
+    ```bash
+    git clone https://github.com/CatIsNotFound/Tiny.cpp.git
+    ```
+    To use the unstable version, execute the following command:
+    ```bash
+    git clone https://github.com/CatIsNotFound/Tiny.cpp.git -b beta
+    ```
+   
+2. Configure the project via XMake
+    ```bash
+    cd Tiny.cpp
+    xmake f --build_test=n
+    ```
+
+3. Compile and install this project locally
+    ```bash
+    xmake
+    xmake package -o /path/to/install
+    ```
+    **P.S: Please replace `/path/to/install` with the actual installation path.**
 
 ## Quick Start
 
@@ -86,6 +132,40 @@ add_executable(${CMAKE_PROJECT_NAME}
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
     Tiny::Tiny
 )
+```
+
+### Import via XMake
+
+Starting from version 1.2.0, `Tiny.cpp` supports importing via XMake.
+
+To use XMake to import the `Tiny.cpp` project, you need to first [configure the XMake project](#compile-source-code-project), then add `Tiny.cpp` as a dependency in your project.
+
+1. Download the [manually compile the source code](#compile-source-code-project) to your local machine.
+
+2. Manually set up the local repository
+
+```bash
+xmake repo -g -a local_repo /path/to/package
+```
+**P.S: Please replace `/path/to/package` with the actual absolute path of the installation package.**
+
+You can check if the local repository was added successfully with the following command:
+
+```bash
+xmake repo -l
+```
+
+3. Refer to the following example:
+
+```lua
+add_rules("mode.debug", "mode.release")
+set_languages("c++20")
+add_requires("tiny.cpp")
+
+target("HelloWorld")
+    set_kind("binary")
+    add_files("**.cpp")
+    add_packages("tiny.cpp")
 ```
 
 ## How to Use

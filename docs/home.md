@@ -32,7 +32,9 @@
 |--------|------|-------------|---------------|
 | **TUI** | `src/TUI` | Terminal User Interface, provides basic terminal drawing functionality for easier terminal rendering | [en/TUI/TUI.md](en/TUI/TUI.md) |
 | **OS** | `src/OS` | Operating System, supports basic file and path operations as well as system information viewing | [en/OS/File.md](en/OS/File.md), [en/OS/System.md](en/OS/System.md) |
+| **Net** | `src/Net` | Network communication, provides Socket, Address, hostname resolution, and advanced socket options | [en/Net/Net.md](en/Net/Net.md) |
 | **CommandParser** | `src/Parser` | Command parser, provides basic command parameter parsing functionality for easy implementation of command-line tools | [en/Parser/CommandParser.md](en/Parser/CommandParser.md) |
+| **IniParser** | `src/Parser` | INI configuration file parser, supports parsing, manipulating, and serializing INI files | [en/Parser/IniParser.md](en/Parser/IniParser.md) |
 | **DateTime** | `src/DateTime` | Date and time utilities, supporting construction, formatting, arithmetic, and timestamp conversion | [en/DateTime/DateTime.md](en/DateTime/DateTime.md) |
 | **Events** | `src/Events` | Event system, provides basic components for easy implementation of timers, asynchronous functions, etc. | [en/Events/Event.md](en/Events/Event.md) |
 
@@ -45,6 +47,8 @@
 You can directly download the latest pre-built release from [Github Release](https://github.com/CatIsNotFound/Tiny.cpp/releases/latest).
 
 ### Build from Source
+
+#### CMake
 
 1. Download project source code via Github:
     ```bash
@@ -67,6 +71,48 @@ You can directly download the latest pre-built release from [Github Release](htt
     ```bash
     cmake --build . --target install
     ```
+
+#### XMake
+
+> If XMake is not installed, execute the following command in the terminal to quickly install XMake:
+> 
+> **Linux/MacOS/Unix-like:** 
+> 
+> ```bash
+> curl -fsSL https://xmake.io/shget.text | bash 
+> ```
+>
+> ```bash
+> wget https://xmake.io/shget.text -O - | bash
+> ```
+>
+> **Windows:** 
+>
+> ```powershell
+> irm https://xmake.io/psget.text | iex
+> ```
+
+1. Download project source code via Github:
+    ```bash
+    git clone https://github.com/CatIsNotFound/Tiny.cpp.git
+    ```
+    For non-stable versions, execute:
+    ```bash
+    git clone https://github.com/CatIsNotFound/Tiny.cpp.git -b beta
+    ```
+
+2. Configure project via XMake
+    ```bash
+    cd Tiny.cpp
+    xmake f --build_test=n
+    ```
+
+3. Build and install to local
+    ```bash
+    xmake
+    xmake package -o /path/to/install
+    ```
+    **Note: Please replace `/path/to/install` with your actual installation path.**
 
 ---
 
@@ -104,6 +150,40 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
 )
 ```
 
+### Import via XMake
+
+Starting from version 1.2.0, `Tiny.cpp` supports importing via XMake.
+
+To use XMake to import the `Tiny.cpp` project, you need to first [configure the XMake project](#build-from-source), then add `Tiny.cpp` as a dependency in your project.
+
+1. Download and [manually build from source](#build-from-source) to your local machine.
+
+2. Manually set up the local repository
+
+```bash
+xmake repo -g -a local_repo /path/to/package
+```
+**Note: Please replace `/path/to/package` with the actual absolute path of the installation package.**
+
+You can check if the local repository was added successfully with the following command:
+
+```bash
+xmake repo -l
+```
+
+3. Refer to the following example:
+
+```lua
+add_rules("mode.debug", "mode.release")
+set_languages("c++20")
+add_requires("tiny.cpp")
+
+target("HelloWorld")
+    set_kind("binary")
+    add_files("**.cpp")
+    add_packages("tiny.cpp")
+```
+
 ### How to Use
 
 Taking the TUI module as an example, assuming you want to use the Terminal module to simply output `Hello, Tiny.cpp!`, execute the following code:
@@ -136,6 +216,8 @@ If using CMake to install this project, use the following include methods:
 #include <Tiny/OS/File.hpp>
 #include <Tiny/OS/System.hpp>
 #include <Tiny/Parser/CommandParser.hpp>
+#include <Tiny/Parser/IniParser.hpp>
+#include <Tiny/Net/Socket.hpp>
 #include <Tiny/TUI/TUI.hpp>
 ```
 
@@ -151,6 +233,8 @@ If directly copying the `src` directory source code, use the following include m
 #include "OS/File.hpp"
 #include "OS/System.hpp"
 #include "Parser/CommandParser.hpp"
+#include "Parser/IniParser.hpp"
+#include "Net/Socket.hpp"
 #include "TUI/TUI.hpp"
 ```
 
@@ -164,6 +248,8 @@ g++ -std=c++17 -I./src main.cpp src/Tiny.cpp \
     src/OS/File.cpp \
     src/OS/System.cpp \
     src/Parser/CommandParser.cpp \
+    src/Parser/IniParser.cpp \
+    src/Net/Socket.cpp \
     src/TUI/TUI.cpp \
     src/TUI/Terminal.cpp \
     -o myapp
@@ -199,6 +285,7 @@ g++ -std=c++17 -I./src main.cpp src/*.cpp src/*/*.cpp -o myapp.exe
 | `Tiny::OS` | Operating system related functions (files, system info) |
 | `Tiny::DT` | Date and time utilities |
 | `Tiny::TUI` | Terminal user interface functions |
+| `Tiny::Net` | Network communication functions (Socket, Address, hostname resolution) |
 
 ### Runtime Environment
 
@@ -235,11 +322,18 @@ Operating system related functions.
 - [File Module - File Operations](en/OS/File.md)
 - [System Module - System Information](en/OS/System.md)
 
+### Net Module
+
+Network communication utilities.
+
+- [Net Module Detailed Documentation](en/Net/Net.md)
+
 ### Parser Module
 
-Command-line argument parser.
+Command-line argument parser and INI file parser.
 
 - [CommandParser Class Detailed Documentation](en/Parser/CommandParser.md)
+- [IniParser Class Detailed Documentation](en/Parser/IniParser.md)
 
 ### TUI Module
 

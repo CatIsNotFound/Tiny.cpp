@@ -40,7 +40,9 @@
 |------|------|------|----------|
 | **TUI** | `src/TUI` | 终端用户界面，提供了基本的终端绘制功能，可更方便的渲染终端 | [zh/TUI/TUI.md](zh/TUI/TUI.md) |
 | **OS** | `src/OS` | 操作系统，支持文件、路径的基本操作以及查看系统信息等基本功能 | [zh/OS/File.md](zh/OS/File.md)、[zh/OS/System.md](zh/OS/System.md) |
+| **Net** | `src/Net` | 网络通信，提供 Socket、地址解析、主机名解析和高级套接字选项 | [zh/Net/Net.md](zh/Net/Net.md) |
 | **CommandParser** | `src/Parser` | 命令解析器，提供基本的命令参数解析功能，可便于实现基本的命令行工具 | [zh/Parser/CommandParser.md](zh/Parser/CommandParser.md) |
+| **IniParser** | `src/Parser` | INI 配置文件解析器，支持解析、操作和序列化 INI 文件 | [zh/Parser/IniParser.md](zh/Parser/IniParser.md) |
 | **DateTime** | `src/DateTime` | 日期时间工具，支持构造、格式化、算术运算和时间戳转换 | [zh/DateTime/DateTime.md](zh/DateTime/DateTime.md) |
 | **Events** | `src/Events` | 事件系统，提供基本的组件，可方便实现定时器、异步等功能 | [zh/Events/Event.md](zh/Events/Event.md) |
 
@@ -53,6 +55,8 @@
 你可以直接在 [Github Release](https://github.com/CatIsNotFound/Tiny.cpp/releases/latest) 下载最新发布的预编译版本项目。
 
 ### 4.2 编译源代码项目
+
+#### CMake
 
 1. 通过 Github 下载项目源代码：
     ```bash
@@ -67,7 +71,7 @@
     ```bash
     cd Tiny.cpp
     mkdir build ; cd build
-    cmake .. -DCMAKE_INSTALL_PREFIX=/path/to/Tiny.cpp -DCMAKE_BUILD_TYPE=Release -DTINY_BUILD_TEST=OFF 
+    cmake .. -DCMAKE_INSTALL_PREFIX=/path/to/Tiny.cpp -DTINY_BUILD_TEST=OFF 
     ```
     **p.s: 请将 `/path/to/Tiny.cpp` 替换为实际安装的路径。**
 
@@ -75,6 +79,48 @@
     ```bash
     cmake --build . --target install
     ```
+
+#### XMake
+
+> 若没有安装 XMake，请直接在终端下执行如下命令快速安装 XMake:
+> 
+> **Linux/MacOS/Unix-like:** 
+> 
+> ```bash
+> curl -fsSL https://xmake.io/shget.text | bash 
+> ```
+>
+> ```bash
+> wget https://xmake.io/shget.text -O - | bash
+> ```
+>
+> **Windows:** 
+>
+> ```powershell
+> irm https://xmake.io/psget.text | iex
+> ```
+
+1. 通过 Github 下载项目源代码：
+    ```bash
+    git clone https://github.com/CatIsNotFound/Tiny.cpp.git
+    ```
+    如要使用非稳定版本，请执行如下命令：
+    ```bash
+    git clone https://github.com/CatIsNotFound/Tiny.cpp.git -b beta
+    ```
+   
+2. 通过 XMake 配置项目
+    ```bash
+    cd Tiny.cpp
+    xmake f --build_test=n
+    ```
+
+3. 编译并安装本项目到本地
+    ```bash
+    xmake
+    xmake package -o /path/to/install
+    ```
+    **p.s: 请将 `/path/to/install` 替换为实际安装的路径。**
 
 ---
 
@@ -112,7 +158,41 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
 )
 ```
 
-### 5.3 如何使用
+### 5.3 通过 XMake 方式导入
+
+从 1.2.0 版本开始，`Tiny.cpp` 支持通过 XMake 方式导入。
+
+若要使用 XMake 方式导入 `Tiny.cpp` 项目，需要先[配置 XMake 项目](#42-编译源代码项目)，然后在项目中添加 `Tiny.cpp` 作为依赖项。
+
+1. 通过[手动编译源代码](#42-编译源代码项目)到你的本地。
+
+2. 手动设置本地仓库
+
+```bash
+xmake repo -g -a local_repo /path/to/package
+```
+**p.s: 请将 `/path/to/package` 替换为实际安装包的绝对路径。**
+
+你可通过如下命令以查看本地仓库是否添加：
+
+```bash
+xmake repo -l
+```
+
+3. 具体参照如下示例：
+
+```lua
+add_rules("mode.debug", "mode.release")
+set_languages("c++20")
+add_requires("tiny.cpp")
+
+target("HelloWorld")
+    set_kind("binary")
+    add_files("**.cpp")
+    add_packages("tiny.cpp")
+```
+
+### 5.4 如何使用
 
 以导入 TUI 模块为例，假设要使用 Terminal 模块以简单输出 `Hello, Tiny.cpp!`，请执行如下代码：
 
@@ -144,6 +224,8 @@ int main() {
 #include <Tiny/OS/File.hpp>
 #include <Tiny/OS/System.hpp>
 #include <Tiny/Parser/CommandParser.hpp>
+#include <Tiny/Parser/IniParser.hpp>
+#include <Tiny/Net/Socket.hpp>
 #include <Tiny/TUI/TUI.hpp>
 ```
 
@@ -159,6 +241,8 @@ int main() {
 #include "OS/File.hpp"
 #include "OS/System.hpp"
 #include "Parser/CommandParser.hpp"
+#include "Parser/IniParser.hpp"
+#include "Net/Socket.hpp"
 #include "TUI/TUI.hpp"
 ```
 
@@ -172,6 +256,8 @@ g++ -std=c++17 -I./src main.cpp src/Tiny.cpp \
     src/OS/File.cpp \
     src/OS/System.cpp \
     src/Parser/CommandParser.cpp \
+    src/Parser/IniParser.cpp \
+    src/Net/Socket.cpp \
     src/TUI/TUI.cpp \
     src/TUI/Terminal.cpp \
     -o myapp
@@ -207,6 +293,7 @@ g++ -std=c++17 -I./src main.cpp src/*.cpp src/*/*.cpp -o myapp.exe
 | `Tiny::OS` | 操作系统相关功能（文件、系统信息） |
 | `Tiny::DT` | 日期时间工具 |
 | `Tiny::TUI` | 终端用户界面功能 |
+| `Tiny::Net` | 网络通信功能（Socket、地址解析、主机名解析） |
 
 ### 6.3 运行环境
 
@@ -243,13 +330,20 @@ g++ -std=c++17 -I./src main.cpp src/*.cpp src/*/*.cpp -o myapp.exe
 - [File 模块 - 文件操作](zh/OS/File.md)
 - [System 模块 - 系统信息](zh/OS/System.md)
 
-### 7.4 Parser 模块
+### 7.4 Net 模块
 
-命令行参数解析器。
+网络通信工具。
+
+- [Net 模块详细文档](zh/Net/Net.md)
+
+### 7.5 Parser 模块
+
+命令行参数解析器和 INI 文件解析器。
 
 - [CommandParser 类详细文档](zh/Parser/CommandParser.md)
+- [IniParser 类详细文档](zh/Parser/IniParser.md)
 
-### 7.5 TUI 模块
+### 7.6 TUI 模块
 
 终端用户界面。
 

@@ -18,8 +18,10 @@
 |-------------------|----------------|-------------------------------|
 | **TUI**           | `src/TUI`      | 终端用户界面，提供了基本的终端绘制功能，可更方便的渲染终端 |
 | **OS**            | `src/OS`       | 操作系统，支持文件、路径的基本操作以及查看系统信息等基本功能 |
+| **Net**           | `src/Net`      | 网络通信，提供 Socket、地址解析、主机名解析和高级套接字选项 |
 | **DateTime**      | `src/DateTime` | 日期时间，支持获取系统日期时间、时间戳计算等基本功能    |
 | **CommandParser** | `src/Parser`   | 命令解析器，提供基本的命令参数解析功能，可便于实现基本的命令行工具 |
+| **IniParser**     | `src/Parser`   | INI 配置文件解析器，支持解析、操作和序列化 INI 文件 |
 | **Events**        | `src/Events`   | 事件系统，提供基本的组件，可方便实现定时器、异步等功能   |
 
 ## 安装
@@ -29,6 +31,8 @@
 你可以直接在 [Github Release](https://github.com/CatIsNotFound/Tiny.cpp/releases/latest) 下载最新发布的预编译版本项目。
 
 ### 编译源代码项目
+
+#### CMake
 
 1. 通过 Github 下载项目源代码：
     ```bash
@@ -43,7 +47,7 @@
     ```bash
     cd Tiny.cpp
     mkdir build ; cd build
-    cmake .. -DCMAKE_INSTALL_PREFIX=/path/to/Tiny.cpp -DCMAKE_BUILD_TYPE=Release -DTINY_BUILD_TEST=OFF 
+    cmake .. -DCMAKE_INSTALL_PREFIX=/path/to/Tiny.cpp -DTINY_BUILD_TEST=OFF 
     ```
     **p.s: 请将 `/path/to/Tiny.cpp` 替换为实际安装的路径。**
 
@@ -51,6 +55,48 @@
     ```bash
     cmake --build . --target install
     ```
+
+#### XMake
+
+> 若没有安装 XMake，请直接在终端下执行如下命令快速安装 XMake:
+> 
+> **Linux/MacOS/Unix-like:** 
+> 
+> ```bash
+> curl -fsSL https://xmake.io/shget.text | bash 
+> ```
+>
+> ```bash
+> wget https://xmake.io/shget.text -O - | bash
+> ```
+>
+> **Windows:** 
+>
+> ```powershell
+> irm https://xmake.io/psget.text | iex
+> ```
+
+1. 通过 Github 下载项目源代码：
+    ```bash
+    git clone https://github.com/CatIsNotFound/Tiny.cpp.git
+    ```
+    如要使用非稳定版本，请执行如下命令：
+    ```bash
+    git clone https://github.com/CatIsNotFound/Tiny.cpp.git -b beta
+    ```
+   
+2. 通过 XMake 配置项目
+    ```bash
+    cd Tiny.cpp
+    xmake f --build_test=n
+    ```
+
+3. 编译并安装本项目到本地
+    ```bash
+    xmake
+    xmake package -o /path/to/install
+    ```
+    **p.s: 请将 `/path/to/install` 替换为实际安装的路径。**
 
 ## 快速开始
 
@@ -84,6 +130,40 @@ add_executable(${CMAKE_PROJECT_NAME}
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
     Tiny::Tiny
 )
+```
+
+### 通过 XMake 方式导入
+
+从 1.2.0 版本开始，`Tiny.cpp` 支持通过 XMake 方式导入。
+
+若要使用 XMake 方式导入 `Tiny.cpp` 项目，需要先[配置 XMake 项目](#编译源代码项目)，然后在项目中添加 `Tiny.cpp` 作为依赖项。
+
+1. 通过[手动编译源代码](#编译源代码项目)到你的本地。
+
+2. 手动设置本地仓库
+
+```bash
+xmake repo -g -a local_repo /path/to/package
+```
+**p.s: 请将 `/path/to/package` 替换为实际安装包的绝对路径。**
+
+你可通过如下命令以查看本地仓库是否添加：
+
+```bash
+xmake repo -l
+```
+
+3. 具体参照如下示例：
+
+```lua
+add_rules("mode.debug", "mode.release")
+set_languages("c++20")
+add_requires("tiny.cpp")
+
+target("HelloWorld")
+    set_kind("binary")
+    add_files("**.cpp")
+    add_packages("tiny.cpp")
 ```
 
 ## 如何使用

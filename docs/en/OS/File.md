@@ -165,6 +165,67 @@ double size_in_mb = Tiny::OS::convertDataSize(1048576, Tiny::OS::DataUnit::MiB);
 // Returns: 1.0 (1048576 bytes = 1 MiB)
 ```
 
+### autoConvertDataSize Function
+
+```cpp
+inline long double autoConvertDataSize(size_t size, DataUnit& result_unit);
+```
+- **Function**: Automatically converts data size to the most appropriate unit
+- **Parameters**:
+  - `size` - Size value in bytes to convert
+  - `result_unit` - Reference to a `DataUnit` variable that will be set to the appropriate unit
+- **Return Value**: Converted value as `long double`
+- **Notes**: The function automatically selects the largest unit where the value is >= 1. If the size exceeds TiB range, it caps at TiB.
+- **Example**:
+```cpp
+Tiny::OS::DataUnit unit;
+long double value = Tiny::OS::autoConvertDataSize(1048576, unit);
+// Returns: 1.0, unit is set to DataUnit::MiB
+std::cout << "Size: " << value << " " << Tiny::OS::dataUnitName(unit) << std::endl;
+```
+
+### dataUnitName Function
+
+```cpp
+inline const char* dataUnitName(const DataUnit& data_unit);
+```
+- **Function**: Get the unit name string for a given `DataUnit`
+- **Parameter**: `data_unit` - `DataUnit` enum value
+- **Return Value**: Unit name string ("B", "KiB", "MiB", "GiB", "TiB"), or "NaN" for invalid values
+- **Example**:
+```cpp
+const char* name = Tiny::OS::dataUnitName(Tiny::OS::DataUnit::MiB);
+// Returns: "MiB"
+```
+
+### 4.5 Permission Enum
+
+```cpp
+enum Permission : uint8_t {
+    P_None,        // No permissions
+    P_Execute = 1, // Execute only
+    P_Write = 2,   // Write only
+    P_WriteExec = 3, // Write + Execute
+    P_Read = 4,    // Read only
+    P_ReadExec = 5,  // Read + Execute
+    P_ReadWrite = 6, // Read + Write
+    P_All = 7      // Read + Write + Execute
+};
+```
+
+| Enum Value | Value | Description |
+|------------|-------|-------------|
+| `P_None` | 0 | No permissions |
+| `P_Execute` | 1 | Execute permission only |
+| `P_Write` | 2 | Write permission only |
+| `P_WriteExec` | 3 | Write + Execute permissions |
+| `P_Read` | 4 | Read permission only |
+| `P_ReadExec` | 5 | Read + Execute permissions |
+| `P_ReadWrite` | 6 | Read + Write permissions |
+| `P_All` | 7 | Read + Write + Execute permissions |
+
+**Notes**: This enum uses bit flags where Read=4, Write=2, Execute=1. Values can be combined using bitwise OR operations.
+
 ---
 
 ## 5. Path Class
@@ -310,6 +371,60 @@ void unset();
 ```
 - **Function**: Get file size
 - **Return Value**: File size in bytes, 0 for directories
+
+#### lastAccessTime
+
+```cpp
+int64_t lastAccessTime() const;
+```
+- **Function**: Get the last access time of the file/directory
+- **Return Value**: Timestamp as `int64_t` (platform-specific format, typically Unix epoch or Windows FILETIME)
+- **Notes**: Returns 0 if the path is invalid or the time cannot be retrieved
+
+#### lastWriteTime
+
+```cpp
+int64_t lastWriteTime() const;
+```
+- **Function**: Get the last modification time of the file/directory
+- **Return Value**: Timestamp as `int64_t` (platform-specific format)
+- **Notes**: Returns 0 if the path is invalid or the time cannot be retrieved
+
+#### lastCreateTime
+
+```cpp
+int64_t lastCreateTime() const;
+```
+- **Function**: Get the creation time of the file/directory
+- **Return Value**: Timestamp as `int64_t` (platform-specific format)
+- **Notes**: Returns 0 if the path is invalid or the time cannot be retrieved. On some Unix systems, this may return the last metadata change time instead of creation time.
+
+#### userPermission
+
+```cpp
+Permission userPermission() const;
+```
+- **Function**: Get the file/directory permissions for the owner (user)
+- **Return Value**: `Permission` enum value
+- **Notes**: Returns `P_None` if the path is invalid or permissions cannot be retrieved
+
+#### groupPermission
+
+```cpp
+Permission groupPermission() const;
+```
+- **Function**: Get the file/directory permissions for the group
+- **Return Value**: `Permission` enum value
+- **Notes**: Returns `P_None` if the path is invalid or permissions cannot be retrieved
+
+#### otherPermission
+
+```cpp
+Permission otherPermission() const;
+```
+- **Function**: Get the file/directory permissions for others (everyone else)
+- **Return Value**: `Permission` enum value
+- **Notes**: Returns `P_None` if the path is invalid or permissions cannot be retrieved
 
 #### operator/
 

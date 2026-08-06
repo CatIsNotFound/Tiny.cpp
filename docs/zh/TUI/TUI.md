@@ -122,6 +122,26 @@ bool isPointInRect(const Position& point, Position& start_pos, Position& end_pos
   - `end_pos` - 矩形右下角
 - **返回值**: `true` 表示点在矩形内
 
+### 3.8 KEY_BACKSPACE
+
+```cpp
+constexpr bool KEY_BACKSPACE(uint8_t key);
+```
+- **功能**: 检查按键是否为退格键
+- **参数**: `key` - 按键码
+- **返回值**: `true` 表示是退格键（KEY_BK 或 KEY_DEL）
+- **说明**: constexpr 辅助函数，用于按键匹配
+
+### 3.9 KEY_ENTER
+
+```cpp
+constexpr bool KEY_ENTER(uint8_t key);
+```
+- **功能**: 检查按键是否为回车键
+- **参数**: `key` - 按键码
+- **返回值**: `true` 表示是回车键（KEY_CR 或 KEY_LF）
+- **说明**: constexpr 辅助函数，用于按键匹配
+
 ---
 
 ## 4. 数据结构

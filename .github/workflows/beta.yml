@@ -35,7 +35,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p ~/MyLibs/
-          cmake -B build -DCMAKE_INSTALL_PREFIX=~/MyLibs/Tiny.cpp -DCMAKE_BUILD_TYPE=Release -DTINY_USE_GPM=ON
+          cmake -B build -DCMAKE_INSTALL_PREFIX=~/MyLibs/Tiny.cpp -DCMAKE_BUILD_TYPE=Debug -DTINY_USE_GPM=ON
           if [ $? -ne 0 ]; then
               echo "* Failed to configure project!"
               exit 1
@@ -106,7 +106,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p ~/MyLibs/
-          cmake -B build -DCMAKE_INSTALL_PREFIX=~/MyLibs/Tiny.cpp -DCMAKE_BUILD_TYPE=Release
+          cmake -B build -DCMAKE_INSTALL_PREFIX=~/MyLibs/Tiny.cpp -DCMAKE_BUILD_TYPE=Debug
           if [ $? -ne 0 ]; then
               echo "* Failed to configure project!"
               exit 1
@@ -184,7 +184,7 @@ jobs:
               Write-Host "* Failed to configure project!"
               exit 1
           }
-          cmake --build build --target install --config Release -j8
+          cmake --build build --target install --config Debug -j8
           if ($LASTEXITCODE -ne 0) {
               Write-Host "* Failed to compile and install!"
               exit 1
@@ -264,7 +264,7 @@ jobs:
         shell: msys2 {0}
         run: |
           mkdir -p ~/MyLibs/
-          cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX="~/MyLibs/Tiny.cpp" -DCMAKE_BUILD_TYPE=Release
+          cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX="~/MyLibs/Tiny.cpp" -DCMAKE_BUILD_TYPE=Debug
           if [ $? -ne 0 ]; then
               echo "* Failed to configure project!"
               exit 1
@@ -328,7 +328,7 @@ jobs:
         shell: pwsh
         run: |
           $libDir = Join-Path $env:USERPROFILE "MyLibs"
-          $artifactName = "Tiny_cpp_v${{ steps.version.outputs.version }}_mingw_${{ matrix.tool_prefix }}_windows_${{ matrix.arch }}"
+          $artifactName = "Tiny_cpp_v${{ steps.version.outputs.version }}_${{ matrix.tool_prefix }}_windows_${{ matrix.arch }}"
           $dest = Join-Path $env:GITHUB_WORKSPACE "$artifactName.zip"
           Compress-Archive -Path (Join-Path $libDir "Tiny.cpp") -DestinationPath $dest
           echo "artifact_name=$artifactName" >> $env:GITHUB_OUTPUT
