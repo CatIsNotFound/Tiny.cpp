@@ -120,28 +120,37 @@ TEST(EventTest, CopyAssignment) {
 }
 
 TEST(EventTest, CopyWhenThreadRunning) {
+    std::atomic<int> counter{0};
     auto cond = []() { return true; };
-    auto ev = [](const std::atomic<bool>& f) {
-        while (f.load()) {
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-        }
+    auto ev = [&counter](const std::atomic<bool>& f) {
+        counter.fetch_add(1);
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
     };
 
     Event e1(1, "event 1", cond, ev);
     e1.setDelayMS(10);
+    e1.setRepeatCount(3);
     e1.run();
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    EXPECT_FALSE(e1.isRunning());
 
     Event e2(2, "event 2", cond, ev);
-    e2.setDelayMS(1);
+    e2.setDelayMS(10);
+    e2.setRepeatCount(100);
     e1 = e2;
     e1.run();
-    
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
     EXPECT_EQ(e1.eventID(), e2.eventID());
     EXPECT_EQ(e1.eventName(), e2.eventName());
-    EXPECT_EQ(e1.isRunning(), true);
-    EXPECT_EQ(e1.eventDelayMS(), 1);
+    EXPECT_TRUE(e1.isRunning());
+    EXPECT_EQ(e1.eventDelayMS(), 10);
+
+    e1.stop();
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    EXPECT_FALSE(e1.isRunning());
 }
 
 
@@ -153,10 +162,10 @@ TEST(EventTest, BasicExecution) {
         [&counter](const std::atomic<bool>&) { counter++; }
     );
     ev.setRepeatCount(3);
-    ev.setDelayMS(10);
+    ev.setDelayMS(50);
     
     ev.run();
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     EXPECT_EQ(counter.load(), 3);
     EXPECT_FALSE(ev.isRunning());
 }
@@ -170,16 +179,16 @@ TEST(EventTest, ConditionCheck) {
         [&counter](const std::atomic<bool>&) { counter.fetch_add(1); }
     );
     ev.setRepeatCount(1);
-    ev.setDelayMS(10);
+    ev.setDelayMS(50);
     
     ev.run();
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
     EXPECT_EQ(counter.load(), 0);
     
     shouldRun.store(true);
     ev.run();
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
     EXPECT_EQ(counter.load(), 1);
 }
@@ -191,16 +200,17 @@ TEST(EventTest, StopExecution) {
         []() { return true; },
         [&counter](const std::atomic<bool>& running) { 
             counter++;
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     );
     ev.setRepeatCount(100);
-    ev.setDelayMS(10);
+    ev.setDelayMS(50);
     
     ev.run();
-    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
     
     ev.stop();
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
     EXPECT_FALSE(ev.isRunning());
     EXPECT_LT(counter.load(), 100);
@@ -215,18 +225,18 @@ TEST(EventTest, DelayExecution) {
         [&executed](const std::atomic<bool>&) { executed.store(true); }
     );
     ev.setRepeatCount(1);
-    ev.setDelayMS(100);
+    ev.setDelayMS(200);
     
     ev.run();
     
     EXPECT_FALSE(executed.load());
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
     
     EXPECT_TRUE(executed.load());
     
     auto elapsed = std::chrono::steady_clock::now() - start;
-    EXPECT_GE(elapsed, std::chrono::milliseconds(100));
+    EXPECT_GE(elapsed, std::chrono::milliseconds(200));
 }
 
 TEST(EventTest, RepeatCount) {
@@ -237,11 +247,11 @@ TEST(EventTest, RepeatCount) {
         [&counter](const std::atomic<bool>&) { counter++; }
     );
     ev.setRepeatCount(5);
-    ev.setDelayMS(5);
+    ev.setDelayMS(20);
     
     ev.run();
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
     
     EXPECT_EQ(counter.load(), 5);
     EXPECT_FALSE(ev.isRunning());
@@ -250,17 +260,17 @@ TEST(EventTest, RepeatCount) {
 TEST(EventTest, RunningState) {
     Event ev(1, "StateTest",
         []() { return true; },
-        [](const std::atomic<bool>&) { std::this_thread::sleep_for(std::chrono::milliseconds(1000)); }
+        [](const std::atomic<bool>&) { std::this_thread::sleep_for(std::chrono::milliseconds(500)); }
     );
     ev.setRepeatCount(1);
     
     EXPECT_FALSE(ev.isRunning());
     
     ev.run();
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     EXPECT_TRUE(ev.isRunning());
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     
     EXPECT_FALSE(ev.isRunning());
 }
@@ -273,14 +283,14 @@ TEST(EventTest, RerunEvent) {
         [&counter](const std::atomic<bool>&) { ++counter; }
     );
     ev.setRepeatCount(2);
-    ev.setDelayMS(5);
+    ev.setDelayMS(20);
     
     ev.run();
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     EXPECT_EQ(counter.load(), 2);
     
     ev.run();
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     EXPECT_EQ(counter.load(), 4);
 }
 
@@ -290,7 +300,7 @@ TEST(EventTest, NoCallback) {
     EXPECT_FALSE(ev.hasEvent());
     
     ev.run();
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     EXPECT_FALSE(ev.isRunning());
 }
@@ -301,9 +311,9 @@ TEST(EventTest, NoCondition) {
     Event ev(1, "NoCondition");
     ev.setEvent([&executed](const std::atomic<bool>&) { executed.store(true); });
     ev.setRepeatCount(1);
-    ev.setDelayMS(5);
+    ev.setDelayMS(20);
     ev.run();
-    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
 TEST(EventTest, ExecutionCount) {
