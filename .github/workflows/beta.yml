@@ -288,6 +288,7 @@ jobs:
               "America/New_York" = "Eastern Standard Time"
               "America/Chicago" = "Central Standard Time"
               "America/Denver" = "Mountain Standard Time"
+              "America/Phoenix" = "Eastern Standard Time"
               "America/Los_Angeles" = "Pacific Standard Time"
               "Europe/London" = "GMT Standard Time"
               "Europe/Paris" = "Romance Standard Time"
