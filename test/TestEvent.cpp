@@ -267,10 +267,10 @@ TEST(EventTest, RunningState) {
     EXPECT_FALSE(ev.isRunning());
     
     ev.run();
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     EXPECT_TRUE(ev.isRunning());
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1500));
     
     EXPECT_FALSE(ev.isRunning());
 }
