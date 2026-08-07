@@ -199,7 +199,7 @@ jobs:
       - name: Test for project
         shell: pwsh
         run: |
-          cd build\gtest
+          cd build\bin\gtests
           $exes = Get-ChildItem -Filter *.exe
           foreach ($exe in $exes) {
               & $exe.FullName
