@@ -242,11 +242,11 @@ jobs:
             pkg_prefix: mingw-w64-x86_64
             tool_prefix: mingw64
             runner: windows-2022
-         - arch: arm64
-           msystem: CLANGARM64
-           pkg_prefix: mingw-w64-clang-aarch64
-           tool_prefix: clangarm64
-           runner: windows-11-arm
+          - arch: arm64
+            msystem: CLANGARM64
+            pkg_prefix: mingw-w64-clang-aarch64
+            tool_prefix: clangarm64
+            runner: windows-11-arm
 
     steps:
       - name: pull project
