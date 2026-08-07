@@ -1,4 +1,4 @@
-﻿/*************************************************************************************
+/*************************************************************************************
  * MIT License                                                                       *
  *                                                                                   *
  * Copyright (c) 2026 CatIsNotFound                                                  *
@@ -39,6 +39,7 @@ static bool is_include(const std::string& temp) {
 }
 
 static void strip(std::string &str) {
+    if (str.empty()) return;
     size_t st = 0;
     while (st < str.size()) {
         if (!is_space(str[st])) break;
@@ -93,6 +94,7 @@ static void parseString(std::string& str) {
     do {
         pos = str.find('\\', st_pos);
         if (pos == std::string::npos) break;
+        if (pos + 1 >= str.length()) break;
         auto temp = str.substr(pos, 2);
         char ch{};
         switch (temp[1]) {
