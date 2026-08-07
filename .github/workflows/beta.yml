@@ -180,12 +180,29 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: ${{ matrix.cmake_arch }}
+
+      - name: Compile and install google test
+        shell: pwsh
+        run: |
+          cd test/libs/gtest
+          git pull
+          cmake -B build
+          if ($LASTEXITCODE -ne 0) {
+              Write-Host "* Failed to configure project!"
+              exit 1
+          }
+          cmake --build build --config Release --target install -j8
+          if ($LASTEXITCODE -ne 0) {
+              Write-Host "* Failed to compile and install!"
+              exit 1
+          }
+
           
       - name: Compiling project
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\MyLibs"
-          cmake -B build -A ${{ matrix.cmake_arch }} -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp" -DTINY_GTEST_SRC=ON
+          cmake -B build -A ${{ matrix.cmake_arch }} -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp" -DTINY_GTEST_SRC=OFF
           if ($LASTEXITCODE -ne 0) {
               Write-Host "* Failed to configure project!"
               exit 1
