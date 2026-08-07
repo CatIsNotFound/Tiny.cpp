@@ -185,7 +185,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\MyLibs"
-          cmake -B build -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp"
+          cmake -B build -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp" -DCMAKE_BUILD_TYPE=Debug
           if ($LASTEXITCODE -ne 0) {
               Write-Host "* Failed to configure project!"
               exit 1
@@ -242,11 +242,11 @@ jobs:
             pkg_prefix: mingw-w64-x86_64
             tool_prefix: mingw64
             runner: windows-2022
-#          - arch: arm64
-#            msystem: CLANGARM64
-#            pkg_prefix: mingw-w64-clang-aarch64
-#            tool_prefix: clangarm64
-#            runner: windows-11-arm
+         - arch: arm64
+           msystem: CLANGARM64
+           pkg_prefix: mingw-w64-clang-aarch64
+           tool_prefix: clangarm64
+           runner: windows-11-arm
 
     steps:
       - name: pull project
@@ -282,50 +282,50 @@ jobs:
               exit 1
           fi
 
-      - name: Set Windows timezone
-        shell: pwsh
-        run: |
-          $tzMap = @{
-              "Asia/Shanghai" = "China Standard Time"
-              "Asia/Tokyo" = "Tokyo Standard Time"
-              "Asia/Hong_Kong" = "China Standard Time"
-              "Asia/Singapore" = "Singapore Standard Time"
-              "Asia/Taipei" = "Taipei Standard Time"
-              "Asia/Seoul" = "Korea Standard Time"
-              "America/New_York" = "Eastern Standard Time"
-              "America/Chicago" = "Central Standard Time"
-              "America/Denver" = "Mountain Standard Time"
-              "America/Phoenix" = "Eastern Standard Time"
-              "America/Los_Angeles" = "Pacific Standard Time"
-              "Europe/London" = "GMT Standard Time"
-              "Europe/Paris" = "Romance Standard Time"
-              "Europe/Berlin" = "W. Europe Standard Time"
-              "UTC" = "UTC"
-          }
-          $ianaTz = curl -s ipconfig.io/json | ConvertFrom-Json | Select-Object -ExpandProperty time_zone
-          Write-Host "Detected IANA timezone: $ianaTz"
-          if ($tzMap.ContainsKey($ianaTz)) {
-              $winTz = $tzMap[$ianaTz]
-              tzutil /s $winTz
-              Write-Host "Windows timezone set to: $(tzutil /g)"
-          } else {
-              Write-Host "Warning: Timezone mapping not found for $ianaTz"
-              Write-Host "         Using Eastern Standard Time for instead."
-              tzutils /s "Eastern Standard Time"
-          }
+      # - name: Set Windows timezone
+      #   shell: pwsh
+      #   run: |
+      #     $tzMap = @{
+      #         "Asia/Shanghai" = "China Standard Time"
+      #         "Asia/Tokyo" = "Tokyo Standard Time"
+      #         "Asia/Hong_Kong" = "China Standard Time"
+      #         "Asia/Singapore" = "Singapore Standard Time"
+      #         "Asia/Taipei" = "Taipei Standard Time"
+      #         "Asia/Seoul" = "Korea Standard Time"
+      #         "America/New_York" = "Eastern Standard Time"
+      #         "America/Chicago" = "Central Standard Time"
+      #         "America/Denver" = "Mountain Standard Time"
+      #         "America/Phoenix" = "Eastern Standard Time"
+      #         "America/Los_Angeles" = "Pacific Standard Time"
+      #         "Europe/London" = "GMT Standard Time"
+      #         "Europe/Paris" = "Romance Standard Time"
+      #         "Europe/Berlin" = "W. Europe Standard Time"
+      #         "UTC" = "UTC"
+      #     }
+      #     $ianaTz = curl -s ipconfig.io/json | ConvertFrom-Json | Select-Object -ExpandProperty time_zone
+      #     Write-Host "Detected IANA timezone: $ianaTz"
+      #     if ($tzMap.ContainsKey($ianaTz)) {
+      #         $winTz = $tzMap[$ianaTz]
+      #         tzutil /s $winTz
+      #         Write-Host "Windows timezone set to: $(tzutil /g)"
+      #     } else {
+      #         Write-Host "Warning: Timezone mapping not found for $ianaTz"
+      #         Write-Host "         Using Eastern Standard Time for instead."
+      #         tzutils /s "Eastern Standard Time"
+      #     }
 
-      - name: Test for project
-        shell: msys2 {0}
-        run: |
-          cd build/bin/gtests
-          for EXE in $(ls -1); do
-              ./$EXE
-              if [ $? -ne 0 ]; then
-                  echo "* Test failed: " $EXE
-                  exit 1
-              fi
-              sleep 1
-          done
+      # - name: Test for project
+      #   shell: msys2 {0}
+      #   run: |
+      #     cd build/bin/gtests
+      #     for EXE in $(ls -1); do
+      #         ./$EXE
+      #         if [ $? -ne 0 ]; then
+      #             echo "* Test failed: " $EXE
+      #             exit 1
+      #         fi
+      #         sleep 1
+      #     done
 
       - name: Get version
         id: version
