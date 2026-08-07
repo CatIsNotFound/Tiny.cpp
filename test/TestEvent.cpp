@@ -191,15 +191,16 @@ TEST(EventTest, ConditionCheck) {
     );
     ev.setRepeatCount(1);
     ev.setDelayMS(50);
+    ev.setAllowedFailedEnabled(false);
     
     ev.run();
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    WaitFor([&] { return !ev.isRunning(); }, std::chrono::milliseconds(5000));
     
     EXPECT_EQ(counter.load(), 0);
     
     shouldRun.store(true);
     ev.run();
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    WaitFor([&] { return !ev.isRunning(); }, std::chrono::milliseconds(5000));
     
     EXPECT_EQ(counter.load(), 1);
 }
