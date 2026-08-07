@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.2.0] - 2026-08-07
+## [1.2.0] - 2026-08-08
 
 **🎉 The Tiny.cpp project now supports building with XMake.**
 
@@ -36,7 +36,7 @@
 
 ---
 
-## [1.2.0] - 2026-08-07
+## [1.2.0] - 2026-08-08
 
 **🎉 Tiny.cpp 项目现已支持使用 XMake 构建**
 
