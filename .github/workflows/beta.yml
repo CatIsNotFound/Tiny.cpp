@@ -29,7 +29,7 @@ jobs:
         shell: bash
         run: |
           sudo apt update
-          sudo apt install -y build-essential git cmake make ninja-build libgpm-dev gpm googletest
+          sudo apt install -y build-essential git cmake make ninja-build libgpm-dev gpm googletest libgtest-dev libgmock-dev
 
       - name: Compiling project
         shell: bash
@@ -166,9 +166,11 @@ jobs:
           - arch: x86_64
             cmake_arch: x64
             runner: windows-2022
+            package-arch: x64-windows
           - arch: arm64
             cmake_arch: ARM64
             runner: windows-11-arm
+            package-arch: arm64-windows
 
     steps:
       - name: pull project
@@ -178,19 +180,12 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: ${{ matrix.cmake_arch }}
-
-      - name: Install requirements
-        shell: pwsh
-        run: |
-          git clone --depth 1 https://github.com/microsoft/vcpkg.git C:\vcpkg
-          C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics
-          C:\vcpkg\vcpkg install gtest
-
+          
       - name: Compiling project
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\MyLibs"
-          cmake -B build -A ${{ matrix.cmake_arch }} -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp" -DTINY_GTEST_SRC=OFF
+          cmake -B build -A ${{ matrix.cmake_arch }} -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp" -DTINY_GTEST_SRC=ON
           if ($LASTEXITCODE -ne 0) {
               Write-Host "* Failed to configure project!"
               exit 1
