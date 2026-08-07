@@ -32,7 +32,7 @@
 - **CI/CD**: Upgraded build workflow (`beta.yml`) to support multi-architecture builds:
   - Linux: Added matrix strategy for x86_64 (`ubuntu-latest`) and arm64 (`ubuntu-24.04-arm`).
   - macOS: Added matrix strategy for x86_64 (`macos-15-intel`) and arm64 (`macos-latest`).
-  - Windows: Split into MSVC (`env-windows-msvc`) and MinGW/MSYS2 (`env-windows-mingw`) jobs, each with x86_64 and arm64 matrix builds.
+  - Windows: Split into MSVC (`env-windows-msvc`) and MinGW/MSYS2 (`env-windows-mingw`) jobs.
 
 ---
 
@@ -68,4 +68,4 @@
 - **CI/CD**: 升级构建工作流（`beta.yml`），支持多架构构建：
   - Linux：新增矩阵策略，支持 x86_64（`ubuntu-latest`）和 arm64（`ubuntu-24.04-arm`）。
   - macOS：新增矩阵策略，支持 x86_64（`macos-15-intel`）和 arm64（`macos-latest`）。
-  - Windows：拆分为 MSVC（`env-windows-msvc`）和 MinGW/MSYS2（`env-windows-mingw`）两个任务，均支持 x86_64 和 arm64 矩阵构建。
+  - Windows：拆分为 MSVC（`env-windows-msvc`）和 MinGW/MSYS2（`env-windows-mingw`）两个任务。
