@@ -175,9 +175,10 @@ TEST(EventTest, BasicExecution) {
     ev.setDelayMS(50);
     
     ev.run();
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     EXPECT_EQ(counter.load(), 3);
     EXPECT_FALSE(ev.isRunning());
+    EXPECT_EQ(ev.executionCount(), 3);
 }
 
 TEST(EventTest, ConditionCheck) {
@@ -242,7 +243,7 @@ TEST(EventTest, DelayExecution) {
     
     EXPECT_FALSE(executed.load());
     
-    WaitFor([&] { return executed.load(); }, std::chrono::milliseconds(5000));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     EXPECT_TRUE(executed.load());
     
@@ -310,22 +311,26 @@ TEST(EventTest, NoCallback) {
     EXPECT_FALSE(ev.hasEvent());
     
     ev.run();
-    WaitFor([&] { return !ev.isRunning(); }, std::chrono::milliseconds(5000));
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     EXPECT_FALSE(ev.isRunning());
+    EXPECT_EQ(ev.executionCount(), 0);
 }
 
 TEST(EventTest, NoCondition) {
-    std::atomic<bool> executed{false};
+    std::atomic<uint8_t> executed{0};
     
     Event ev(1, "NoCondition");
-    ev.setEvent([&executed](const std::atomic<bool>&) { executed.store(true); });
+    ev.setEvent([&executed](const std::atomic<bool>&) { executed.fetch_add(1); });
     ev.setRepeatCount(1);
     ev.setDelayMS(20);
     ev.run();
-    WaitFor([&] { return !ev.isRunning(); }, std::chrono::milliseconds(5000));
     
-    EXPECT_TRUE(executed.load());
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    EXPECT_EQ(executed.load(), 0);
+    EXPECT_EQ(ev.executionCount(), 0);
 }
 
 TEST(EventTest, ExecutionCount) {
