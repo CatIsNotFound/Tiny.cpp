@@ -31,7 +31,6 @@
 
 using namespace Tiny;
 
-// 辅助函数：轮询等待条件满足或超时
 template<typename Pred>
 bool WaitFor(Pred pred, std::chrono::milliseconds timeout,
              std::chrono::milliseconds pollInterval = std::chrono::milliseconds(10)) {
@@ -243,7 +242,7 @@ TEST(EventTest, DelayExecution) {
     
     EXPECT_FALSE(executed.load());
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    WaitFor([&] { return executed.load(); }, std::chrono::milliseconds(5000));
     
     EXPECT_TRUE(executed.load());
     
@@ -279,11 +278,10 @@ TEST(EventTest, RunningState) {
     EXPECT_FALSE(ev.isRunning());
     
     ev.run();
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    WaitFor([&] { return ev.isRunning(); }, std::chrono::milliseconds(5000));
     EXPECT_TRUE(ev.isRunning());
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(1500));
-    
+    WaitFor([&] { return !ev.isRunning(); }, std::chrono::milliseconds(5000));
     EXPECT_FALSE(ev.isRunning());
 }
 
@@ -312,7 +310,7 @@ TEST(EventTest, NoCallback) {
     EXPECT_FALSE(ev.hasEvent());
     
     ev.run();
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    WaitFor([&] { return !ev.isRunning(); }, std::chrono::milliseconds(5000));
     
     EXPECT_FALSE(ev.isRunning());
 }
@@ -325,7 +323,9 @@ TEST(EventTest, NoCondition) {
     ev.setRepeatCount(1);
     ev.setDelayMS(20);
     ev.run();
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    WaitFor([&] { return !ev.isRunning(); }, std::chrono::milliseconds(5000));
+    
+    EXPECT_TRUE(executed.load());
 }
 
 TEST(EventTest, ExecutionCount) {
@@ -341,7 +341,7 @@ TEST(EventTest, ExecutionCount) {
     EXPECT_EQ(ev.executionCount(), 0);
 
     ev.run();
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    WaitFor([&] { return !ev.isRunning(); }, std::chrono::milliseconds(5000));
 
     EXPECT_EQ(ev.executionCount(), 3u);
     EXPECT_EQ(counter.load(), 3);
