@@ -184,6 +184,7 @@ jobs:
       - name: Compile and install google test
         shell: pwsh
         run: |
+          git submodule update --init test/libs/gtest
           cd test/libs/gtest
           git pull
           cmake -B build
