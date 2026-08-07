@@ -29,13 +29,15 @@ jobs:
         shell: bash
         run: |
           sudo apt update
-          sudo apt install -y build-essential git cmake make ninja-build libgpm-dev gpm
+          sudo apt install -y build-essential git cmake make ninja-build libgpm-dev gpm googletest
 
       - name: Compiling project
         shell: bash
         run: |
           mkdir -p ~/MyLibs/
-          cmake -B build -DCMAKE_INSTALL_PREFIX=~/MyLibs/Tiny.cpp -DCMAKE_BUILD_TYPE=Debug -DTINY_USE_GPM=ON
+          cmake -B build -DCMAKE_INSTALL_PREFIX=~/MyLibs/Tiny.cpp \
+                         -DCMAKE_BUILD_TYPE=Debug -DTINY_USE_GPM=ON \
+                         -DTINY_GTEST_SRC=OFF
           if [ $? -ne 0 ]; then
               echo "* Failed to configure project!"
               exit 1
@@ -101,13 +103,13 @@ jobs:
       - name: Install requirements
         shell: bash
         run: |
-          brew install cmake ninja
+          brew install cmake ninja googletest
 
       - name: Compiling project
         shell: bash
         run: |
           mkdir -p ~/MyLibs/
-          cmake -B build -DCMAKE_INSTALL_PREFIX=~/MyLibs/Tiny.cpp -DCMAKE_BUILD_TYPE=Debug
+          cmake -B build -DCMAKE_INSTALL_PREFIX=~/MyLibs/Tiny.cpp -DCMAKE_BUILD_TYPE=Debug -DTINY_GTEST_SRC=OFF
           if [ $? -ne 0 ]; then
               echo "* Failed to configure project!"
               exit 1
@@ -177,11 +179,18 @@ jobs:
         with:
           arch: ${{ matrix.cmake_arch }}
 
+      - name: Install requirements
+        shell: pwsh
+        run: |
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git C:\vcpkg
+          C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+          C:\vcpkg\vcpkg install gtest
+
       - name: Compiling project
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\MyLibs"
-          cmake -B build -A ${{ matrix.cmake_arch }} -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp"
+          cmake -B build -A ${{ matrix.cmake_arch }} -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp" -DTINY_GTEST_SRC=OFF
           if ($LASTEXITCODE -ne 0) {
               Write-Host "* Failed to configure project!"
               exit 1
@@ -195,7 +204,7 @@ jobs:
       - name: Test for project
         shell: pwsh
         run: |
-          cd build\test
+          cd build\test\Debug
           $exes = Get-ChildItem -Filter *.exe
           foreach ($exe in $exes) {
               & $exe.FullName
@@ -259,6 +268,7 @@ jobs:
             ${{ matrix.pkg_prefix }}-ninja
             ${{ matrix.pkg_prefix }}-pkg-config
             ${{ matrix.pkg_prefix }}-catch
+            ${{ matrix.pkg_prefix }}-gtest
             git
             make
 
@@ -266,7 +276,7 @@ jobs:
         shell: msys2 {0}
         run: |
           mkdir -p ~/MyLibs/
-          cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX="~/MyLibs/Tiny.cpp" -DCMAKE_BUILD_TYPE=Debug
+          cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX="~/MyLibs/Tiny.cpp" -DCMAKE_BUILD_TYPE=Debug -DTINY_GTEST_SRC=OFF
           if [ $? -ne 0 ]; then
               echo "* Failed to configure project!"
               exit 1
