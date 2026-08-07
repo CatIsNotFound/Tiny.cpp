@@ -31,6 +31,17 @@
 
 using namespace Tiny;
 
+// 辅助函数：轮询等待条件满足或超时
+template<typename Pred>
+bool WaitFor(Pred pred, std::chrono::milliseconds timeout,
+             std::chrono::milliseconds pollInterval = std::chrono::milliseconds(10)) {
+    auto start = std::chrono::steady_clock::now();
+    while (!pred() && std::chrono::steady_clock::now() - start < timeout) {
+        std::this_thread::sleep_for(pollInterval);
+    }
+    return pred();
+}
+
 TEST(EventTest, BasicConstruction) {
     Event ev(1, "TestEvent");
     EXPECT_EQ(ev.eventID(), 1);
@@ -132,7 +143,7 @@ TEST(EventTest, CopyWhenThreadRunning) {
     e1.setRepeatCount(3);
     e1.run();
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    WaitFor([&] { return !e1.isRunning(); }, std::chrono::milliseconds(5000));
     EXPECT_FALSE(e1.isRunning());
 
     Event e2(2, "event 2", cond, ev);
@@ -141,7 +152,7 @@ TEST(EventTest, CopyWhenThreadRunning) {
     e1 = e2;
     e1.run();
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    WaitFor([&] { return counter.load() >= 5; }, std::chrono::milliseconds(5000));
 
     EXPECT_EQ(e1.eventID(), e2.eventID());
     EXPECT_EQ(e1.eventName(), e2.eventName());
@@ -149,7 +160,7 @@ TEST(EventTest, CopyWhenThreadRunning) {
     EXPECT_EQ(e1.eventDelayMS(), 10);
 
     e1.stop();
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    WaitFor([&] { return !e1.isRunning(); }, std::chrono::milliseconds(5000));
     EXPECT_FALSE(e1.isRunning());
 }
 
@@ -251,7 +262,7 @@ TEST(EventTest, RepeatCount) {
     
     ev.run();
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    WaitFor([&] { return !ev.isRunning(); }, std::chrono::milliseconds(5000));
     
     EXPECT_EQ(counter.load(), 5);
     EXPECT_FALSE(ev.isRunning());
@@ -286,11 +297,11 @@ TEST(EventTest, RerunEvent) {
     ev.setDelayMS(20);
     
     ev.run();
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    WaitFor([&] { return !ev.isRunning(); }, std::chrono::milliseconds(5000));
     EXPECT_EQ(counter.load(), 2);
     
     ev.run();
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    WaitFor([&] { return !ev.isRunning(); }, std::chrono::milliseconds(5000));
     EXPECT_EQ(counter.load(), 4);
 }
 

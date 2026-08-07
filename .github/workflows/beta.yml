@@ -55,11 +55,11 @@ jobs:
           sudo ln -sf /usr/share/zoneinfo/$TIMEZONE /etc/localtime
           for EXE in $(ls -1); do
               ./$EXE
-              sleep 1
               if [ $? -ne 0 ]; then
                   echo "* Test failed: " $EXE
                   exit 1
               fi
+              sleep 1
           done
 
       - name: Get version
@@ -127,11 +127,11 @@ jobs:
           sudo ln -s /usr/share/zoneinfo/$TIMEZONE /etc/localtime
           for EXE in $(ls -1); do
               ./$EXE
-              sleep 1
               if [ $? -ne 0 ]; then
                   echo "* Test failed: " $EXE
                   exit 1
               fi
+              sleep 1
           done
 
       - name: Get version
@@ -305,6 +305,8 @@ jobs:
               Write-Host "Windows timezone set to: $(tzutil /g)"
           } else {
               Write-Host "Warning: Timezone mapping not found for $ianaTz"
+              Write-Host "         Using Eastern Standard Time for instead."
+              tzutils /s "Eastern Standard Time"
           }
 
       - name: Test for project
@@ -313,7 +315,6 @@ jobs:
           cd build/bin/gtests
           for EXE in $(ls -1); do
               ./$EXE
-              sleep 1
               if [ $? -ne 0 ]; then
                   echo "* Test failed: " $EXE
                   exit 1

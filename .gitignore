@@ -3,6 +3,7 @@
 .idea*
 .vs*
 .xmake*
+.p*
 a
 build*
 cmake-*
