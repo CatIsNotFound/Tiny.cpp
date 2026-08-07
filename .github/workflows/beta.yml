@@ -187,7 +187,7 @@ jobs:
           git submodule update --init test/libs/gtest
           cd test/libs/gtest
           git pull
-          cmake -B build -DCMAKE_INSTALL_PREFIX="./install"
+          cmake -B build -DCMAKE_INSTALL_PREFIX="./install" -DCMAKE_BUILD_TYPE=Debug
           if ($LASTEXITCODE -ne 0) {
               Write-Host "* Failed to configure project!"
               exit 1
