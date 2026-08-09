@@ -35,6 +35,10 @@ addModule(Dialog MY_MODULE
         Dialog/MyUI.hpp
 )
 
+addModule(du  MY_MODULE
+        du/du.cpp
+)
+
 #########################################################################################
 
 foreach (MODULE IN ITEMS ${MY_MODULE})

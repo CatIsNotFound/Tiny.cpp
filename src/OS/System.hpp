@@ -41,12 +41,14 @@ namespace Tiny {
         constexpr const char* Name("linux");
 #elif defined(__APPLE__)
         constexpr const char* Name("apple");
-#elif defined(__unix__)
-        constexpr const char* Name("unix");
+#elif defined(__FreeBSD__)
+        constexpr const char* Name(“FreeBSD”);
 #elif defined(__android__)
         constexpr const char* Name("android");
 #elif __OHOS__
         return "openHarmony";
+#elif defined(__unix__)
+        constexpr const char* Name("unix");
 #else
         constexpr const char* Name("unknown");
 #endif
