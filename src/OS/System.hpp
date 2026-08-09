@@ -42,7 +42,7 @@ namespace Tiny {
 #elif defined(__APPLE__)
         constexpr const char* Name("apple");
 #elif defined(__FreeBSD__)
-        constexpr const char* Name(“FreeBSD”);
+        constexpr const char* Name("FreeBSD");
 #elif defined(__android__)
         constexpr const char* Name("android");
 #elif __OHOS__
