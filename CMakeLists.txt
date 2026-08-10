@@ -62,6 +62,8 @@ add_library(${PROJECT_NAME} STATIC
 # Link Windows libraries
 if(WIN32)
     target_link_libraries(${PROJECT_NAME} PRIVATE pdh advapi32 ws2_32)
+else()
+    target_link_libraries(${PROJECT_NAME} PRIVATE pthread)
 endif()
 
 # Link Linux libraries

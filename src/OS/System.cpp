@@ -25,6 +25,7 @@
 
 #include "System.hpp"
 
+#include <stdexcept>
 #include <thread>
 
 #ifdef TINY_CPP_MY_OS_WINDOWS
@@ -49,8 +50,10 @@
 #include <mach/host_info.h>
 #include <mach/mach_host.h>
 #include <mach/processor_info.h>
-#else
+#elif defined(__linux__)
 #include <sys/sysinfo.h>
+#elif defined(__FreeBSD__)
+#include <sys/sysctl.h>
 #endif
 #endif
 
@@ -246,7 +249,6 @@ namespace Tiny {
                 if (buf.find("PRETTY_NAME=") != std::string::npos) {
                     info.os_name = buf.substr(13);
                     info.os_name.pop_back();
-                    info.os_name.pop_back();
                     break;
                 }
                 if (buf.empty()) break;
@@ -371,7 +373,7 @@ namespace Tiny {
 #elif defined(__linux__)
         info.cores = get_nprocs();
         info.usages.resize(info.cores);
-        std::function<std::vector<CPU_Stat>()> getCPUStat = [&info, &ret] {
+        static std::function<std::vector<CPU_Stat>()> getCPUStat = [&info, &ret] {
             std::vector<CPU_Stat> output_list;
             File cpu_stat("/proc/stat");
             if (cpu_stat.open(OpenMode::ReadOnly)) {
@@ -379,15 +381,15 @@ namespace Tiny {
                 size_t i = 0;
                 do {
                     line = cpu_stat.readLine();
-                    auto pos = line.find_first_of("cpu"); 
+                    auto pos = line.find_first_of("cpu");
                     if (pos != std::string::npos) {
                         std::istringstream iss(line);
                         std::string cpu_name;
                         CPU_Stat stat;
-                        iss >> cpu_name >> stat.user >> stat.nice >> stat.system 
+                        iss >> cpu_name >> stat.user >> stat.nice >> stat.system
                             >> stat.idle >> stat.iowait >> stat.irq >> stat.softirq;
                         if (i <= info.cores) {
-                            output_list.push_back(stat);    
+                            output_list.push_back(stat);
                         } else {
                             break;
                         }
@@ -409,11 +411,54 @@ namespace Tiny {
             auto d_total = next[i].total() - prev[i].total();
             auto d_busy = next[i].busy() - prev[i].busy();
             if (i == 0) {
-                info.total_usage = static_cast<double>(d_busy) / static_cast<double>(d_total) * 100.f; 
+                info.total_usage = static_cast<double>(d_busy) / static_cast<double>(d_total) * 100.f;
             } else {
-                info.usages[i - 1] = static_cast<double>(d_busy) / static_cast<double>(d_total) * 100.f; 
+                info.usages[i - 1] = static_cast<double>(d_busy) / static_cast<double>(d_total) * 100.f;
             }
         }
+#elif defined(__FreeBSD__)
+        size_t u32_sz = sizeof(uint32_t);
+        sysctlbyname("hw.ncpu", &info.cores, &u32_sz, nullptr, 0);
+        sysctlbyname("hw.pagesize", &info.page_size, &u32_sz, nullptr, 0);
+        std::vector<size_t> value, sum_value;
+        size_t val_sz = 0, sum_sz = 0;
+        if (sysctlbyname("kern.cp_times", nullptr, &val_sz, nullptr, 0) == -1 ||
+            sysctlbyname("kern.cp_time", nullptr, &sum_sz, nullptr, 0) == -1) {
+            return false;
+        }
+        value.resize(val_sz / sizeof(size_t));
+        sum_value.resize(sum_sz / sizeof(size_t));
+        info.usages.resize(info.cores);
+
+        static std::function<std::vector<CPU_Stat>(const std::vector<size_t>, uint32_t)> calcTicks =
+                [&](const std::vector<size_t> value, uint32_t ncpu) {
+            std::vector<CPU_Stat> result;
+            result.resize(ncpu);
+            for (size_t i = 0; i < ncpu; ++i) {
+                result[i].user = value[i * 5];
+                result[i].nice = value[i * 5 + 1];
+                result[i].system = value[i * 5 + 2];
+                result[i].irq = value[i * 5 + 3];
+                result[i].idle = value[i * 5 + 4];
+            }
+            return result;
+        };
+
+        sysctlbyname("kern.cp_times", &value[0], &val_sz, nullptr, 0);
+        sysctlbyname("kern.cp_time", &sum_value[0], &sum_sz, nullptr, 0);
+        auto prev = calcTicks(value, info.cores);
+        auto sum_prev = calcTicks(sum_value, 1);
+        std::this_thread::sleep_for(std::chrono::milliseconds(internal));
+        sysctlbyname("kern.cp_times", &value[0], &val_sz, nullptr, 0);
+        sysctlbyname("kern.cp_time", &sum_value[0], &sum_sz, nullptr, 0);
+        auto next = calcTicks(value, info.cores);
+        auto sum_next = calcTicks(sum_value, 1);
+        for (size_t i = 0; i < info.cores; ++i) {
+            info.usages[i] = static_cast<double>(next[i].busy() - prev[i].busy()) /
+                             static_cast<double>(next[i].total() - prev[i].total()) * 100.f;
+        }
+        info.total_usage = static_cast<double>(sum_next.front().busy() - sum_prev.front().busy()) /
+                           static_cast<double>(sum_next.front().total() - sum_prev.front().total()) * 100.f;
 #endif
         info.page_size = sysconf(_SC_PAGE_SIZE);
 #endif
@@ -435,7 +480,7 @@ namespace Tiny {
         memory.free_swap = mem_info_ex.ullAvailPageFile;
 #elif defined(TINY_CPP_MY_OS_UNIX)
 #ifdef __APPLE__
-        // TODO: 
+        // TODO:
         vm_size_t page_size = 0;
         host_page_size(mach_host_self(), &page_size);
         memory.total_ram = page_size * sysconf(_SC_PHYS_PAGES);
@@ -474,17 +519,17 @@ namespace Tiny {
         struct xsw_usage xsw{};
         size_t len = sizeof(xsw);
         sysctlbyname("vm.swapusage", &xsw, &len, nullptr, 0);
-        memory.total_swap = xsw.xsu_total; 
-        memory.free_swap = xsw.xsu_avail;  
+        memory.total_swap = xsw.xsu_total;
+        memory.free_swap = xsw.xsu_avail;
 
-#else
+#elif defined(__linux__)
         File mem_info("/proc/meminfo", OpenMode::ReadOnly);
         if (mem_info.isOpen()) {
             size_t cnt = 0;
             while (true) {
                 auto line = mem_info.readLine();
                 bool is_valid = false;
-                is_valid = (line.find("MemTotal") != std::string::npos) || 
+                is_valid = (line.find("MemTotal") != std::string::npos) ||
                             (line.find("MemFree") != std::string::npos) ||
                             (line.find("MemAvailable") != std::string::npos) ||
                             (line.find("SwapTotal") != std::string::npos) ||
@@ -513,6 +558,20 @@ namespace Tiny {
         } else {
             ret = false;
         }
+#elif defined(__FreeBSD__)
+        size_t sz = sizeof(size_t);
+        size_t page_size{};
+        size_t total_pages{}, free_pages{}, inactive_pages{}, cache_pages{}, wired_pages{};
+        sysctlbyname("vm.stats.vm.v_page_size", &page_size, &sz, nullptr, 0);
+        sysctlbyname("vm.stats.vm.v_page_count", &total_pages, &sz, nullptr, 0);
+        sysctlbyname("vm.stats.vm.v_free_count", &free_pages, &sz, nullptr, 0);
+        sysctlbyname("vm.stats.vm.v_inactive_count", &inactive_pages, &sz, nullptr, 0);
+        sysctlbyname("vm.stats.vm.v_cache_count", &cache_pages, &sz, nullptr, 0);
+        sysctlbyname("vm.stats.vm.v_wired_count", &wired_pages, &sz, nullptr, 0);
+        sysctlbyname("vm.swap_total", &memory.total_swap, &sz, nullptr, 0);
+        memory.total_ram = page_size * total_pages;
+        memory.free_ram = (free_pages + inactive_pages + cache_pages) * page_size;
+        memory.used_ram = memory.total_ram - memory.free_ram;
 #endif
 #endif
         return ret;
