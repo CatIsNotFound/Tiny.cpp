@@ -30,6 +30,7 @@
 #include "OS/System.hpp"
 #include "DateTime/DateTime.hpp"
 #include "Events/Events.hpp"
+#include "Events/EventBus.hpp"
 #include "TUI/Terminal.hpp"
 #include "TUI/TUI.hpp"
 #include "Parser/CommandParser.hpp"

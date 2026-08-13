@@ -26,6 +26,7 @@
 #include "../src/Tiny.hpp"
 
 using namespace Tiny;
+using namespace EV;
 using term = TUI::Terminal;
 
 std::mutex mutex{};

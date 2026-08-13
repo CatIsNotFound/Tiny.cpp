@@ -34,8 +34,6 @@
 #include <cwchar>
 #endif
 
-
-
 namespace {
 #ifdef TINY_CPP_MY_OS_WINDOWS
     uint32_t strToCodePoint(const std::string& utf8_char) {
@@ -105,7 +103,6 @@ namespace {
     }
 }
 
-
 namespace Tiny {
     std::string TUI::splitFront(const char *data) {
         std::string str;
@@ -129,8 +126,32 @@ namespace Tiny {
         return str;
     }
 
-    std::vector<std::string> TUI::splitUTF8(const char *data) {
+    TUI::Char::Char(const char *data) : _data(splitFront(data)), _length(calcStrDisplayWidth(_data)) {}
+
+    TUI::Char::Char(const std::string &data)
+        : _data(splitFront(data.c_str())), _length(calcStrDisplayWidth(_data)) {}
+
+    TUI::Char & TUI::Char::operator=(const std::string &ch) {
+        _data = ch;
+        _length = calcStrDisplayWidth(_data);
+        return *this;
+    }
+
+    TUI::Char & TUI::Char::operator=(const char *ch) {
+        _data = ch;
+        _length = calcStrDisplayWidth(_data);
+        return *this;
+    }
+
+    TUI::Char & TUI::Char::operator=(const Char &ch) {
+        _data = ch._data;
+        _length = ch._length;
+        return *this;
+    }
+
+    std::vector<std::string> TUI::splitUTF8(const char *data, size_t *display_size) {
         std::vector<std::string> result;
+        if (display_size) *display_size = 0;
         if (data == nullptr) return result; 
         while (*data) {
             std::string str;
@@ -151,6 +172,7 @@ namespace Tiny {
                 str += *data++;
             }
             result.push_back(str);
+            if (display_size) *display_size += calcStrDisplayWidth(str);
         }
         return result;
     }
@@ -167,6 +189,7 @@ namespace Tiny {
         if (_resize_win_signal.joinable()) _resize_win_signal.join();
 #endif
         Terminal::setMouseEnabled(false);
+        Terminal::setCursorVisible(true);
         Terminal::reset();
         Terminal::leaveRawMode();
     }
@@ -352,9 +375,28 @@ namespace Tiny {
 
     void TUI::Renderer::present() {
         if (std::this_thread::get_id() != _th_id) {
+            Terminal::setMouseEnabled(false);
+            Terminal::setCursorVisible(true);
+            Terminal::leaveRawMode();
             throw std::runtime_error("Tiny::TUI::Renderer::present(): The specified renderer can not used by another thread!");
         }
         renderEvent();
+    }
+
+    const TUI::Char& TUI::Renderer::charAt(const Position &position) {
+        if (!isOutOfRange(position.row, position.column))
+            return _front_buffer[position.row][position.column].data;
+        Terminal::leaveRawMode();
+        Terminal::setMouseEnabled(false);
+        throw std::runtime_error("Tiny::TUI::Renderer::charAt(): The specified position is out of range!");
+    }
+
+    const TUI::Renderer::Style& TUI::Renderer::styleAt(const Position &position) {
+        if (!isOutOfRange(position.row, position.column))
+            return _front_buffer[position.row][position.column].style;
+        Terminal::leaveRawMode();
+        Terminal::setMouseEnabled(false);
+        throw std::runtime_error("Tiny::TUI::Renderer::styleAt(): The specified position is out of range!");
     }
 
     TUI::Renderer::Renderer() {
@@ -364,8 +406,10 @@ namespace Tiny {
         signal(SIGINT, SIG_IGN);
 #endif
         Terminal::enterRawMode();
+        Terminal::setMouseEnabled(true);
+        Terminal::setCursorVisible(false);
         auto size = Terminal::screenSize();
-        _win_size = size;
+        _term_size = size;
         _front_buffer.resize(size.height);
         for (auto &i : _front_buffer) {
             i.resize(size.width);
@@ -377,7 +421,7 @@ namespace Tiny {
     void TUI::Renderer::renderEvent() {
         Terminal::reset();
         if (_is_resizing.exchange(false)) {
-            auto& size = _win_size;
+            auto& size = _term_size;
             if (size.height != _front_buffer.size() || size.width != _front_buffer.front().size()) {
                 Terminal::clearScreen();
                 resizeEvent(false, size);
@@ -388,7 +432,7 @@ namespace Tiny {
     }
 
     void TUI::Renderer::resizeEvent(bool use_default_size, const Size& size) {
-        Size new_size = (use_default_size ? _win_size : size);
+        Size new_size = (use_default_size ? _term_size : size);
         if (new_size.height > _front_buffer.size()) _front_buffer.resize(new_size.height);
         if (new_size.height > _buffer.size()) _buffer.resize(new_size.height);
         size_t row = 0;
@@ -400,6 +444,7 @@ namespace Tiny {
             }
         }
         if (_resize_event) _resize_event(self());
+        EventBus::self().publish<Renderer>(new ResizeTermEvent(_term_size, new_size), SIZE_MAX);
     }
 
     size_t TUI::Renderer::setChars(const Position &pos, const std::string &str, const Style &style) {
@@ -447,8 +492,8 @@ namespace Tiny {
 
     void TUI::Renderer::fillBuffers() {
         Style old_style{};
-        for (size_t r = 0; r < _win_size.height; r++) {
-            for (size_t c = 0; c < _win_size.width; c++) {
+        for (size_t r = 0; r < _term_size.height; r++) {
+            for (size_t c = 0; c < _term_size.width; c++) {
                 if (r >= _buffer.size() || c >= _buffer.front().size()) continue;
                 if (!_buffer[r][c].is_dirty) {
                     Terminal::moveCursor(r, c);
@@ -488,14 +533,14 @@ namespace Tiny {
             Sleep(100);
             std::unique_lock<std::mutex> lock(self()._mutex);
             Size new_size = Terminal::screenSize();
-            if (compareSize(new_size, self()._win_size) != 0) {
-                self()._win_size = new_size;
+            if (compareSize(new_size, self()._term_size) != 0) {
+                self()._term_size = new_size;
                 self()._is_resizing.store(true);
             }
         }
 #else
         self()._is_resizing.store(true);
-        self()._win_size = Terminal::screenSize();
+        self()._term_size = Terminal::screenSize();
 #endif
     }
 
@@ -534,9 +579,69 @@ namespace Tiny {
         }
     }
 
+    TUI::EventBus& TUI::EventBus::self() {
+        static EventBus _instance;
+        return _instance;
+    }
+
+    TUI::EventBus::~EventBus() {
+        if (_temp_mem.empty()) return;
+        for (auto ptr : _temp_mem) {
+            delete ptr;
+            ptr = nullptr;
+        }
+    }
+
+    void TUI::EventBus::pollEvents() {
+        if (std::this_thread::get_id() != _th_id) {
+            Terminal::setMouseEnabled(false);
+            Terminal::setCursorVisible(true);
+            Terminal::leaveRawMode();
+            throw std::runtime_error("Tiny::TUI::EventBus::pollEvents(): Eventbus can not used by another thread!");
+        }
+        for (auto& runner : _running_deque) {
+            if (_event_map[runner.type_index].find(runner.id) != _event_map[runner.type_index].end()) {
+                if (_event_map[runner.type_index][runner.id]) _event_map[runner.type_index][runner.id](*runner.sender);
+            }
+        }
+        for (auto ptr : _temp_mem) {
+            delete ptr;
+            ptr = nullptr;
+        }
+        _running_deque.clear();
+        _temp_mem.clear();
+    }
+
+    void TUI::EventBus::clear() {
+        _event_map.clear();
+    }
+
+    TUI::Application::Application(int argc, char *argv[]) : _argc(argc), _argv(argv) {
+        // _event_bus.subscribe<Application>();
+        Renderer::self();
+    }
+
+    int TUI::Application::run() {
+        while (_running.load()) {
+            auto input = Terminal::getInput();
+            if (input.type != InputEvent::None)
+                EventBus::self().publish<Application>(new UserInputEvent(input), SIZE_MAX);
+            if (input.type == InputEvent::Keyboard && input.input.keyboard.key == KEY_CTRL_C) {
+                _running.store(false);
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(30));
+            EventBus::self().pollEvents();
+            Renderer::self().present();
+        }
+        return 0;
+    }
+
+    void TUI::Application::exit() {
+        _running.store(false);
+    }
 
     TUI::AbstractWidget::AbstractWidget(const std::string &name, const Position &position, const Size &size)
-            :_name(name), _pos(position), _size(size) {}
+            : _name(name), _pos(position), _size(size), _renderer(Renderer::self()) {}
 
     TUI::AbstractWidget::~AbstractWidget() = default;
 
@@ -581,6 +686,11 @@ namespace Tiny {
     const TUI::Size & TUI::AbstractWidget::size() const {
         return _size;
     }
+
+    TUI::Renderer & TUI::AbstractWidget::renderer() {
+        return _renderer;
+    }
+
 }
 
 /*************************************************************************************

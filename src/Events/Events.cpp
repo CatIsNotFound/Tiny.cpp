@@ -26,21 +26,21 @@
 #include "Events.hpp"
 
 namespace Tiny {
-    Event::Event(uint32_t id, std::string name,
+    EV::Event::Event(uint32_t id, std::string name,
                  const std::function<bool()> &condition, const std::function<void(const std::atomic<bool>&)> &event)
                      : _id(id), _name(std::move(name)), _event(event), _condition(condition) {}
 
-    Event::Event(uint32_t id, std::string name, const std::function<void(const std::atomic<bool> &)> &event)
+    EV::Event::Event(uint32_t id, std::string name, const std::function<void(const std::atomic<bool> &)> &event)
                 : _id(id), _name(std::move(name)), _event(event) {}
 
-    Event::Event(uint32_t id, std::string name)
+    EV::Event::Event(uint32_t id, std::string name)
                 : _id(id), _name(std::move(name)) {}
 
-    Event::Event(const Event & event)
+    EV::Event::Event(const EV::Event & event)
            : _id(event._id), _name(event._name), _event(event._event), _condition(event._condition),
              _delay(event._delay.load()), _exec_count(event._exec_count.load()) {}
 
-    Event &Event::operator=(const Event &event) {
+    EV::Event &EV::Event::operator=(const EV::Event &event) {
         if (this != &event) {
             stop();
             this->_needs_destroy.store(true);
@@ -59,7 +59,7 @@ namespace Tiny {
         return *this;
     }
 
-    Event::~Event() {
+    EV::Event::~Event() {
         stop();
         _needs_destroy.store(true);
         if (_thread.joinable()) {
@@ -67,69 +67,69 @@ namespace Tiny {
         }
     }
 
-    void Event::setID(uint32_t id) {
+    void EV::Event::setID(uint32_t id) {
         _id = id;
     }
 
-    void Event::setName(const std::string &name) {
+    void EV::Event::setName(const std::string &name) {
         _name = name;
     }
 
-    void Event::setDelayMS(uint32_t delay) {
+    void EV::Event::setDelayMS(uint32_t delay) {
         _delay.store(delay);
     }
 
-    void Event::setRepeatCount(uint32_t count) {
+    void EV::Event::setRepeatCount(uint32_t count) {
         _exec_count.store(count);
     }
 
-    void Event::setCondition(const std::function<bool()> &condition) {
+    void EV::Event::setCondition(const std::function<bool()> &condition) {
         std::lock_guard<std::mutex> lock_guard{_sh_mutex};
         _condition = condition;
     }
 
-    void Event::setAllowedFailedEnabled(bool enabled) {
+    void EV::Event::setAllowedFailedEnabled(bool enabled) {
         _allowed_failed.store(enabled);
     }
 
-    void Event::setEvent(const std::function<void(const std::atomic<bool>&)> &callback) {
+    void EV::Event::setEvent(const std::function<void(const std::atomic<bool>&)> &callback) {
         std::lock_guard<std::mutex> lock_guard{_sh_mutex};
         _event = callback;
     }
 
-    uint32_t Event::eventID() const {
+    uint32_t EV::Event::eventID() const {
         return _id;
     }
 
-    const std::string & Event::eventName() const {
+    const std::string & EV::Event::eventName() const {
         return _name;
     }
 
-    uint32_t Event::eventDelayMS() const {
+    uint32_t EV::Event::eventDelayMS() const {
         return _delay.load();
     }
 
-    uint32_t Event::eventRepeatCount() const {
+    uint32_t EV::Event::eventRepeatCount() const {
         return _exec_count.load();
     }
 
-    uint32_t Event::executionCount() const {
+    uint32_t EV::Event::executionCount() const {
         return _allowed_failed.load() ? _attempt_cnt.load() : _now_cnt.load();
     }
 
-    bool Event::isRunning() const {
+    bool EV::Event::isRunning() const {
         return _is_running.load();
     }
 
-    bool Event::hasEvent() const {
+    bool EV::Event::hasEvent() const {
         return _event != nullptr;
     }
 
-    bool Event::allowedFailedEnabled() const {
+    bool EV::Event::allowedFailedEnabled() const {
         return _allowed_failed.load();
     }
 
-    void Event::run() {
+    void EV::Event::run() {
         if (_is_running.load() || !hasEvent()) return;
         {
             std::unique_lock<std::mutex> lock(_mutex);
@@ -144,7 +144,7 @@ namespace Tiny {
         }
     }
 
-    void Event::stop() {
+    void EV::Event::stop() {
         _con_var.notify_all();
         _run_var.notify_all();
         {
@@ -153,7 +153,7 @@ namespace Tiny {
         }
     }
 
-    void Event::loop() {
+    void EV::Event::loop() {
         while (true) {
             {
                 std::unique_lock<std::mutex> lock(_mutex);
@@ -202,13 +202,13 @@ namespace Tiny {
         }
     }
 
-    EventsMap::EventsMap() = default;
+    EV::EventsMap::EventsMap() = default;
 
-    EventsMap::~EventsMap() {
+    EV::EventsMap::~EventsMap() {
         waitAllEvents();
     }
 
-    bool EventsMap::execEvent(const Event &event) {
+    bool EV::EventsMap::execEvent(const EV::Event &event) {
         if (exist(event.eventID())) return false;
         _event_map.emplace(event.eventID(), event);
         _event_map.at(event.eventID()).run();
@@ -216,26 +216,26 @@ namespace Tiny {
         return true;
     }
 
-    bool EventsMap::execEvent(size_t event_id) {
+    bool EV::EventsMap::execEvent(size_t event_id) {
         if (!exist(event_id)) return false;
         _event_map.at(event_id).run();
         return true;
     }
 
-    bool EventsMap::addEvent(const Event &event) {
+    bool EV::EventsMap::addEvent(const EV::Event &event) {
         if (exist(event.eventID())) return false;
         _event_map.emplace(event.eventID(), event);
         return true;
     }
 
-    bool EventsMap::removeEvent(size_t event_id) {
+    bool EV::EventsMap::removeEvent(size_t event_id) {
         if (!exist(event_id)) return false;
         waitEvent(event_id);
         _event_map.erase(event_id);
         return true;
     }
 
-    bool EventsMap::removeAllFreeEvents() {
+    bool EV::EventsMap::removeAllFreeEvents() {
         std::vector<size_t> rm_event_ids;
         for (auto& ev : _event_map) {
             if (!ev.second.isRunning()) {
@@ -248,12 +248,12 @@ namespace Tiny {
         return true;
     }
 
-    void EventsMap::stopEvent(size_t event_id) {
+    void EV::EventsMap::stopEvent(size_t event_id) {
         if (!exist(event_id)) return;
         _event_map.at(event_id).stop();
     }
 
-    void EventsMap::waitEvent(size_t event_id) {
+    void EV::EventsMap::waitEvent(size_t event_id) {
         if (!exist(event_id)) return;
         _event_map.at(event_id).stop();
         while (_event_map.at(event_id).isRunning()) {
@@ -261,13 +261,13 @@ namespace Tiny {
         }
     }
 
-    void EventsMap::stopAllEvents() {
+    void EV::EventsMap::stopAllEvents() {
         for (auto& ev : _event_map) {
             if (!ev.second.isRunning()) ev.second.stop();
         }
     }
 
-    void EventsMap::waitAllEvents() {
+    void EV::EventsMap::waitAllEvents() {
         for (auto& ev : _event_map) {
             while (ev.second.isRunning()) {
                 ev.second.stop();
@@ -276,58 +276,58 @@ namespace Tiny {
         }
     }
 
-    bool EventsMap::setConditionByID(size_t event_id, const std::function<bool()> &condition) {
+    bool EV::EventsMap::setConditionByID(size_t event_id, const std::function<bool()> &condition) {
         if (!exist(event_id)) return false;
         _event_map.at(event_id).setCondition(condition);
         return true;
     }
 
-    bool EventsMap::setEventByID(size_t event_id, const std::function<void(const std::atomic<bool> &)> &event) {
+    bool EV::EventsMap::setEventByID(size_t event_id, const std::function<void(const std::atomic<bool> &)> &event) {
         if (!exist(event_id)) return false;
         _event_map.at(event_id).setEvent(event);
         return true;
     }
 
-    bool EventsMap::setDelayByID(size_t event_id, uint32_t delay_ms) {
+    bool EV::EventsMap::setDelayByID(size_t event_id, uint32_t delay_ms) {
         if (!exist(event_id)) return false;
         _event_map.at(event_id).setDelayMS(delay_ms);
         return true;
     }
 
-    bool EventsMap::setRepeatByID(size_t event_id, uint32_t repeat_count) {
+    bool EV::EventsMap::setRepeatByID(size_t event_id, uint32_t repeat_count) {
         if (!exist(event_id)) return false;
         _event_map.at(event_id).setRepeatCount(repeat_count);
         return true;
     }
 
-    bool EventsMap::setAllowedFailedEnabledByID(size_t event_id, bool enabled) {
+    bool EV::EventsMap::setAllowedFailedEnabledByID(size_t event_id, bool enabled) {
         if (!exist(event_id)) return false;
         _event_map.at(event_id).setAllowedFailedEnabled(enabled);
         return true;
     }
 
-    bool EventsMap::exist(size_t event_id) const {
+    bool EV::EventsMap::exist(size_t event_id) const {
         return _event_map.find(event_id) != _event_map.end();
     }
 
-    const Event & EventsMap::event(size_t event_id) const {
+    const EV::Event & EV::EventsMap::event(size_t event_id) const {
         if (exist(event_id)) return _event_map.at(event_id);
         throw std::out_of_range("Tiny::EventsMap: The specified event id is not found!");
     }
 
-    EventsMap::constIter EventsMap::cbegin() const {
+    EV::EventsMap::constIter EV::EventsMap::cbegin() const {
         return _event_map.cbegin();
     }
 
-    EventsMap::constIter EventsMap::cend() const {
+    EV::EventsMap::constIter EV::EventsMap::cend() const {
         return _event_map.cend();
     }
 
-    size_t EventsMap::size() const {
+    size_t EV::EventsMap::size() const {
         return _event_map.size();
     }
 
-    std::vector<size_t> EventsMap::eventIDList() const {
+    std::vector<size_t> EV::EventsMap::eventIDList() const {
         std::vector<size_t> event_ids;
         event_ids.reserve(_event_map.size());
         for (auto& ev : _event_map) {

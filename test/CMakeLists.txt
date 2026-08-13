@@ -43,28 +43,8 @@ addModule(TestIniParser MY_MODULE
         TestIniParser.cpp
 )
 
-addModule(TestTUI MY_MODULE_WITHOUT_GTEST
-        Test_TUI.cpp
-)
-
-addModule(TestTempFile MY_MODULE_WITHOUT_GTEST
-        Test_TempFile.cpp
-)
-
 addModule(TestInput MY_MODULE_WITHOUT_GTEST
         Test_Input.cpp
-)
-
-addModule(TestDT MY_MODULE_WITHOUT_GTEST
-        Test_Dt.cpp
-)
-
-addModule(TestEV MY_MODULE_WITHOUT_GTEST
-        Test_Ev.cpp
-)
-
-addModule(TestFileInfo MY_MODULE_WITHOUT_GTEST
-        Test_FileInfo.cpp
 )
 
 addModule(TestNet MY_MODULE_WITHOUT_GTEST
@@ -77,6 +57,10 @@ addModule(TestTerm MY_MODULE_WITHOUT_GTEST
 
 addModule(TestHostResolver MY_MODULE_WITHOUT_GTEST
         Test_HostResolver.cpp
+)
+
+addModule(TestEventBus MY_MODULE_WITHOUT_GTEST
+        Test_EventBus.cpp
 )
 
 

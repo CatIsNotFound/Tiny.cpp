@@ -1,4 +1,4 @@
-/*************************************************************************************
+﻿/*************************************************************************************
  * MIT License                                                                       *
  *                                                                                   *
  * Copyright (c) 2026 CatIsNotFound                                                  *
@@ -23,68 +23,87 @@
  *                                                                                   *
  *************************************************************************************/
 
-#include "../src/Tiny.hpp"
-#include <iostream>
-using namespace Tiny;
-using SS = TUI::Renderer::Style;
-using ter = TUI::Terminal;
+#include "EventBus.hpp"
 
-auto& renderer = TUI::Renderer::self();
+// std::once_flag Tiny::EV::EventBus::_init_flag{};
+// std::unique_ptr<Tiny::EV::EventBus> Tiny::EV::EventBus::_instance{};
 
-SS style1, style2, win_shadow, btn_shadow, btn_fill;
-
-void refresh(int) {
-    renderer.present();
-}
-
-void drawBox() {
-    renderer.fillScreen(style2);
-    renderer.fillRect({0, 0}, {20, 60}, ' ', style2);
-    renderer.fillRect({2, 2}, {16, 41}, ' ', win_shadow);
-    renderer.drawBorder({1, 1}, {15, 40}, {}, style1);
-    renderer.setSSF({1, 14}, " 无奖竞猜 ", style1);
-    renderer.fillRect({2, 2}, {14, 39}, ' ', style1);
-    renderer.setSSF({3, 3}, "你觉得顽石老师不错吗？", style1);
-    // renderer.fillRect({12, 8}, {14, 17}, ' ', btn_shadow);
-    renderer.drawBorder({11, 7}, {13, 16}, {}, style2);
-    renderer.fillRect({12, 8}, {12, 15}, ' ', style2);
-    renderer.setSSF({12, 10}, "🎹不错", style2);
-    renderer.drawBorder({11, 22}, {13, 31}, {}, style2);
-    renderer.fillRect({12, 23}, {12, 30}, ' ', btn_fill);
-    renderer.setSSF({12, 24}, "👍不错", btn_fill);
-}
-
-int main() {
-
-    auto scr_size = TUI::Terminal::screenSize();
-
-    style1.bg_color = TUI::Color::White;
-    style1.fg_color = TUI::Color::Black;
-    style1.intensity = 1;
-    style2.bg_color = TUI::Color::Red;
-    style2.fg_color = TUI::Color::White;
-    style2.intensity = 2;
-
-    win_shadow.bg_color = TUI::Color::White;
-    btn_shadow.bg_color = TUI::Color::Black;
-    btn_fill.bg_color = TUI::Color::Red;
-    btn_fill.fg_color = TUI::Color::Yellow;
-    btn_fill.intensity = 2;
-
-    drawBox();
-    renderer.present();
-    renderer.setResizeEvent([&](TUI::Renderer&) {
-        drawBox();
-    });
-    while (TUI::Terminal::getKey() != TUI::KEY_CTRL_D) {
-        scr_size = TUI::Terminal::screenSize();
-        // drawBox();
-        renderer.setSSF({0, 0}, "Size: {:>3}x{:>3}", style2, scr_size.width, scr_size.height);
-        renderer.present();
-        renderer.clear();
+void Tiny::EV::EventListener::add(AbstractEventHandler *event) {
+    if (_handlers.find(event->hashCode()) != _handlers.end()) {
+        auto& handlers = _handlers[event->hashCode()];
+        if (std::find(handlers.begin(), handlers.end(), event) == handlers.end()) {
+            _handlers[event->hashCode()].emplace_back(event);
+        }
+    } else {
+        _handlers[event->hashCode()].emplace_back(event);
     }
-    return 0;
+    _size++;
 }
+
+void Tiny::EV::EventListener::remove(const AbstractEventHandler *event) {
+    if (_handlers.find(event->hashCode()) != _handlers.end()) {
+        auto& ev_list = _handlers[event->hashCode()];
+        size_t before = ev_list.size();
+        ev_list.erase(std::remove_if(ev_list.begin(), ev_list.end(), [event](const AbstractEvent* handler) {
+            return handler == event;
+        }), ev_list.end());
+        size_t after = ev_list.size();
+        _size -= before - after;
+    }
+}
+
+Tiny::EV::EventBus* Tiny::EV::EventBus::global() {
+    // std::call_once(_init_flag, [] {
+    //     _instance.reset(new EventBus());
+    // });
+    // return _instance.get();
+    static EventBus _instance;
+    return &_instance;
+}
+
+Tiny::EV::HandlerID Tiny::EV::EventBus::install(EventListener* listener) {
+    std::lock_guard<std::mutex> lock(_mutex);
+    bool ok = _event_map.emplace(++_next_id, listener).second;
+    return ok ? _next_id : 0;
+}
+
+bool Tiny::EV::EventBus::uninstall(HandlerID id) {
+    std::lock_guard<std::mutex> lock(_mutex);
+    if (_event_map.find(id) != _event_map.end()) {
+        _event_map.erase(id);
+        return true;
+    }
+    return false;
+}
+
+void Tiny::EV::EventBus::emit(AbstractEvent *event) {
+    std::vector<AbstractEventHandler*> exec_list;
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+        auto idx = event->hashCode();
+        for (auto& handler : _event_map) {
+            if (handler.second->contains(idx)) {
+                for (auto& ev : handler.second->at(idx)) {
+                    exec_list.push_back(ev);
+                }
+            }
+        }
+    }
+    for (auto& ev : exec_list) {
+        ev->onEvent(*event);
+    }
+}
+
+void Tiny::EV::EventBus::emit(HandlerID id, AbstractEvent *event) {
+    std::lock_guard<std::mutex> lock(_mutex);
+    if (_event_map.find(id) != _event_map.end()) {
+        auto ev_list = _event_map[id]->at(event->hashCode());
+        for (auto& ev : ev_list) {
+            ev->onEvent(*event);
+        }
+    }
+}
+
 
 /*************************************************************************************
  * MIT License                                                                       *
@@ -110,3 +129,4 @@ int main() {
  * SOFTWARE.                                                                         *
  *                                                                                   *
  *************************************************************************************/
+

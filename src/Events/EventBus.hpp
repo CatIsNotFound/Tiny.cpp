@@ -1,4 +1,4 @@
-/*************************************************************************************
+﻿/*************************************************************************************
  * MIT License                                                                       *
  *                                                                                   *
  * Copyright (c) 2026 CatIsNotFound                                                  *
@@ -23,34 +23,86 @@
  *                                                                                   *
  *************************************************************************************/
 
-#include "../src/OS/File.hpp"
-#include "../src/TUI/Terminal.hpp"
-using namespace Tiny::OS;
+#ifndef TINY_EVENTBUS_HPP
+#define TINY_EVENTBUS_HPP
+#include <future>
 
-int main() {
-    using ter = Tiny::TUI::Terminal;
-    std::vector<std::string> temp_lines;
-    File file("./assets/File/test.txt", ReadOnly);
-    if (file.isOpen()) {
-        while (!file.isEOF()) {
-            temp_lines.push_back(file.readLine());
-            ter::print(temp_lines.back());
-        }
-        ter::printFormat("\r\nRead {} byte(s) from file \"{}\".\r\n", file.fileSize(), file.fileName());
-        file.close();
+#include "Events.hpp"
+#include <memory>
+#include <typeindex>
+#include <algorithm>
+
+
+namespace Tiny {
+    namespace EV {
+        class AbstractEvent {
+            friend class EventBus;
+        public:
+            AbstractEvent(std::type_index index) : _idx(index) {};
+            virtual ~AbstractEvent() = default;
+            size_t hashCode() const { return _idx.hash_code(); }
+        private:
+            std::type_index _idx;
+        };
+
+        class AbstractEventHandler : public AbstractEvent {
+            friend class EventBus;
+        public:
+            AbstractEventHandler(std::type_index index) : AbstractEvent(index) {}
+            ~AbstractEventHandler() override = default;
+        protected:
+            virtual void onEvent(const AbstractEvent& event) = 0;
+        };
+
+        class EventListener {
+            friend class EventBus;
+        public:
+            using iter = std::unordered_map<uint64_t, std::vector<AbstractEventHandler*>>::iterator;
+            using constIter = std::unordered_map<uint64_t, std::vector<AbstractEventHandler*>>::const_iterator;
+            EventListener() = default;
+            virtual ~EventListener() = default;
+            void add(AbstractEventHandler* event);
+            void remove(const AbstractEventHandler* event);
+            void clear() { _handlers.clear(); }
+            iter begin() { return _handlers.begin(); }
+            iter end() { return _handlers.end(); }
+            constIter begin() const { return _handlers.begin(); }
+            constIter end() const { return _handlers.end(); }
+            size_t size() const { return _size; }
+            bool contains(size_t type_id) const { return _handlers.find(type_id) != _handlers.end(); }
+        private:
+            std::vector<AbstractEventHandler*>& at(size_t type_id) { return _handlers.at(type_id); }
+            AbstractEventHandler* at(size_t type_id, size_t index) { return _handlers.at(type_id).at(index); }
+            std::unordered_map<uint64_t, std::vector<AbstractEventHandler*>> _handlers;
+            size_t _size{};
+        };
+
+        using HandlerID = uint64_t;
+
+        class EventBus {
+        public:
+            ~EventBus() = default;
+            static EventBus* global();
+            HandlerID install(EventListener* listener);
+            bool uninstall(HandlerID id);
+            void emit(AbstractEvent* event);
+            void emit(HandlerID id, AbstractEvent* event);
+
+        protected:
+            EventBus() = default;
+        private:
+            std::unordered_map<HandlerID, EventListener*> _event_map;
+            std::mutex _mutex;
+            HandlerID _next_id{};
+            // static std::once_flag _init_flag;
+            // static std::unique_ptr<EventBus> _instance;
+        };
     }
-    file.setPath("./test.txt");
-    if (file.open(WriteOnly | Append)) {
-        for (auto & line : temp_lines) {
-            file.write(line);
-        }
-        file.close();
-        ter::printFormat("\r\nWrite contexts to file \"{}\"\r\n", file.fileName());
-    } else {
-        ter::printFormat("\r\nFailed to open file \"{}\".\r\n", file.fileName());
-    }
-    return 0;
 }
+
+
+#endif //TINY_EVENTBUS_HPP
+
 
 /*************************************************************************************
  * MIT License                                                                       *

@@ -35,11 +35,17 @@
 #include <mutex>
 #include <future>
 #include <functional>
+#include <unordered_map>
+#include <typeindex>
+#include <deque>
+#include <unordered_set>
+#include <algorithm>
+#include <type_traits>
 
 namespace Tiny {
     namespace TUI {
         std::string splitFront(const char* data);
-        std::vector<std::string> splitUTF8(const char* data);
+        std::vector<std::string> splitUTF8(const char* data, size_t *display_size = nullptr);
 
         struct RGBColor {
             uint8_t r, g, b;
@@ -59,23 +65,11 @@ namespace Tiny {
             uint8_t _length;
         public:
             Char() : _data(" "), _length(1) {}
-            Char(const char* data) : _data(splitFront(data)), _length(strlen(data)) {}
-            Char(const std::string& data) : _data(splitFront(data.data())), _length(data.size()) {}
-            Char& operator=(const std::string& ch) {
-                this->_data = ch;
-                this->_length = ch.length();
-                return *this;
-            }
-            Char& operator=(const char* ch) {
-                this->_data = ch;
-                this->_length = this->_data.length();
-                return *this;
-            }
-            Char& operator=(const Char& ch) {
-                this->_data = ch._data;
-                this->_length = this->_data.length();
-                return *this;
-            }
+            Char(const char* data);
+            Char(const std::string& data);
+            Char& operator=(const std::string& ch);
+            Char& operator=(const char* ch);
+            Char& operator=(const Char& ch);
             bool operator==(const Char& other) const {
                 if (this->_data != other._data) return false;
                 if (this->_length != other._length) return false;
@@ -207,6 +201,9 @@ namespace Tiny {
 
             void clear();
             void present();
+
+            const Char& charAt(const Position& position);
+            const Style& styleAt(const Position& position);
         protected:
             Renderer();
             virtual void renderEvent();
@@ -220,7 +217,7 @@ namespace Tiny {
             static void resizeWindow(int);
             void formatStyles(const Position& pos, const std::string& fmt, const StyleList& styles);
 
-            Size _win_size{};
+            Size _term_size{};
             std::vector<std::vector<Cell>> _buffer;
             std::vector<std::vector<Cell>> _front_buffer;
             std::atomic<bool> _is_resizing{};
@@ -255,6 +252,139 @@ namespace Tiny {
             formatStyles(pos, f_text, styles);
         }
 
+        class AbstractEvent {
+        public:
+            AbstractEvent(std::type_index type)
+                : _type_hash(type.hash_code()) {}
+            virtual ~AbstractEvent() = default;
+            size_t hash() const { return _type_hash; }
+        private:
+            size_t _type_hash;
+        };
+
+        class UserInputEvent : public AbstractEvent {
+        public:
+            UserInputEvent(InputEvent input_event)
+                : AbstractEvent(typeid(UserInputEvent)), _input_event(input_event) {}
+            virtual ~UserInputEvent() = default;
+            const InputEvent& inputEvent() const { return _input_event; }
+        private:
+            InputEvent _input_event{};
+        };
+
+        class ResizeTermEvent : public AbstractEvent {
+        public:
+            ResizeTermEvent(const Size& old_size, const Size& new_size)
+                : AbstractEvent(typeid(ResizeTermEvent)), _old_size(old_size), _new_size(new_size) {}
+            virtual ~ResizeTermEvent() = default;
+            const Size& oldSize() const { return _old_size; }
+            const Size& newSize() const { return _new_size; }
+        private:
+            Size _old_size{};
+            Size _new_size{};
+        };
+
+        using Subscriber = std::function<void(const AbstractEvent&)>;
+        using SubscriberMap = std::unordered_map<size_t, Subscriber>;
+        using SubscriberID = size_t;
+
+        class EventBus {
+            struct Runner {
+                size_t         type_index;
+                SubscriberID   id;
+                AbstractEvent* sender;
+                size_t         priority;
+            };
+            friend class Application;
+        public:
+            static EventBus& self();
+            virtual ~EventBus();
+
+            template <typename T>
+            SubscriberID subscribe(const Subscriber& subscriber);
+            template <typename T>
+            SubscriberID subscribe(Subscriber&& subscriber);
+
+            template <typename T>
+            void unsubscribe(SubscriberID id);
+
+            template <typename T>
+            void publish(SubscriberID id, AbstractEvent *event, size_t priority = 0);
+            template <typename T>
+            void publish(AbstractEvent *event, size_t priority = 0);
+
+            void pollEvents();
+
+            void clear();
+        protected:
+            EventBus() : _th_id(std::this_thread::get_id()) {}
+        private:
+            std::unordered_map<size_t, SubscriberMap> _event_map;
+            std::deque<Runner> _running_deque;
+            std::unordered_set<AbstractEvent*> _temp_mem;
+            size_t _next_id{};
+            std::thread::id _th_id{};
+        };
+
+        template<typename T>
+        SubscriberID EventBus::subscribe(const Subscriber &subscriber) {
+            _event_map[typeid(T).hash_code()].emplace(++_next_id, subscriber);
+            return _next_id;
+        }
+
+        template<typename T>
+        SubscriberID EventBus::subscribe(Subscriber &&subscriber) {
+            _event_map[typeid(T).hash_code()].emplace(++_next_id, std::move(subscriber));
+            return _next_id;
+        }
+
+        template<typename T>
+        void EventBus::unsubscribe(SubscriberID id) {
+            auto hash = typeid(T).hash_code();
+            _event_map[hash];
+            if (_event_map[hash].find(id) != _event_map[hash].end()) {
+                _event_map[hash].erase(id);
+            }
+        }
+
+        template<typename T>
+        void EventBus::publish(SubscriberID id, AbstractEvent *event, size_t priority) {
+            auto hash = typeid(T).hash_code();
+            _event_map[hash];
+            if (_event_map[hash].find(id) != _event_map[hash].end()) {
+                _temp_mem.emplace(event);
+                _running_deque.push_back({hash, id, event, priority});
+                std::sort(_running_deque.begin(), _running_deque.end(), [](const Runner& a, const Runner& b) {
+                    return a.priority > b.priority;
+                });
+            }
+        }
+
+        template<typename T>
+        void EventBus::publish(AbstractEvent *event, size_t priority) {
+            auto hash = typeid(T).hash_code();
+            _event_map[hash];
+            _temp_mem.emplace(event);
+            for (auto& ev : _event_map[hash]) {
+                _running_deque.push_back({hash, ev.first, event, priority});
+                std::sort(_running_deque.begin(), _running_deque.end(), [](const Runner& a, const Runner& b) {
+                    return a.priority > b.priority;
+                });
+            }
+        }
+
+        class Application {
+        public:
+            Application(int argc, char* argv[]);
+            int run();
+            void exit();
+            virtual ~Application() = default;
+        private:
+            char** _argv;
+            int _argc;
+            std::atomic<bool> _running{true};
+        };
+
         class AbstractWidget {
         public:
             explicit AbstractWidget(const std::string& name, const Position& position, const Size& size);
@@ -265,22 +395,27 @@ namespace Tiny {
             void move(uint32_t x, uint32_t y);
             void resize(const Size& size);
             void resize(uint32_t w, uint32_t h);
+            /// @deprecated It has been replaced by EventBus, no need to call it manually.
+            /// @since v1.3.0
             void draw();
 
             [[nodiscard]] const std::string& name() const;
             [[nodiscard]] const Position& position() const;
             [[nodiscard]] const Size& size() const;
         protected:
+            Renderer& renderer();
             virtual void renderEvent() = 0;
             virtual void resizeEvent(uint32_t width, uint32_t height) = 0;
             virtual void moveEvent(uint32_t x, uint32_t y) = 0;
+            virtual void keyEvent(KeyEvent keyboard) = 0;
+            virtual void mouseEvent(MouseEvent mouse) = 0;
 
         private:
             std::string _name;
             Position _pos;
             Size _size;
+            Renderer& _renderer;
         };
-
 
     }
 }

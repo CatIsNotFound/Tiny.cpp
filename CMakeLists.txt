@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(Tiny LANGUAGES CXX VERSION 1.2.0)
+project(Tiny LANGUAGES CXX VERSION 1.3.0)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -57,6 +57,8 @@ add_library(${PROJECT_NAME} STATIC
         src/Net/Socket.cpp
         src/Net/Socket.hpp
         src/Net/SocketAdv.hpp
+        src/Events/EventBus.cpp
+        src/Events/EventBus.hpp
 )
 
 # Link Windows libraries

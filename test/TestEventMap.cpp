@@ -32,6 +32,7 @@
 #include <algorithm>
 
 using namespace Tiny;
+using namespace EV;
 
 TEST(EventMapTest, BasicConstruction) {
     EventsMap map;

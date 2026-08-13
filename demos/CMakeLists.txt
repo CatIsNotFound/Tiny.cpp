@@ -13,11 +13,6 @@ endfunction()
 
 #########################################################################################
 
-addModule(Msgbox MY_MODULE
-    Msgbox/DemoMessagebox.cpp
-    Misc/Misc.hpp
-)
-
 addModule(OSInfo MY_MODULE
     OSInfo/DemoOSInfo.cpp
 )
@@ -30,13 +25,12 @@ addModule(List MY_MODULE
         List/main.cpp
 )
 
-addModule(Dialog MY_MODULE
-        Dialog/main.cpp
-        Dialog/MyUI.hpp
-)
-
 addModule(du  MY_MODULE
         du/du.cpp
+)
+
+addModule(SimpleTUI MY_MODULE
+        SimpleTUI/main.cpp
 )
 
 #########################################################################################

@@ -45,8 +45,6 @@ namespace Tiny {
         constexpr const char* Name("FreeBSD");
 #elif defined(__android__)
         constexpr const char* Name("android");
-#elif __OHOS__
-        return "openHarmony";
 #elif defined(__unix__)
         constexpr const char* Name("unix");
 #else

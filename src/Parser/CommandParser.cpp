@@ -357,6 +357,17 @@ namespace Tiny {
                     }
                     if (is_all_match) break;
                 }
+            } else if (i == _argc - 1) {
+                uint64_t p = 0;
+                for (auto& item : required_cmds) {
+                    if (_commands[item].is_default_command) {
+                        _exec_cmd_list.push_back(_commands[item]);
+                        _exec_cmd_list.back().value = arg;
+                        required_cmds.erase(required_cmds.begin() + p);
+                        break;
+                    }
+                    p++;
+                }
             } else {
                 err_pos = i;
                 return ParseError::FormatError;

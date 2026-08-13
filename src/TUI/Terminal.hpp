@@ -193,10 +193,16 @@ namespace Tiny {
         bool   isPointInRect(const Position& point, Position& start_pos, Position& end_pos);
 
         struct InputEvent {
+            /// @note  Since v1.3.0, enum classes have added simpler keywords to make them easier to use.
+            /// @since v1.3.0
             enum Type : uint8_t {
                 None,
+                N = 0,
                 Keyboard,
-                Mouse
+                Key      = 1,
+                K        = 1,
+                Mouse,
+                M        = 2
             } type;
             union Input {
                 struct Keyboard {

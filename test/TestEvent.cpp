@@ -30,6 +30,7 @@
 #include <atomic>
 
 using namespace Tiny;
+using namespace EV;
 
 template<typename Pred>
 bool WaitFor(Pred pred, std::chrono::milliseconds timeout,
