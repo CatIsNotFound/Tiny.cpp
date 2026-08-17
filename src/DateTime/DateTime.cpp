@@ -581,6 +581,18 @@ Tiny::DT::Duration Tiny::DT::currentTimestamps() noexcept {
 #endif
 }
 
+std::string Tiny::DT::formatStdTime(Duration timestamps, bool show_milliseconds) {
+    int64_t ms = timestamps % 1000;
+    int64_t sec = (timestamps / 1000) % 60;
+    int64_t min = (timestamps / 60000) % 60;
+    int64_t hour = (timestamps / 1440000) % 24;
+    std::ostringstream oss;
+    oss << hour << ":" << std::setw(2) << std::setfill('0') << min << ":"
+        << std::setw(2) << std::setfill('0') << sec;
+    if (show_milliseconds) oss << "." << std::setw(3) << std::setfill('0') << ms;
+    return oss.str();
+}
+
 
 /*************************************************************************************
  * MIT License                                                                       *

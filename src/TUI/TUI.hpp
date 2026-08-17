@@ -26,6 +26,14 @@
 #ifndef TINY_CPP_TUI_HPP
 #define TINY_CPP_TUI_HPP
 
+#if defined(__clang__) || defined(__GNUC__)
+#   define API_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#elif defined(_MSC_VER)
+#   define API_DEPRECATED(msg) __declspec(deprecated(msg))
+#else
+#   define API_DEPRECATED(msg)
+#endif
+
 #include "Terminal.hpp"
 #include <vector>
 #include <bitset>
@@ -178,6 +186,8 @@ namespace Tiny {
             void set(uint32_t x, uint32_t y, uint8_t ch, Style style = {});
             void set(const Position& pos, const std::string& str, Style style = {});
             void set(uint32_t x, uint32_t y, const std::string& str, Style style = {});
+            void setStyle(const Position& pos, Style style);
+            void setStyle(uint32_t x, uint32_t y, Style style);
             template<typename ... Args>
             void setStrF(const Position& pos, const char* format, Args... args);
             template<typename ... Args>
@@ -388,15 +398,14 @@ namespace Tiny {
         class AbstractWidget {
         public:
             explicit AbstractWidget(const std::string& name, const Position& position, const Size& size);
-            virtual ~AbstractWidget();
+            virtual ~AbstractWidget() = 0;
 
             void rename(const std::string& name);
             void move(const Position& position);
             void move(uint32_t x, uint32_t y);
             void resize(const Size& size);
             void resize(uint32_t w, uint32_t h);
-            /// @deprecated It has been replaced by EventBus, no need to call it manually.
-            /// @since v1.3.0
+            API_DEPRECATED("It has been replaced by EventBus, and will be removed in v1.4.0.")
             void draw();
 
             [[nodiscard]] const std::string& name() const;

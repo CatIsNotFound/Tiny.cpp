@@ -217,16 +217,11 @@ int main(int argc, char *argv[]) {
         auto& new_size = re.newSize();
         Renderer::self().setStrF({1, 1}, "{}x{}", new_size.width, new_size.height);
     });
-    ev_bus.subscribe<Application>([] (const AbstractEvent& ev) {
-        auto& e = dynamic_cast<const UserInputEvent&>(ev);
-        auto input = e.inputEvent();
-        if (input.type == InputEvent::Keyboard) {
-            Renderer::self().setStrF({2, 1}, "Keyboard Toggled!");
-        } else {
-            Renderer::self().setStrF({2, 1}, "Mouse Toggled!");
-        }
+    ev_bus.subscribe<Renderer>([] (const AbstractEvent& ev) {
+        Renderer::self().setStrF({2, 1}, "Here is another subscriber!");
     });
-    // Renderer::self().fillScreen(style);
+
+    Renderer::self().fillScreen(style);
     return app.run();
 }
 

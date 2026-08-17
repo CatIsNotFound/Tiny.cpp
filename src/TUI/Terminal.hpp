@@ -28,6 +28,7 @@
 #include <string>
 #include <sstream>
 #include <cstdint>
+#include <cwchar>
 
 /*******************************************************************************************
  * P.S: - To enabled using Windows32 lib, please use the macro below:                      *
@@ -56,8 +57,79 @@ struct Gpm_Connect;
 
 namespace Tiny {
     namespace TUI {
-        struct Size { uint32_t width, height; };
-        struct Position { uint32_t row, column; };
+        struct Size {
+            uint32_t width, height;
+            Size(uint32_t width, uint32_t height) : width(width), height(height) {}
+            Size() : width(0), height(0) {}
+            bool operator==(const Size& other) const { return (width == other.width && height == other.height); }
+            bool operator!=(const Size& other) const { return (width != other.width || height != other.height); }
+            bool isEqual(const Size& other) const { return width * height == other.width * other.height; }
+            int64_t compare(const Size& other) const {
+                return static_cast<int64_t>(width * height) - static_cast<int64_t>(other.width * other.height);
+            }
+            Size& operator+(const Size& other) {
+                width += other.width;
+                height += other.height;
+                return *this;
+            }
+            Size& operator+=(const Size& other) {
+                width += other.width;
+                height += other.height;
+                return *this;
+            }
+            Size& operator-(const Size& other) {
+                width -= other.width;
+                height -= other.height;
+                return *this;
+            }
+            Size& operator-=(const Size& other) {
+                width -= other.width;
+                height -= other.height;
+                return *this;
+            }
+            Size& operator*(uint32_t value) {
+                width *= value;
+                height *= value;
+                return *this;
+            }
+            Size& operator*=(uint32_t value) {
+                width *= value;
+                height *= value;
+                return *this;
+            }
+        };
+        struct Position {
+            uint32_t row, column;
+            Position() : row(0), column(0) {}
+            Position(uint32_t row, uint32_t column) : row(row), column(column) {}
+
+            bool operator==(const Position& other) const { return (row == other.row && column == other.column); }
+            bool operator!=(const Position& other) const { return (row != other.row || column == other.column); }
+
+            Position& operator+(const Position& other) {
+                row += other.row;
+                column += other.column;
+                return *this;
+            }
+
+            Position& operator+=(const Position& other) {
+                row += other.row;
+                column += other.column;
+                return *this;
+            }
+
+            Position& operator-(const Position& other) {
+                row -= other.row;
+                column -= other.column;
+                return *this;
+            }
+
+            Position& operator-=(const Position& other) {
+                row -= other.row;
+                column -= other.column;
+                return *this;
+            }
+        };
         enum class Color : uint8_t {
             Black = 0,
             Red = 1,
@@ -229,8 +301,11 @@ namespace Tiny {
             static Size screenSize();
             static Position cursorPosition();
             static bool print(char ch);
+            static bool printW(wchar_t ch);
             static bool print(const std::string &text);
+            static bool printW(const std::wstring &text);
             static bool printLine(const std::string &text = {});
+            static bool printLineW(const std::wstring &text = {});
             template<typename ... Args>
             static bool printFormat(const char* format, Args... args);
             template<typename ... Args>
@@ -238,6 +313,7 @@ namespace Tiny {
             template<typename ... Args>
             static bool printError(const char* format, Args... args);
             static bool printError(const std::string& text);
+            static bool printErrorW(const std::wstring& text);
             static bool clearScreen();
             static bool clearInRow(uint8_t row);
             static bool moveCursor(Position position);

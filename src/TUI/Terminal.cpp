@@ -448,14 +448,43 @@ namespace Tiny {
         return true;
     }
 
+    bool TUI::Terminal::printW(wchar_t ch) {
+        wchar_t w_text[] = {ch, L'\0'};
+#ifdef TINY_CPP_MY_OS_UNIX
+        auto text = wide2String(w_text);
+        write(STDOUT_FILENO, text.data(), 1);
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return false;
+
+        if (!WriteConsoleW(console, w_text, 1, nullptr, nullptr)) {
+            return false;
+        }
+#endif
+        return true;
+    }
+
     bool TUI::Terminal::print(const std::string &text) {
 #ifdef TINY_CPP_MY_OS_UNIX
         write(STDOUT_FILENO, text.c_str(), text.length());
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return false;
-        auto w_str = string2Wide(text);
-        if (!WriteConsoleW(console, w_str.c_str(), w_str.length(), nullptr, nullptr)) {
+        if (!WriteConsoleA(console, text.c_str(), text.length(), nullptr, nullptr)) {
+            return false;
+        }
+#endif
+        return true;
+    }
+
+    bool TUI::Terminal::printW(const std::wstring &text) {
+#ifdef TINY_CPP_MY_OS_UNIX
+        auto data = wide2String(text);
+        write(STDOUT_FILENO, data.c_str(), data.length());
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return false;
+        if (!WriteConsoleW(console, text.c_str(), text.length(), nullptr, nullptr)) {
             return false;
         }
 #endif
@@ -469,7 +498,23 @@ namespace Tiny {
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return false;
-        auto w_str = string2Wide(text + "\r\n");
+        auto cmd = text + "\r\n";
+        if (!WriteConsoleA(console, cmd.c_str(), cmd.size(), nullptr, nullptr)) {
+            return false;
+        }
+#endif
+        return true;
+    }
+
+    bool TUI::Terminal::printLineW(const std::wstring &text) {
+#ifdef TINY_CPP_MY_OS_UNIX
+        auto w_text = text + L"\r\n";
+        auto cmd = wide2String(w_text);
+        write(STDOUT_FILENO, cmd.c_str(), cmd.length());
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return false;
+        auto w_str = text + L"\r\n";
         if (!WriteConsoleW(console, w_str.c_str(), w_str.size(), nullptr, nullptr)) {
             return false;
         }
@@ -483,8 +528,21 @@ namespace Tiny {
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_ERROR_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return false;
-        auto w_str = string2Wide(text);
-        if (!WriteConsoleW(console, w_str.c_str(), w_str.length(), nullptr, nullptr)) {
+        if (!WriteConsoleA(console, text.c_str(), text.length(), nullptr, nullptr)) {
+            return false;
+        }
+#endif
+        return true;
+    }
+
+    bool TUI::Terminal::printErrorW(const std::wstring &text) {
+#ifdef TINY_CPP_MY_OS_UNIX
+        auto data = wide2String(text);
+        write(STDERR_FILENO, data.c_str(), data.length());
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        auto console = GetStdHandle(STD_ERROR_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return false;
+        if (!WriteConsoleW(console, text.c_str(), text.length(), nullptr, nullptr)) {
             return false;
         }
 #endif

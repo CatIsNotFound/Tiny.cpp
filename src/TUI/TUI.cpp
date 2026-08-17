@@ -177,7 +177,6 @@ namespace Tiny {
         return result;
     }
 
-
     TUI::Renderer & TUI::Renderer::self() {
         static Renderer instance;
         return instance;
@@ -214,6 +213,16 @@ namespace Tiny {
     void TUI::Renderer::set(uint32_t x, uint32_t y, const std::string &str, Style style) {
         if (y >= _front_buffer.size() || x >= _front_buffer.front().size()) return;
         _front_buffer[y][x].set(splitFront(str.c_str()).c_str(), style);
+    }
+
+    void TUI::Renderer::setStyle(const Position &pos, Style style) {
+        if (pos.row >= _front_buffer.size() || pos.column >= _front_buffer.front().size()) return;
+        _front_buffer[pos.row][pos.column].style = style;
+    }
+
+    void TUI::Renderer::setStyle(uint32_t x, uint32_t y, Style style) {
+        if (y >= _front_buffer.size() || x >= _front_buffer.front().size()) return;
+        _front_buffer[y][x].style = style;
     }
 
     void TUI::Renderer::fillScreen(const Style &style) {
@@ -539,6 +548,7 @@ namespace Tiny {
             }
         }
 #else
+        std::unique_lock<std::mutex> lock(self()._mutex);
         self()._is_resizing.store(true);
         self()._term_size = Terminal::screenSize();
 #endif
@@ -642,8 +652,6 @@ namespace Tiny {
 
     TUI::AbstractWidget::AbstractWidget(const std::string &name, const Position &position, const Size &size)
             : _name(name), _pos(position), _size(size), _renderer(Renderer::self()) {}
-
-    TUI::AbstractWidget::~AbstractWidget() = default;
 
     void TUI::AbstractWidget::rename(const std::string &name) {
         _name = name;

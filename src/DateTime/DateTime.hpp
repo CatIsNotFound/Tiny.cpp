@@ -209,6 +209,7 @@ namespace Tiny {
         Duration seconds(Duration timestamps) noexcept;
         Duration milliseconds(Duration timestamps) noexcept;
         Duration currentTimestamps() noexcept;
+        std::string formatStdTime(Duration timestamps, bool show_milliseconds = false);
     }
 }
 
