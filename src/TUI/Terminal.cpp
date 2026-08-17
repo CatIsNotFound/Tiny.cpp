@@ -25,6 +25,7 @@
 
 #include "../TUI/Terminal.hpp"
 #include "../OS/File.hpp"
+#include <sstream>
 
 #if defined(TINY_CPP_MY_OS_WINDOWS)
 #include <windows.h>
@@ -1244,6 +1245,20 @@ namespace Tiny {
     TUI::Terminal & TUI::Terminal::perror() {
         _print_mode = false;
         return _terms;
+    }
+
+    TUI::Terminal &TUI::Terminal::operator<<(bool expr) {
+        if (_print_mode) print(expr ? "true" : "false");
+        else             printError(expr ? "true" : "false");
+        return *this;
+    }
+
+    TUI::Terminal &TUI::Terminal::operator<<(const wchar_t *expr) {
+        std::wstringstream wss;
+        wss << expr;
+        if (_print_mode) printW(wss.str());
+        else             printErrorW(wss.str());
+        return *this;
     }
 
     TUI::Terminal & TUI::Terminal::operator<<(Terminal &) {

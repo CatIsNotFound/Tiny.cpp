@@ -27,6 +27,7 @@
 
 #include <stdexcept>
 #include <thread>
+#include <sstream>
 
 #ifdef TINY_CPP_MY_OS_WINDOWS
 #include <windows.h>
@@ -689,16 +690,16 @@ namespace Tiny {
 
     bool OS::isAdmin() {
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        BOOL isElevated = FALSE;
+        BOOL isElevated{};
         PSID adminSid = nullptr;
 
         if (!ConvertStringSidToSidW(L"S-1-5-32-544", &adminSid))
             return false;
 
-        CheckTokenMembership(NULL, adminSid, &isElevated);
+        CheckTokenMembership(nullptr, adminSid, &isElevated);
         LocalFree(adminSid);
 
-        return isElevated != FALSE;
+        return isElevated;
 #else
         return geteuid() == 0;
 #endif
@@ -1309,10 +1310,10 @@ namespace Tiny {
         return paths;
     }
 
-    std::unordered_map<size_t, std::vector<OS::Path>> OS::FileSystem::listAllPaths(const Path &path,
-                                                      uint8_t current_recursion, uint8_t recursion_count, bool &stop_all,
-                                                      const std::function<bool(const Path &, bool &)> &found_event) {
-        std::unordered_map<size_t, std::vector<Path>> paths;
+    OS::FileSystem::LayerMap OS::FileSystem::listAllPaths(const Path &path,
+                                  uint8_t current_recursion, uint8_t recursion_count, bool &stop_all,
+                                  const std::function<bool(const Path &, bool &)> &found_event) {
+        LayerMap paths;
         if (current_recursion > recursion_count) return paths;
         paths.insert({current_recursion, {}});
         auto& cur_paths = paths[current_recursion];

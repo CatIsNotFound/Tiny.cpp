@@ -194,38 +194,45 @@ namespace Tiny {
     }
 
     void TUI::Renderer::set(const Position &pos, uint8_t ch, Style style) {
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
         char c[2] = {static_cast<char>(ch), 0};
-        if (pos.row >= _front_buffer.size() || pos.column >= _front_buffer.front().size()) return;
+        if (pos.row >= _front_buffer.size() || pos.column >= _front_buffer[0].size()) return;
         _front_buffer[pos.row][pos.column].set(c, style);
     }
 
     void TUI::Renderer::set(uint32_t x, uint32_t y, uint8_t ch, Style style) {
-        if (y >= _front_buffer.size() || x >= _front_buffer.front().size()) return;
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
+        if (y >= _front_buffer.size() || x >= _front_buffer[0].size()) return;
         char c[2] = {static_cast<char>(ch), 0};
         _front_buffer[y][x].set(c, style);
     }
 
     void TUI::Renderer::set(const Position &pos, const std::string &str, Style style) {
-        if (pos.row >= _front_buffer.size() || pos.column >= _front_buffer.front().size()) return;
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
+        if (pos.row >= _front_buffer.size() || pos.column >= _front_buffer[0].size()) return;
         _front_buffer[pos.row][pos.column].set(splitFront(str.c_str()).c_str(), style);
     }
 
     void TUI::Renderer::set(uint32_t x, uint32_t y, const std::string &str, Style style) {
-        if (y >= _front_buffer.size() || x >= _front_buffer.front().size()) return;
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
+        if (y >= _front_buffer.size() || x >= _front_buffer[0].size()) return;
         _front_buffer[y][x].set(splitFront(str.c_str()).c_str(), style);
     }
 
     void TUI::Renderer::setStyle(const Position &pos, Style style) {
-        if (pos.row >= _front_buffer.size() || pos.column >= _front_buffer.front().size()) return;
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
+        if (pos.row >= _front_buffer.size() || pos.column >= _front_buffer[0].size()) return;
         _front_buffer[pos.row][pos.column].style = style;
     }
 
     void TUI::Renderer::setStyle(uint32_t x, uint32_t y, Style style) {
-        if (y >= _front_buffer.size() || x >= _front_buffer.front().size()) return;
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
+        if (y >= _front_buffer.size() || x >= _front_buffer[0].size()) return;
         _front_buffer[y][x].style = style;
     }
 
     void TUI::Renderer::fillScreen(const Style &style) {
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
         for (auto& buf : _front_buffer) {
             for (auto& col : buf) {
                 col.set(" ", style);
@@ -234,6 +241,7 @@ namespace Tiny {
     }
 
     void TUI::Renderer::fillRows(uint32_t start_row, uint32_t end_row, uint8_t ch, Style style) {
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
         char temp[2] = {static_cast<char>(ch), 0};
         if (start_row > end_row) {
             auto t = start_row;
@@ -249,6 +257,7 @@ namespace Tiny {
     }
 
     void TUI::Renderer::fillRows(uint32_t start_row, uint32_t end_row, const std::string &ch, Style style) {
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
         if (start_row > end_row) {
             auto t = start_row;
             start_row = end_row;
@@ -263,6 +272,7 @@ namespace Tiny {
     }
 
     void TUI::Renderer::fillCols(uint32_t start_col, uint32_t end_col, uint8_t ch, Style style) {
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
         char temp[2] = {static_cast<char>(ch), 0};
         if (start_col > end_col) {
             auto t = start_col;
@@ -278,6 +288,7 @@ namespace Tiny {
     }
 
     void TUI::Renderer::fillCols(uint32_t start_col, uint32_t end_col, const std::string &ch, Style style) {
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
         if (start_col > end_col) {
             auto t = start_col;
             start_col = end_col;
@@ -292,6 +303,7 @@ namespace Tiny {
     }
 
     void TUI::Renderer::fillRect(const Position &start_pos, const Position &end_pos, uint8_t ch, Style style) {
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
         char temp[2] = {static_cast<char>(ch), 0};
         for (uint32_t r = start_pos.row; r <= end_pos.row; r++) {
             for (uint32_t c = start_pos.column; c <= end_pos.column; c++) {
@@ -303,6 +315,7 @@ namespace Tiny {
 
     void TUI::Renderer::fillRect(const Position &start_pos, const Position &end_pos, const std::string &ch,
         Style style) {
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
         for (uint32_t r = start_pos.row; r <= end_pos.row; r++) {
             for (uint32_t c = start_pos.column; c <= end_pos.column; c++) {
                 if (isOutOfRange(r, c)) break;
@@ -312,11 +325,12 @@ namespace Tiny {
     }
 
     void TUI::Renderer::drawBorder(const Position &start_pos, const Position &end_pos, Corner corner, Style style) {
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
         Position r_ed = end_pos;
         if (isOutOfRange(start_pos.row, start_pos.column)) return;
         if (isOutOfRange(end_pos.row, end_pos.column)) {
-            r_ed.row = _front_buffer.size() - 1;
-            r_ed.column = _front_buffer.front().size() - 1;
+            r_ed.row = static_cast<uint32_t>(_front_buffer.size()) - 1;
+            r_ed.column = static_cast<uint32_t>(_front_buffer[0].size()) - 1;
         }
         // left top
         _front_buffer[start_pos.row][start_pos.column].set(corner.left_top.data().c_str(), style);
@@ -339,29 +353,34 @@ namespace Tiny {
     }
 
     void TUI::Renderer::unset(const Position &pos) {
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
         if (!isOutOfRange(pos.row, pos.column))
             _front_buffer[pos.row][pos.column].reset();
     }
 
     void TUI::Renderer::unset(uint32_t x, uint32_t y) {
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
         if (!isOutOfRange(y, x)) _front_buffer[y][x].reset();
     }
 
     void TUI::Renderer::unsetRow(uint32_t row) {
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
         if (row >= _front_buffer.size()) return;
-        for (size_t c = 0; c < _front_buffer.size(); c++) {
+        for (size_t c = 0; c < _front_buffer[row].size(); c++) {
             _front_buffer[row][c].reset();
         }
     }
 
     void TUI::Renderer::unsetCol(uint32_t col) {
-        if (col >= _front_buffer.front().size()) return;
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
+        if (_front_buffer.empty() || col >= _front_buffer[0].size()) return;
         for (auto& buf : _front_buffer) {
             buf[col].reset();
         }
     }
 
     void TUI::Renderer::unsetRect(const Position &start_pos, const Position &end_pos) {
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
         for (uint32_t r = start_pos.row; r <= end_pos.row; r++) {
             for (uint32_t c = start_pos.column; c <= end_pos.column; c++) {
                 if (isOutOfRange(r, c)) continue;
@@ -375,6 +394,7 @@ namespace Tiny {
     }
 
     void TUI::Renderer::clear() {
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
         for (auto& front : _front_buffer) {
             for (auto& i : front) {
                 i.reset();
@@ -420,8 +440,10 @@ namespace Tiny {
         auto size = Terminal::screenSize();
         _term_size = size;
         _front_buffer.resize(size.height);
-        for (auto &i : _front_buffer) {
-            i.resize(size.width);
+        _back_buffer.resize(size.height);
+        for (size_t i = 0; i < size.height; ++i) {
+            _front_buffer[i].resize(size.width);
+            _back_buffer[i].resize(size.width);
         }
         initSignal();
         _th_id = std::this_thread::get_id();
@@ -430,28 +452,37 @@ namespace Tiny {
     void TUI::Renderer::renderEvent() {
         Terminal::reset();
         if (_is_resizing.exchange(false)) {
+            std::lock_guard<std::mutex> lock(_resize_mutex);
             auto& size = _term_size;
-            if (size.height != _front_buffer.size() || size.width != _front_buffer.front().size()) {
+            if (size.height != _front_buffer.size() || size.width != _front_buffer[0].size()) {
                 Terminal::clearScreen();
                 resizeEvent(false, size);
             }
         }
-        _buffer = _front_buffer;
+        // Swap buffers instead of copying
+        {
+            std::lock_guard<std::mutex> lock(_buffer_mutex);
+            std::swap(_front_buffer, _back_buffer);
+        }
         fillBuffers();
     }
 
     void TUI::Renderer::resizeEvent(bool use_default_size, const Size& size) {
+        std::lock_guard<std::mutex> lock(_buffer_mutex);
         Size new_size = (use_default_size ? _term_size : size);
-        if (new_size.height > _front_buffer.size()) _front_buffer.resize(new_size.height);
-        if (new_size.height > _buffer.size()) _buffer.resize(new_size.height);
-        size_t row = 0;
-        for (; row < new_size.height; row++) {
-            if (new_size.width > _front_buffer.size()) _front_buffer[row].resize(new_size.width);
-            if (new_size.width > _buffer.size()) _buffer[row].resize(new_size.width);
+
+        _front_buffer.resize(new_size.height);
+        _back_buffer.resize(new_size.height);
+        
+        for (size_t row = 0; row < new_size.height; row++) {
+            _front_buffer[row].resize(new_size.width);
+            _back_buffer[row].resize(new_size.width);
+
             for (size_t col = 0; col < new_size.width; col++) {
-                _buffer[row][col].reset();
+                _back_buffer[row][col].reset();
             }
         }
+        
         if (_resize_event) _resize_event(self());
         EventBus::self().publish<Renderer>(new ResizeTermEvent(_term_size, new_size), SIZE_MAX);
     }
@@ -469,8 +500,12 @@ namespace Tiny {
             set(temp, s, style);
             size_t display_width = calcStrDisplayWidth(s);
             if (display_width > 1) {
-                for (size_t i = 1; i < display_width; ++i) 
-                    _front_buffer[temp.row][temp.column + i].is_dirty = true;
+                std::lock_guard<std::mutex> lock(_buffer_mutex);
+                for (size_t i = 1; i < display_width; ++i) {
+                    if (temp.column + i < _front_buffer[temp.row].size()) {
+                        _front_buffer[temp.row][temp.column + i].is_dirty = true;
+                    }
+                }
             }
             temp.column += display_width;
             filled_cnt += display_width;
@@ -503,26 +538,30 @@ namespace Tiny {
         Style old_style{};
         for (size_t r = 0; r < _term_size.height; r++) {
             for (size_t c = 0; c < _term_size.width; c++) {
-                if (r >= _buffer.size() || c >= _buffer.front().size()) continue;
-                if (!_buffer[r][c].is_dirty) {
+                if (r >= _back_buffer.size() || c >= _back_buffer[0].size()) continue;
+                
+                // Draw cells that were modified (is_dirty = false)
+                if (!_back_buffer[r][c].is_dirty) {
                     Terminal::moveCursor(r, c);
-                    if (_buffer[r][c].style != old_style) {
-                        old_style = _buffer[r][c].style;
-                        if (_buffer[r][c].style.isDefault()) {
+                    if (_back_buffer[r][c].style != old_style) {
+                        old_style = _back_buffer[r][c].style;
+                        if (_back_buffer[r][c].style.isDefault()) {
                             Terminal::reset();
                         } else {
-                            setStyle(_buffer[r][c].style);
+                            setStyle(_back_buffer[r][c].style);
                         }
                     }
-                    Terminal::print(_buffer[r][c].data.data());
+                    Terminal::print(_back_buffer[r][c].data.data());
                 }
-                _front_buffer[r][c].reset();
+                
+                // Reset dirty flag in back buffer (mark as clean for next frame)
+                _back_buffer[r][c].is_dirty = true;
             }
         }
     }
 
     bool TUI::Renderer::isOutOfRange(uint32_t row, uint32_t col) {
-        return row >= _front_buffer.size() || col >= _front_buffer.front().size();
+        return _front_buffer.empty() || row >= _front_buffer.size() || col >= _front_buffer[0].size();
     }
 
     void TUI::Renderer::initSignal() {
@@ -540,17 +579,21 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_WINDOWS
         while (self()._is_running.load()) {
             Sleep(100);
-            std::unique_lock<std::mutex> lock(self()._mutex);
             Size new_size = Terminal::screenSize();
             if (compareSize(new_size, self()._term_size) != 0) {
+                std::unique_lock<std::mutex> lock(self()._resize_mutex);
                 self()._term_size = new_size;
                 self()._is_resizing.store(true);
             }
         }
 #else
-        std::unique_lock<std::mutex> lock(self()._mutex);
-        self()._is_resizing.store(true);
-        self()._term_size = Terminal::screenSize();
+        std::unique_lock<std::mutex> lock(self()._resize_mutex);
+        usleep(100000);
+        Size new_size = Terminal::screenSize();
+        if (compareSize(new_size, self()._term_size) != 0) {
+            self()._is_resizing.store(true);
+            self()._term_size = new_size;
+        }
 #endif
     }
 

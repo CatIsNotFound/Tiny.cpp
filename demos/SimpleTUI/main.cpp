@@ -215,13 +215,14 @@ int main(int argc, char *argv[]) {
         if (ev.hash() != typeid(ResizeTermEvent).hash_code()) return;
         auto& re = dynamic_cast<const ResizeTermEvent &>(ev);
         auto& new_size = re.newSize();
+        Renderer::self().fillScreen(style);
         Renderer::self().setStrF({1, 1}, "{}x{}", new_size.width, new_size.height);
     });
+
     ev_bus.subscribe<Renderer>([] (const AbstractEvent& ev) {
         Renderer::self().setStrF({2, 1}, "Here is another subscriber!");
     });
 
-    Renderer::self().fillScreen(style);
     return app.run();
 }
 

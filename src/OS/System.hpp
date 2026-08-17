@@ -25,7 +25,6 @@
 
 #ifndef TINY_CPP_OS_SYSTEM_HPP
 #define TINY_CPP_OS_SYSTEM_HPP
-#include <sstream>
 #include <deque>
 #include <vector>
 #include <functional>
@@ -145,9 +144,12 @@ namespace Tiny {
             static Path cachePath();
             static Path localDataPath();
 
-            static std::vector<Path> listPath(const Path& path, uint8_t recursion_count = 1, const std::function<bool(const Path&)>& filter = {});
-            static std::vector<Path> listPath(const std::string& path, uint8_t recursion_count = 1, const std::function<bool(const Path&)>& filter = {});
-            static std::vector<Path> listPath(uint8_t recursion_count = 1, const std::function<bool(const Path&)>& filter = {});
+            static std::vector<Path> listPath(const Path& path, uint8_t recursion_count = 1,
+                                              const std::function<bool(const Path&)>& filter = {});
+            static std::vector<Path> listPath(const std::string& path, uint8_t recursion_count = 1,
+                                              const std::function<bool(const Path&)>& filter = {});
+            static std::vector<Path> listPath(uint8_t recursion_count = 1,
+                                              const std::function<bool(const Path&)>& filter = {});
             using LayerMap = std::unordered_map<size_t, std::vector<Path>>;
             static LayerMap listPathEx(const Path& path, uint8_t recursion_count = 1,
                                                 const std::function<bool(const Path&, bool&)>& found_event = {});
@@ -158,8 +160,9 @@ namespace Tiny {
             static std::deque<std::string> mkDirCompletely(const Path& path);
             static std::vector<Path> listAllPath(const Path &path, uint8_t current_recursion, uint8_t recursion_count,
                                                  const std::function<bool(const Path &)> &filter = {});
-            static std::unordered_map<size_t, std::vector<Path>> listAllPaths(const Path &path, uint8_t current_recursion, uint8_t recursion_count,
-                                                                              bool &stop_all, const std::function<bool(const Path&, bool&)>& found_event = {});
+            static LayerMap listAllPaths(const Path &path, uint8_t current_recursion, uint8_t recursion_count,
+                                         bool &stop_all,
+                                         const std::function<bool(const Path&, bool&)>& found_event = {});
         };
     }
 }

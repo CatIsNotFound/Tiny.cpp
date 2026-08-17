@@ -351,6 +351,8 @@ namespace Tiny {
             static Terminal& self();
             static Terminal& print();
             static Terminal& perror();
+            Terminal& operator<<(bool expr);
+            Terminal& operator<<(const wchar_t* expr);
             template<typename T>
             Terminal& operator<<(const T& expr);
             Terminal& operator<<(Terminal&);

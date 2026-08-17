@@ -228,10 +228,11 @@ namespace Tiny {
             void formatStyles(const Position& pos, const std::string& fmt, const StyleList& styles);
 
             Size _term_size{};
-            std::vector<std::vector<Cell>> _buffer;
+            std::vector<std::vector<Cell>> _back_buffer;
             std::vector<std::vector<Cell>> _front_buffer;
             std::atomic<bool> _is_resizing{};
-            std::mutex _mutex{};
+            std::mutex _buffer_mutex{};
+            std::mutex _resize_mutex{};
             std::function<void(Renderer&)> _resize_event{};
             std::thread::id _th_id{};
 #ifdef TINY_CPP_MY_OS_WINDOWS
