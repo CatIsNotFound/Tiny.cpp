@@ -208,7 +208,9 @@ Position calcEndOfPosition(const Position& position, const Size& size) {
 int main(int argc, char *argv[]) {
     TUI::Application app(argc, argv);
     Renderer::Style style;
-    style.bg_color = Color::Blue;
+    style.bg_color = Color::Yellow;
+    style.fg_color = Color::Blue;
+    style.intensity = 1;
     auto& ev_bus = EventBus::self();
     /// Get Screen size
     ev_bus.subscribe<Renderer>([&style](const AbstractEvent& ev) {
@@ -216,11 +218,12 @@ int main(int argc, char *argv[]) {
         auto& re = dynamic_cast<const ResizeTermEvent &>(ev);
         auto& new_size = re.newSize();
         Renderer::self().fillScreen(style);
-        Renderer::self().setStrF({1, 1}, "{}x{}", new_size.width, new_size.height);
+        Renderer::self().setSSF({1, 1}, "{:>3s}x{:<3s}", style, new_size.width, new_size.height);
     });
 
-    ev_bus.subscribe<Renderer>([] (const AbstractEvent& ev) {
-        Renderer::self().setStrF({2, 1}, "Here is another subscriber!");
+    ev_bus.subscribe<Application>([&style] (const AbstractEvent& ev) {
+        auto now = DT::DateTime::now();
+        Renderer::self().setSSF({2, 1}, now.formatString("HH:mm:ss").c_str(), style);
     });
 
     return app.run();

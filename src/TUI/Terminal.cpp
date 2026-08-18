@@ -1477,11 +1477,11 @@ namespace Tiny {
         }
         size_t preread_cnt = 0;
         ioctl(STDIN_FILENO, FIONREAD, &preread_cnt);
-        char buf[256] = {};
+        std::string buf(preread_cnt, '\0');
         ssize_t read_cnt = 0;
         
-        read_cnt = read(fd, buf, preread_cnt);
-        _temp_buffers.insert(_temp_buffers.end(), buf, buf + read_cnt);
+        read_cnt = read(fd, &buf[0], preread_cnt);
+        _temp_buffers.insert(_temp_buffers.end(), buf.begin(), buf.begin() + read_cnt);
         
         return true;
     }
