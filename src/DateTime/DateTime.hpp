@@ -48,7 +48,7 @@ namespace Tiny {
     namespace DT {
         using Duration = std::int64_t;
 
-        enum Month : uint8_t {
+        enum class Month : uint8_t {
             January = 1,
             Jan = 1,
             February,
@@ -74,7 +74,7 @@ namespace Tiny {
             Dec = 12
         };
 
-        enum Weekday : uint8_t {
+        enum class Weekday : uint8_t {
             Sunday,
             Sun = 0,
             Monday,
@@ -93,29 +93,29 @@ namespace Tiny {
 
         static const char* monthName(Month month, bool short_name = false) noexcept {
             switch (month) {
-                case January:
+                case Month::January:
                     return short_name ? "Jan" : "January";
-                case February:
+                case Month::February:
                     return short_name ? "Feb" : "February";
-                case March:
+                case Month::March:
                     return short_name ? "Mar" : "March";
-                case April:
+                case Month::April:
                     return short_name ? "Apr" : "April";
-                case May:
+                case Month::May:
                     return "May";
-                case June:
+                case Month::June:
                     return short_name ? "Jun" : "June";
-                case July:
+                case Month::July:
                     return short_name ? "Jul" : "July";
-                case August:
+                case Month::August:
                     return short_name ? "Aug" : "August";
-                case September:
+                case Month::September:
                     return short_name ? "Sep" : "September";
-                case October:
+                case Month::October:
                     return short_name ? "Oct" : "October";
-                case November:
+                case Month::November:
                     return short_name ? "Nov" : "November";
-                case December:
+                case Month::December:
                     return short_name ? "Dec" : "December";
             }
             return "NaN";
@@ -123,19 +123,19 @@ namespace Tiny {
 
         static const char* weekDayName(Weekday weekday, bool short_name = false) noexcept {
             switch (weekday) {
-                case Sunday:
+                case Weekday::Sunday:
                     return short_name ? "Sun" : "Sunday";
-                case Monday:
+                case Weekday::Monday:
                     return short_name ? "Mon" : "Monday";
-                case Tuesday:
+                case Weekday::Tuesday:
                     return short_name ? "Tue" : "Tuesday";
-                case Wednesday:
+                case Weekday::Wednesday:
                     return short_name ? "Wed" : "Wednesday";
-                case Thursday:
+                case Weekday::Thursday:
                     return short_name ? "Thur" : "Thursday";
-                case Friday:
+                case Weekday::Friday:
                     return short_name ? "Fri" : "Friday";
-                case Saturday:
+                case Weekday::Saturday:
                     return short_name ? "Sat" : "Saturday";
             }
             return "NaN";
@@ -210,6 +210,7 @@ namespace Tiny {
         Duration milliseconds(Duration timestamps) noexcept;
         Duration currentTimestamps() noexcept;
         std::string formatStdTime(Duration timestamps, bool show_milliseconds = false);
+        std::string formatTime(const char* format, Duration timestamps);
     }
 }
 

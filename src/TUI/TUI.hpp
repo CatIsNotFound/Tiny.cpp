@@ -26,18 +26,9 @@
 #ifndef TINY_CPP_TUI_HPP
 #define TINY_CPP_TUI_HPP
 
-#if defined(__clang__) || defined(__GNUC__)
-#   define API_DEPRECATED(msg) __attribute__((deprecated(msg)))
-#elif defined(_MSC_VER)
-#   define API_DEPRECATED(msg) __declspec(deprecated(msg))
-#else
-#   define API_DEPRECATED(msg)
-#endif
-
 #include "Terminal.hpp"
 #include <vector>
 #include <bitset>
-#include <cstring>
 #include <thread>
 #include <atomic>
 #include <mutex>
@@ -48,7 +39,7 @@
 #include <deque>
 #include <unordered_set>
 #include <algorithm>
-#include <type_traits>
+#include <set>
 
 namespace Tiny {
     namespace TUI {
@@ -207,6 +198,7 @@ namespace Tiny {
             void unsetRow(uint32_t row);
             void unsetCol(uint32_t col);
             void unsetRect(const Position &start_pos, const Position &end_pos);
+            API_DEPRECATED("It has been replaced by EventBus, and will be removed in v1.4.0.")
             void setResizeEvent(const std::function<void(Renderer&)>& event);
 
             void clear();
@@ -283,6 +275,12 @@ namespace Tiny {
             InputEvent _input_event{};
         };
 
+        class RefreshRenderEvent : public AbstractEvent {
+        public:
+            RefreshRenderEvent() : AbstractEvent(typeid(RefreshRenderEvent)) {}
+            virtual ~RefreshRenderEvent() = default;
+        };
+
         class ResizeTermEvent : public AbstractEvent {
         public:
             ResizeTermEvent(const Size& old_size, const Size& new_size)
@@ -325,7 +323,6 @@ namespace Tiny {
             void publish(AbstractEvent *event, size_t priority = 0);
 
             void pollEvents();
-
             void clear();
         protected:
             EventBus() : _th_id(std::this_thread::get_id()) {}
@@ -396,6 +393,31 @@ namespace Tiny {
             std::atomic<bool> _running{true};
         };
 
+        enum class Alignment : uint8_t {
+            LeftTop,
+            CenterTop,
+            RightTop,
+            Left,
+            Center,
+            Right,
+            LeftBottom,
+            CenterBottom,
+            RightBottom
+        };
+
+        enum class TextAlignment : uint8_t {
+            Left,
+            Center,
+            Right
+        };
+
+        enum class SizePolicy : uint8_t {
+            Ignored,
+            Fixed,
+            Maximized,
+            Minimized
+        };
+
         class AbstractWidget {
         public:
             explicit AbstractWidget(const std::string& name, const Position& position, const Size& size);
@@ -406,27 +428,105 @@ namespace Tiny {
             void move(uint32_t x, uint32_t y);
             void resize(const Size& size);
             void resize(uint32_t w, uint32_t h);
+            void setMinimumSize(const Size& size);
+            void setMinimumSize(uint32_t w, uint32_t h);
+            void setMaximumSize(const Size& size);
+            void setMaximumSize(uint32_t w, uint32_t h);
+            void setEnabled(bool enabled);
+            void setVisible(bool visible);
+            void setFocus(bool focus);
+            void setSizePolicy(SizePolicy policy);
             API_DEPRECATED("It has been replaced by EventBus, and will be removed in v1.4.0.")
             void draw();
 
             [[nodiscard]] const std::string& name() const;
             [[nodiscard]] const Position& position() const;
             [[nodiscard]] const Size& size() const;
+            [[nodiscard]] const Size& minimumSize() const;
+            [[nodiscard]] const Size& maximumSize() const;
+            [[nodiscard]] bool enabled() const;
+            [[nodiscard]] bool visible() const;
+            [[nodiscard]] bool focus() const;
+            [[nodiscard]] SizePolicy sizePolicy() const;
         protected:
-            Renderer& renderer();
-            virtual void renderEvent() = 0;
+            virtual void renderEvent(Renderer& renderer) = 0;
             virtual void resizeEvent(uint32_t width, uint32_t height) = 0;
             virtual void moveEvent(uint32_t x, uint32_t y) = 0;
             virtual void keyEvent(KeyEvent keyboard) = 0;
             virtual void mouseEvent(MouseEvent mouse) = 0;
+            virtual void focusEvent(bool focus) = 0;
+            virtual void enableEvent(bool enable) = 0;
+            virtual void clickedEvent() = 0;
+            virtual void execEvent(const AbstractEvent& event);
+                    void callDrawEvent();
 
         private:
             std::string _name;
             Position _pos;
-            Size _size;
-            Renderer& _renderer;
+            Size _size, _min_size, _max_size;
+            std::bitset<32> _status_flag{};
         };
 
+
+        class AbstractLayout {
+        public:
+            using WidgetIter = std::vector<AbstractWidget*>::iterator;
+            using CWidgetIter = std::vector<AbstractWidget*>::const_iterator;
+
+            AbstractLayout(const std::string& name);
+            virtual ~AbstractLayout() = default;
+
+            void rename(const std::string& name);
+            void move(const Position& position);
+            void move(uint32_t x, uint32_t y);
+            void resize(const Size& size);
+            void resize(uint32_t w, uint32_t h);
+            void setEnabled(bool enabled);
+            void setVisible(bool visible);
+            bool appendWidget(AbstractWidget* widget);
+            bool insertWidget(uint64_t index, AbstractWidget* widget);
+            bool removeWidget(AbstractWidget* widget);
+            bool removeWidget(uint64_t index);
+            bool swapWidget(uint64_t index_1, uint64_t index_2);
+            bool swapWidget(AbstractWidget* widget_1, AbstractWidget* widget_2);
+            void clear();
+
+            [[nodiscard]] const std::string& name() const;
+            [[nodiscard]] const Position& position() const;
+            [[nodiscard]] const Size& size() const;
+            [[nodiscard]] bool enabled() const;
+            [[nodiscard]] bool visible() const;
+
+            [[nodiscard]] WidgetIter begin();
+            [[nodiscard]] WidgetIter end();
+            [[nodiscard]] CWidgetIter cbegin() const;
+            [[nodiscard]] CWidgetIter cend() const;
+            [[nodiscard]] size_t count() const;
+            [[nodiscard]] AbstractWidget* widget(size_t index) const;
+            [[nodiscard]] uint64_t indexOf(const AbstractWidget* widget) const;
+        protected:
+            virtual void renderEvent(Renderer& renderer) = 0;
+            virtual void moveEvent(uint32_t x, uint32_t y) = 0;
+            virtual void resizeEvent(uint32_t width, uint32_t height) = 0;
+
+        private:
+            void calcSize();
+
+            std::vector<AbstractWidget*> _widgets_list;
+            std::string _name;
+            Position _pos{};
+            Size _size{};
+            std::bitset<8> _status_flag{};
+        };
+
+        class Label : public AbstractWidget {
+        public:
+            explicit Label(const std::string& name, const Position& position);
+            virtual ~Label() = default;
+
+            void setText(const std::string& text);
+
+        };
     }
 }
 

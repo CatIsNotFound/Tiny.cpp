@@ -45,14 +45,20 @@
     #endif
 #endif
 
-
-
 #ifdef TINY_CPP_MY_OS_UNIX
 struct termios;
 #endif
 
 #if defined(TINY_CPP_USE_GPM) && defined(TINY_CPP_MY_OS_UNIX)
 struct Gpm_Connect;
+#endif
+
+#if defined(__clang__) || defined(__GNUC__)
+#   define API_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#elif defined(_MSC_VER)
+#   define API_DEPRECATED(msg) __declspec(deprecated(msg))
+#else
+#   define API_DEPRECATED(msg)
 #endif
 
 namespace Tiny {
@@ -64,8 +70,12 @@ namespace Tiny {
             bool operator==(const Size& other) const { return (width == other.width && height == other.height); }
             bool operator!=(const Size& other) const { return (width != other.width || height != other.height); }
             bool isEqual(const Size& other) const { return width * height == other.width * other.height; }
-            int64_t compare(const Size& other) const {
-                return static_cast<int64_t>(width * height) - static_cast<int64_t>(other.width * other.height);
+            int compare(const Size& other) const {
+                if (height < other.height) return 1;
+                if (height == other.height) {
+                    return (width < other.width) ? 1 : ((width > other.width) ? -1 : 0);
+                }
+                return -1;
             }
             Size& operator+(const Size& other) {
                 width += other.width;
@@ -105,6 +115,13 @@ namespace Tiny {
 
             bool operator==(const Position& other) const { return (row == other.row && column == other.column); }
             bool operator!=(const Position& other) const { return (row != other.row || column == other.column); }
+            int compare(const Position& other) const {
+                if (row < other.row) return 1;
+                if (row == other.row) {
+                    return (column < other.column) ? 1 : ((column > other.column) ? -1 : 0);
+                }
+                return -1;
+            }
 
             Position& operator+(const Position& other) {
                 row += other.row;
@@ -260,12 +277,14 @@ namespace Tiny {
 
         const char* getKeyName(const uint8_t &KEY, const SP_Keys &SP);
         const char* getMouseName(const SP_Mouse &SP);
+        API_DEPRECATED("Use `Tiny::TUI::Position::compare()` function instead. The function will be removed from v1.4.0.")
         int8_t comparePosition(const Position& pos1, const Position& pos2);
+        API_DEPRECATED("Use `Tiny::TUI::Size::compare()` function instead. The function will be removed from v1.4.0.")
         int8_t compareSize(const Size& size1, const Size& size2);
         bool   isPointInRect(const Position& point, Position& start_pos, Position& end_pos);
 
         struct InputEvent {
-            /// @note  Since v1.3.0, enum classes have added simpler keywords to make them easier to use.
+            /// @note  Since v1.3.0, enum classes have added simpler keywords to make them easier to use
             /// @since v1.3.0
             enum Type : uint8_t {
                 None,

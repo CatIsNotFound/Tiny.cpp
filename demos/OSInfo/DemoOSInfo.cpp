@@ -114,16 +114,20 @@ int main() {
 
     auto& ren = TUI::Renderer::self();
     term::setCursorVisible(false);
-    ren.setResizeEvent(drawInfo);
+    // ren.setResizeEvent(drawInfo);
+    TUI::EventBus::self().subscribe<TUI::Renderer>([&ren](const TUI::AbstractEvent&) {
+        drawInfo(ren);
+    });
     e1.setDelayMS(10);
     e1.setRepeatCount(0);
     e1.run();
     drawInfo(ren);
     auto start_ts = DT::currentTimestamps();
     while (true) {
-        updateInfo(ren, cpu_info, memory, disk_space);
+        TUI::EventBus::self().pollEvents();
         auto now_ts = DT::currentTimestamps();
         if (now_ts - start_ts > 1000) {
+            updateInfo(ren, cpu_info, memory, disk_space);
             ren.present();
             start_ts = now_ts;
         }

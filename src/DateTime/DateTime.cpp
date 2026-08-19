@@ -27,6 +27,7 @@
 #include <sstream>
 #include <iomanip>
 #include <ctime>
+#include <cctype>
 
 #include "../OS/File.hpp"
 #ifdef TINY_CPP_MY_OS_WINDOWS
@@ -591,6 +592,57 @@ std::string Tiny::DT::formatStdTime(Duration timestamps, bool show_milliseconds)
         << std::setw(2) << std::setfill('0') << sec;
     if (show_milliseconds) oss << "." << std::setw(3) << std::setfill('0') << ms;
     return oss.str();
+}
+
+std::string Tiny::DT::formatTime(const char *format, Duration timestamps) {
+    std::string result;
+    uint8_t fill_n = 0;
+    while (*format) {
+        if (*format == '%') {
+            if (++format) {
+                std::ostringstream temp;
+                while (true) {
+                    if (fill_n) temp << std::setfill('0') << std::setw(fill_n);
+                    switch (*format) {
+                        case '%':
+                            temp << '%';
+                            break;
+                        case 'h':
+                            temp << std::to_string((timestamps / 1440000) % 24);
+                            break;
+                        case 'm':
+                            temp << std::to_string((timestamps / 60000) % 60);
+                            break;
+                        case 's':
+                            temp << std::to_string((timestamps / 1000) % 60);
+                            break;
+                        case 'S':
+                            temp << std::to_string((timestamps % 1000));
+                            break;
+                        case '0':
+                            if (isdigit(*(format + 1))) {
+                                fill_n = *(format + 1) - '0';
+                                format += 2;
+                                continue;
+                            }
+                            temp << '%' << *format;
+                            break;
+                        default:
+                            temp << '%' << *format;
+                            break;
+                    }
+                    break;
+                }
+                result += temp.str();
+                format++;
+            } else {
+                result += '%';
+            }
+        } else {
+            result += *format++;
+        }
+    }
+    return result;
 }
 
 

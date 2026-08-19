@@ -1,6 +1,4 @@
 ﻿
-#include <utility>
-
 #include "../src/Tiny.hpp"
 
 using namespace Tiny;
@@ -223,8 +221,9 @@ int main(int argc, char *argv[]) {
 
     ev_bus.subscribe<Application>([&style] (const AbstractEvent& ev) {
         auto now = DT::DateTime::now();
-        Renderer::self().setSSF({2, 1}, now.formatString("HH:mm:ss").c_str(), style);
+        Renderer::self().setSSF({2, 1}, formatTime("%02hh%02mm%02ss.%03S", now.timestamps()).c_str(), style);
     });
+
 
     return app.run();
 }
