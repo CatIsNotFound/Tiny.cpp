@@ -33,6 +33,7 @@
 #include <csignal>
 #include <clocale>
 #include <cwchar>
+#include <climits>
 #endif
 
 namespace {

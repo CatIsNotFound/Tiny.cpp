@@ -59,7 +59,7 @@
     #endif
 #endif
 
-static std::string num2str(int num) {
+std::string num2str(int num) {
     std::string ret;
     while (num != 0) {
         ret.insert(ret.begin(), num % 10 + '0');
@@ -447,7 +447,7 @@ namespace Tiny {
             return false;
         }
 
-        Net::Handle create(const Net::Address& address, Net::SocketType sock_type, int type = 0, int protocol = 0) {
+        Net::Handle create(const Net::Address& address, Net::SocketType sock_type, uint8_t type = 0, uint8_t protocol = 0) {
             switch (sock_type) {
                 case Net::SocketType::TCP:
                     return ::socket(address.isIPv6() ? AF_INET6 : AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -516,7 +516,7 @@ namespace Tiny {
             return new_client;
         }
 
-        int send(Net::Handle socket, const Net::Datas& datas) {
+        int send(Net::Handle socket, const Net::NetDatas& datas) {
 #ifdef TINY_CPP_MY_OS_WINDOWS
             return ::send(socket, datas.data(), datas.size(), 0);
 #else
@@ -532,7 +532,7 @@ namespace Tiny {
 #endif
         }
 
-        int sendto(Net::Handle socket, const Net::Datas& datas, const Net::Address& dest, int flag = 0) {
+        int sendto(Net::Handle socket, const Net::NetDatas& datas, const Net::Address& dest, int flag = 0) {
             return ::sendto(socket, datas.data(), datas.size(), flag,
                             static_cast<sockaddr*>(dest.address()),
                             dest.isIPv6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in));
@@ -544,7 +544,7 @@ namespace Tiny {
                             dest.isIPv6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in));
         }
 
-        int recv(Net::Handle socket, Net::Datas& datas, size_t max_len) {
+        int recv(Net::Handle socket, Net::NetDatas& datas, size_t max_len) {
             if (max_len > 0) datas.resize(max_len + 1);
 #ifdef TINY_CPP_MY_OS_WINDOWS
             return ::recv(socket, &datas[0], datas.size(), 0);
@@ -567,7 +567,7 @@ namespace Tiny {
             return ret;
         }
 
-        int recvfrom(Net::Handle socket, Net::Datas& datas, const Net::Address& src, int flag = 0) {
+        int recvfrom(Net::Handle socket, Net::NetDatas& datas, const Net::Address& src, int flag = 0) {
             SOCK_LEN_T sz = src.isIPv6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
             return ::recvfrom(socket, &datas[0], datas.size(), flag,
                             static_cast<sockaddr*>(src.address()), &sz);
@@ -986,7 +986,8 @@ namespace Tiny {
         return __SocketErrorStrings__.at(SocketError::UnknownError);
     }
 
-    Net::Socket::Socket(SocketType type) : _handle(INVALID_SOCKET_VAL), _type(type), _err(), _state() {}
+    Net::Socket::Socket(SocketType type, uint8_t msg_type, uint8_t proto_no)
+        : _handle(INVALID_SOCKET_VAL), _type(type), _err(), _state(), _msg_type(msg_type), _proto_no(proto_no) {}
 
     Net::Socket::Socket(Socket &&other) noexcept {
         _handle = other._handle;
@@ -996,6 +997,8 @@ namespace Tiny {
         _err = other._err;
         _state = other._state;
         _type = other._type;
+        _msg_type = other._msg_type;
+        _proto_no = other._proto_no;
     }
 
     Net::Socket &Net::Socket::operator=(Socket &&other) noexcept {
@@ -1006,6 +1009,8 @@ namespace Tiny {
         _err = other._err;
         _state = other._state;
         _type = other._type;
+        _msg_type = other._msg_type;
+        _proto_no = other._proto_no;
         return *this;
     }
 
@@ -1047,7 +1052,7 @@ namespace Tiny {
     }
 
     void Net::Socket::setPeerAddress(const char *address, uint16_t port, bool use_ipv6) {
-        if (_state != SocketState::Unused) {
+        if (_state != SocketState::Unused && _state != SocketState::Bound) {
             _sys_errno = 0;
             _err = SocketError::SocketInUse;
             return;
@@ -1058,7 +1063,7 @@ namespace Tiny {
     }
 
     void Net::Socket::setPeerAddress(Address &&address) {
-        if (_state != SocketState::Unused) {
+        if (_state != SocketState::Unused && _state != SocketState::Bound) {
             _sys_errno = 0;
             _err = SocketError::SocketInUse;
             return;
@@ -1069,7 +1074,7 @@ namespace Tiny {
     }
 
     void Net::Socket::setPeerPort(uint16_t port) {
-        if (_state != SocketState::Unused) {
+        if (_state != SocketState::Unused && _state != SocketState::Bound) {
             _sys_errno = 0;
             _err = SocketError::SocketInUse;
             return;
@@ -1087,6 +1092,11 @@ namespace Tiny {
             _err = SocketError::SocketInUse;
             _sys_errno = 0;
         }
+    }
+
+    void Net::Socket::setCustomSocketType(uint8_t type, uint8_t proto_no) {
+        _msg_type = type;
+        _proto_no = proto_no;
     }
 
     bool Net::Socket::connect(const char *address, uint16_t port) {
@@ -1111,7 +1121,7 @@ namespace Tiny {
             return false;
         }
         _state = SocketState::Connecting;
-        _handle = Socket_Impl::create(_peer_addr, _type);
+        _handle = Socket_Impl::create(_peer_addr, _type, _msg_type, _proto_no);
         if (_handle == INVALID_SOCKET_VAL) {
             copeFailed();
             _state = SocketState::Unused;
@@ -1174,7 +1184,7 @@ namespace Tiny {
             _sys_errno = 0;
             return false;
         }
-        _handle = Socket_Impl::create(_local_addr, _type);
+        _handle = Socket_Impl::create(_local_addr, _type, _msg_type, _proto_no);
         if (_handle == INVALID_SOCKET_VAL) {
             copeFailed();
             return false;
@@ -1223,7 +1233,7 @@ namespace Tiny {
             _sys_errno = 0;
             return false;
         }
-        _handle = Socket_Impl::create(_local_addr, _type);
+        _handle = Socket_Impl::create(_local_addr, _type, _msg_type, _proto_no);
         if (_handle == INVALID_SOCKET_VAL) {
             copeFailed();
             return false;
@@ -1316,7 +1326,7 @@ ListenFailed:
         return true;
     }
 
-    bool Net::Socket::send(const Datas &data, int *sended_length) {
+    bool Net::Socket::send(const NetDatas &data, int *sended_length) {
         if (_handle == INVALID_SOCKET_VAL) {
             _sys_errno = 0;
             _err = SocketError::SocketIsNotOpened;
@@ -1332,7 +1342,7 @@ ListenFailed:
         return true;
     }
 
-    bool Net::Socket::recv(Datas &data, size_t max_length, int* received_length) {
+    bool Net::Socket::recv(NetDatas &data, size_t max_length, int* received_length) {
         if (_handle == INVALID_SOCKET_VAL) {
             _sys_errno = 0;
             _err = SocketError::SocketIsNotOpened;
@@ -1366,11 +1376,12 @@ ListenFailed:
 
     bool Net::Socket::sendTo(const std::string &message, const Address &address, int *sended_length) {
         if (_handle == INVALID_SOCKET_VAL) {
-            _handle = Socket_Impl::create(_local_addr, _type);
+            _handle = Socket_Impl::create(_local_addr, _type, _msg_type, _proto_no);
             if (_handle == INVALID_SOCKET_VAL) {
                 copeFailed();
                 return false;
             }
+
             if (!setAllOptions()) {
                 copeFailed();
                 if (_sys_errno == 0) _err = SocketError::SetOptionError;
@@ -1387,9 +1398,9 @@ ListenFailed:
         return true;
     }
 
-    bool Net::Socket::sendTo(const Datas &message, const Address &address, int *sended_length) {
+    bool Net::Socket::sendTo(const NetDatas &message, const Address &address, int *sended_length) {
         if (_handle == INVALID_SOCKET_VAL) {
-            _handle = Socket_Impl::create(_local_addr, _type);
+            _handle = Socket_Impl::create(_local_addr, _type, _msg_type, _proto_no);
             if (_handle == INVALID_SOCKET_VAL) {
                 copeFailed();
                 return false;
@@ -1412,7 +1423,7 @@ ListenFailed:
 
     bool Net::Socket::recvFrom(std::string &message, size_t max_length, const Address &address, int *received_length) {
         if (_handle == INVALID_SOCKET_VAL) {
-            _handle = Socket_Impl::create(_local_addr, _type);
+            _handle = Socket_Impl::create(_local_addr, _type, _msg_type, _proto_no);
             if (_handle == INVALID_SOCKET_VAL) {
                 copeFailed();
                 return false;
@@ -1434,9 +1445,9 @@ ListenFailed:
         return true;
     }
 
-    bool Net::Socket::recvFrom(Datas &data, size_t max_length, const Address &address, int *received_length) {
+    bool Net::Socket::recvFrom(NetDatas &data, size_t max_length, const Address &address, int *received_length) {
         if (_handle == INVALID_SOCKET_VAL) {
-            _handle = Socket_Impl::create(_local_addr, _type);
+            _handle = Socket_Impl::create(_local_addr, _type, _msg_type, _proto_no);
             if (_handle == INVALID_SOCKET_VAL) {
                 copeFailed();
                 return false;

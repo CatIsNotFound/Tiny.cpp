@@ -206,7 +206,7 @@ int main(int argc, char** argv) {
     cmd_parser.addCommand("path", "p", "Specified the path which should be shown by tree view.", true, ".", true, true);
     cmd_parser.addCommand("recursive", "Rr", "Whether to recursively include all possible directories under the specified path.");
     cmd_parser.addCommand("color", "c", "Show different colors based on different items.");
-    cmd_parser.addLastCommand("help", "h", "Display the help info.");
+    cmd_parser.addLastCommand("help", "h?", "Display the help info.");
     cmd_parser.addLastCommand("version", "v", "Display the version info.");
     int n{};
     std::vector<std::string> missing{};

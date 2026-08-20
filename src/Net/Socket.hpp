@@ -55,7 +55,9 @@ namespace Tiny {
 #elif defined(TINY_CPP_MY_OS_UNIX)
         using Handle = int;
 #endif
+        /// @warning Use 'NetDatas' instead, it will be removed in v1.4.0.
         using Datas = std::vector<char>;
+        using NetDatas = std::vector<char>;
 
         /// List of common protocol ports
         enum class PortProtocol : uint16_t {
@@ -481,10 +483,9 @@ namespace Tiny {
             }
         };
 
-
         class Socket {
         public:
-            Socket(SocketType type = SocketType::TCP);
+            Socket(SocketType type = SocketType::TCP, uint8_t msg_type = 0, uint8_t proto_no = 0);
             Socket(Socket&& other) noexcept;
             Socket& operator=(Socket&& other) noexcept;
             ~Socket();
@@ -496,6 +497,7 @@ namespace Tiny {
             void setPeerAddress(Address&& address);
             void setPeerPort(uint16_t port);
             void setSocketType(SocketType type);
+            void setCustomSocketType(uint8_t type, uint8_t proto_no);
 
             bool connect(const char* address, uint16_t port);
             bool connect(const char* address, PortProtocol port);
@@ -515,14 +517,14 @@ namespace Tiny {
             bool shutdown();
 
             bool send(const std::string &message, int *sended_length = nullptr);
-            bool send(const Datas &data, int *sended_length = nullptr);
-            bool recv(Datas& data, size_t max_length, int* received_length = nullptr);
+            bool send(const NetDatas &data, int *sended_length = nullptr);
+            bool recv(NetDatas& data, size_t max_length, int* received_length = nullptr);
             bool recv(std::string& message, size_t max_length, int* received_length = nullptr);
 
             bool sendTo(const std::string &message, const Address& address, int* sended_length = nullptr);
-            bool sendTo(const Datas &message, const Address& address, int* sended_length = nullptr);
+            bool sendTo(const NetDatas &message, const Address& address, int* sended_length = nullptr);
             bool recvFrom(std::string& message, size_t max_length, const Address& address, int* received_length = nullptr);
-            bool recvFrom(Datas& data, size_t max_length, const Address& address, int* received_length = nullptr);
+            bool recvFrom(NetDatas& data, size_t max_length, const Address& address, int* received_length = nullptr);
 
             void setOption(SocketOption option, OptionValue value, bool *ok = nullptr);
             void setOption(uint32_t option_id, OptionValue value, bool *ok = nullptr);
@@ -555,6 +557,8 @@ namespace Tiny {
             SocketType  _type;
             SocketError _err;
             SocketState _state;
+            uint8_t     _msg_type;
+            uint8_t     _proto_no;
         };
 
         int getLastSystemError(std::string* info = nullptr);

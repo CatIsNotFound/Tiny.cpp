@@ -29,6 +29,10 @@ addModule(du  MY_MODULE
         du/du.cpp
 )
 
+addModule(ping  MY_MODULE
+        ping/main.cpp
+)
+
 addModule(SimpleTUI MY_MODULE
         SimpleTUI/main.cpp
 )
