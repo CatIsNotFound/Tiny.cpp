@@ -33,25 +33,25 @@ using namespace Tiny::DT;
 // =============================================================================
 
 TEST(MonthEnumTest, Values) {
-    EXPECT_EQ(static_cast<int>(January), 1);
-    EXPECT_EQ(static_cast<int>(Jan), 1);
-    EXPECT_EQ(static_cast<int>(February), 2);
-    EXPECT_EQ(static_cast<int>(Feb), 2);
-    EXPECT_EQ(static_cast<int>(June), 6);
-    EXPECT_EQ(static_cast<int>(Jun), 6);
-    EXPECT_EQ(static_cast<int>(July), 7);
-    EXPECT_EQ(static_cast<int>(Jul), 7);
-    EXPECT_EQ(static_cast<int>(December), 12);
-    EXPECT_EQ(static_cast<int>(Dec), 12);
+    EXPECT_EQ(static_cast<int>(Month::January), 1);
+    EXPECT_EQ(static_cast<int>(Month::Jan), 1);
+    EXPECT_EQ(static_cast<int>(Month::February), 2);
+    EXPECT_EQ(static_cast<int>(Month::Feb), 2);
+    EXPECT_EQ(static_cast<int>(Month::June), 6);
+    EXPECT_EQ(static_cast<int>(Month::Jun), 6);
+    EXPECT_EQ(static_cast<int>(Month::July), 7);
+    EXPECT_EQ(static_cast<int>(Month::Jul), 7);
+    EXPECT_EQ(static_cast<int>(Month::December), 12);
+    EXPECT_EQ(static_cast<int>(Month::Dec), 12);
 }
 
 TEST(WeekdayEnumTest, Values) {
-    EXPECT_EQ(static_cast<int>(Sunday), 0);
-    EXPECT_EQ(static_cast<int>(Sun), 0);
-    EXPECT_EQ(static_cast<int>(Monday), 1);
-    EXPECT_EQ(static_cast<int>(Mon), 1);
-    EXPECT_EQ(static_cast<int>(Saturday), 6);
-    EXPECT_EQ(static_cast<int>(Sat), 6);
+    EXPECT_EQ(static_cast<int>(Weekday::Sunday), 0);
+    EXPECT_EQ(static_cast<int>(Weekday::Sun), 0);
+    EXPECT_EQ(static_cast<int>(Weekday::Monday), 1);
+    EXPECT_EQ(static_cast<int>(Weekday::Mon), 1);
+    EXPECT_EQ(static_cast<int>(Weekday::Saturday), 6);
+    EXPECT_EQ(static_cast<int>(Weekday::Sat), 6);
 }
 
 // =============================================================================
@@ -59,53 +59,53 @@ TEST(WeekdayEnumTest, Values) {
 // =============================================================================
 
 TEST(MonthNameTest, FullNames) {
-    EXPECT_STREQ(monthName(January), "January");
-    EXPECT_STREQ(monthName(February), "February");
-    EXPECT_STREQ(monthName(March), "March");
-    EXPECT_STREQ(monthName(April), "April");
-    EXPECT_STREQ(monthName(May), "May");
-    EXPECT_STREQ(monthName(June), "June");
-    EXPECT_STREQ(monthName(July), "July");
-    EXPECT_STREQ(monthName(August), "August");
-    EXPECT_STREQ(monthName(September), "September");
-    EXPECT_STREQ(monthName(October), "October");
-    EXPECT_STREQ(monthName(November), "November");
-    EXPECT_STREQ(monthName(December), "December");
+    EXPECT_STREQ(monthName(Month::January), "January");
+    EXPECT_STREQ(monthName(Month::February), "February");
+    EXPECT_STREQ(monthName(Month::March), "March");
+    EXPECT_STREQ(monthName(Month::April), "April");
+    EXPECT_STREQ(monthName(Month::May), "May");
+    EXPECT_STREQ(monthName(Month::June), "June");
+    EXPECT_STREQ(monthName(Month::July), "July");
+    EXPECT_STREQ(monthName(Month::August), "August");
+    EXPECT_STREQ(monthName(Month::September), "September");
+    EXPECT_STREQ(monthName(Month::October), "October");
+    EXPECT_STREQ(monthName(Month::November), "November");
+    EXPECT_STREQ(monthName(Month::December), "December");
 }
 
 TEST(MonthNameTest, ShortNames) {
-    EXPECT_STREQ(monthName(January, true), "Jan");
-    EXPECT_STREQ(monthName(February, true), "Feb");
-    EXPECT_STREQ(monthName(March, true), "Mar");
-    EXPECT_STREQ(monthName(April, true), "Apr");
-    EXPECT_STREQ(monthName(May, true), "May");
-    EXPECT_STREQ(monthName(June, true), "Jun");
-    EXPECT_STREQ(monthName(July, true), "Jul");
-    EXPECT_STREQ(monthName(August, true), "Aug");
-    EXPECT_STREQ(monthName(September, true), "Sep");
-    EXPECT_STREQ(monthName(October, true), "Oct");
-    EXPECT_STREQ(monthName(November, true), "Nov");
-    EXPECT_STREQ(monthName(December, true), "Dec");
+    EXPECT_STREQ(monthName(Month::January, true), "Jan");
+    EXPECT_STREQ(monthName(Month::February, true), "Feb");
+    EXPECT_STREQ(monthName(Month::March, true), "Mar");
+    EXPECT_STREQ(monthName(Month::April, true), "Apr");
+    EXPECT_STREQ(monthName(Month::May, true), "May");
+    EXPECT_STREQ(monthName(Month::June, true), "Jun");
+    EXPECT_STREQ(monthName(Month::July, true), "Jul");
+    EXPECT_STREQ(monthName(Month::August, true), "Aug");
+    EXPECT_STREQ(monthName(Month::September, true), "Sep");
+    EXPECT_STREQ(monthName(Month::October, true), "Oct");
+    EXPECT_STREQ(monthName(Month::November, true), "Nov");
+    EXPECT_STREQ(monthName(Month::December, true), "Dec");
 }
 
 TEST(WeekDayNameTest, FullNames) {
-    EXPECT_STREQ(weekDayName(Sunday), "Sunday");
-    EXPECT_STREQ(weekDayName(Monday), "Monday");
-    EXPECT_STREQ(weekDayName(Tuesday), "Tuesday");
-    EXPECT_STREQ(weekDayName(Wednesday), "Wednesday");
-    EXPECT_STREQ(weekDayName(Thursday), "Thursday");
-    EXPECT_STREQ(weekDayName(Friday), "Friday");
-    EXPECT_STREQ(weekDayName(Saturday), "Saturday");
+    EXPECT_STREQ(weekDayName(Weekday::Sunday), "Sunday");
+    EXPECT_STREQ(weekDayName(Weekday::Monday), "Monday");
+    EXPECT_STREQ(weekDayName(Weekday::Tuesday), "Tuesday");
+    EXPECT_STREQ(weekDayName(Weekday::Wednesday), "Wednesday");
+    EXPECT_STREQ(weekDayName(Weekday::Thursday), "Thursday");
+    EXPECT_STREQ(weekDayName(Weekday::Friday), "Friday");
+    EXPECT_STREQ(weekDayName(Weekday::Saturday), "Saturday");
 }
 
 TEST(WeekDayNameTest, ShortNames) {
-    EXPECT_STREQ(weekDayName(Sunday, true), "Sun");
-    EXPECT_STREQ(weekDayName(Monday, true), "Mon");
-    EXPECT_STREQ(weekDayName(Tuesday, true), "Tue");
-    EXPECT_STREQ(weekDayName(Wednesday, true), "Wed");
-    EXPECT_STREQ(weekDayName(Thursday, true), "Thur");
-    EXPECT_STREQ(weekDayName(Friday, true), "Fri");
-    EXPECT_STREQ(weekDayName(Saturday, true), "Sat");
+    EXPECT_STREQ(weekDayName(Weekday::Sunday, true), "Sun");
+    EXPECT_STREQ(weekDayName(Weekday::Monday, true), "Mon");
+    EXPECT_STREQ(weekDayName(Weekday::Tuesday, true), "Tue");
+    EXPECT_STREQ(weekDayName(Weekday::Wednesday, true), "Wed");
+    EXPECT_STREQ(weekDayName(Weekday::Thursday, true), "Thur");
+    EXPECT_STREQ(weekDayName(Weekday::Friday, true), "Fri");
+    EXPECT_STREQ(weekDayName(Weekday::Saturday, true), "Sat");
 }
 
 // =============================================================================

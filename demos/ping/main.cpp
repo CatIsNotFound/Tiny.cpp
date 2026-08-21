@@ -87,14 +87,16 @@ public:
     };
 #pragma pack()
     ICMP_Socket() : _socket(SocketType::Custom) {
-        _socket.setOption(SocketOption::RecvBufSize, 1024);
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        _socket.setOption(SocketOption::RecvBufTimeout, 5);
+        const uint32_t TIMEOUT = 5000;
+        _socket.setOption(SocketOption::RecvBufTimeout, TIMEOUT);
+        _socket.setOption(SocketOption::SendBufTimeout, TIMEOUT);
 #else
         timeval _timeval;
         _timeval.tv_sec = 5;
         _timeval.tv_usec = 0;
         _socket.setOption(SocketOption::RecvBufTimeout, OptionValue(&_timeval, sizeof(_timeval)));
+        _socket.setOption(SocketOption::SendBufTimeout, OptionValue(&_timeval, sizeof(_timeval)));
 #endif
     }
 
@@ -125,10 +127,45 @@ public:
 
     const char* error() {
         if (_socket.lastError() != SocketError::Success) {
-            return getSocketErrorName(_socket.lastError());
+            switch (_socket.lastError()) {
+                case SocketError::AddressNotSupport:
+                    return "Address is not supported!";
+                case SocketError::ProtoNotSupported:
+                    return "Protocol is not supported!";
+                case SocketError::SocketIsNotOpened:
+                    return "Socket is not opened!";
+                case SocketError::SocketClosed:
+                    return "Socket is already closed!";
+                case SocketError::AddressInUse:
+                    return "Address is already used!";
+                case SocketError::AddressNotAvailable:
+                    return "Address is not available!";
+                case SocketError::ConnectionRefused:
+                    return "Connection refused!";
+                case SocketError::ConnectionReset:
+                    return "Connection reset!";
+                case SocketError::ConnectionAborted:
+                    return "Connection aborted!";
+                case SocketError::ConnectionTimeout:
+                    return "Connection timeout!";
+                case SocketError::NetworkUnreachable:
+                    return "Network is unreachable!";
+                case SocketError::HostUnreachable:
+                    return "Host is unreachable!";
+                case SocketError::NetworkDown:
+                    return "Disconnected network!";
+                case SocketError::OperationDenied:
+                    return "Operation denied!";
+                case SocketError::OperationCancelled:
+                    return "Operation cancelled!";
+                case SocketError::ResourceUnavailable:
+                    return "Resource unavailable!";
+                default:
+                    return getSocketErrorName(_socket.lastError());
+            }
         }
         if (_errco == 4) {
-            return "Network unreachable!";
+            return "Packet broken!";
         }
         return "Unknown!";
     }
@@ -151,46 +188,51 @@ public:
 
     bool recv(ICMP_Packet* packet = nullptr, EchoRequest* echo = nullptr, uint8_t* TTL = nullptr) {
         std::string data;
-        auto ok = _socket.recvFrom(data, 128, _socket.peerAddress());
-        if (!ok) return false;
-        size_t ihl{};
-        if (_socket.peerAddress().isIPv6()) {
-            ihl = data.find_first_of(static_cast<char>(0x81));
-            if (ihl == std::string::npos) return false;
-        } else {
-            ihl = (data[0] & 0x0f) * 4;
-        }
-        auto PACK = reinterpret_cast<const ICMP_Packet*>(data.c_str() + ihl);
-        if (TTL) {
-            if (!_socket.peerAddress().isIPv6()) {
-                size_t idx = data.find_first_of(0x01);
-                if (idx == std::string::npos) {
-                    _errco = 4;
-                    return false;
-                }
-                *TTL = data.c_str()[idx - 1];
+        while (true) {
+            int recv_count = 0;
+            auto ok = _socket.recvFrom(data, 128, _socket.peerAddress(), &recv_count);
+            if (recv_count == 0) break;
+            if (!ok) return false;
+            size_t ihl{};
+            if (_socket.peerAddress().isIPv6()) {
+                ihl = data.find_first_of(static_cast<char>(0x81));
+                if (ihl == std::string::npos) return false;
+            } else {
+                ihl = (data[0] & 0x0f) * 4;
             }
-        }
-        if (_socket.peerAddress().isIPv6() && PACK->type() != 129) {
-            _errco = 4;
-            return false;
-        }
-        if (!_socket.peerAddress().isIPv6() && PACK->type() != 0) {
-            _errco = 4;
-            return false;
-        }
-        if (packet) {
-            packet->setPack(PACK->type(), PACK->code(), PACK->data(), sizeof(EchoRequest));
-        }
-        if (echo) {
-            auto ECHO = reinterpret_cast<const EchoRequest*>(PACK->data());
-            echo->id = ECHO->id;
-            echo->seq = ECHO->seq;
-            echo->times = DT::currentTimestamps() - ECHO->times;
+            auto PACK = reinterpret_cast<const ICMP_Packet*>(data.c_str() + ihl);
+            if (TTL) {
+                if (!_socket.peerAddress().isIPv6()) {
+                    size_t idx = data.find_first_of(0x01);
+                    if (idx == std::string::npos) {
+                        _errco = 4;
+                        continue;
+                    }
+                    *TTL = data.c_str()[idx - 1];
+                }
+            }
+            if (_socket.peerAddress().isIPv6() && PACK->type() != 129) {
+                _errco = 4;
+                continue;
+            }
+            if (!_socket.peerAddress().isIPv6() && PACK->type() != 0) {
+                _errco = 4;
+                continue;
+            }
+            if (packet) {
+                packet->setPack(PACK->type(), PACK->code(), PACK->data(), sizeof(EchoRequest));
+            }
+            if (echo) {
+                auto ECHO = reinterpret_cast<const EchoRequest*>(PACK->data());
+                echo->id = ECHO->id;
+                echo->seq = ECHO->seq;
+                echo->times = DT::currentTimestamps() - ECHO->times;
 
-            memcpy(echo->data, ECHO->data, sizeof(echo->data));
+                memcpy(echo->data, ECHO->data, sizeof(echo->data));
+            }
+            return true;
         }
-        return true;
+        return false;
     }
 
     uint32_t sendCount() const {
@@ -264,7 +306,7 @@ void print_result(const ICMP_Socket &socket, const std::vector<int64_t> &times_l
     Terminal::printFormat("Total: {} pack(s), Received: {} pack(s) ({:.1f}% LOST)\r\n",
         socket.sendCount(), times_list.size(), lost);
     double avg = 0;
-    double min = static_cast<double>(INT64_MAX), max = 0;
+    double min = times_list.empty() ? 0 : static_cast<double>(INT64_MAX), max = 0;
     for (auto& times : times_list) {
         auto ts = static_cast<double>(times);
         avg += ts;
@@ -364,7 +406,7 @@ int main(int argc, char** argv) {
             continue;
         }
         std::this_thread::sleep_for(std::chrono::seconds(1));
-        Terminal::printLine("Error: Sended failed!");
+        Terminal::printLine(sock.error());
     }
     print_result(sock, times_seq_list);
     sock.close();

@@ -1129,7 +1129,6 @@ namespace Tiny {
         }
         if (!setAllOptions()) {
             copeFailed();
-            if (_sys_errno == 0) _err = SocketError::SetOptionError;
             return false;
         }
 
@@ -1189,6 +1188,10 @@ namespace Tiny {
             copeFailed();
             return false;
         }
+        if (!setAllOptions()) {
+            copeFailed();
+            return false;
+        }
         auto ret = Socket_Impl::bind(_handle, _local_addr);
         if (ret == SOCKET_ERROR) {
             copeFailed();
@@ -1240,7 +1243,6 @@ namespace Tiny {
         }
         if (!setAllOptions()) {
             copeFailed();
-            if (_sys_errno == 0) _err = SocketError::SetOptionError;
             return false;
         }
         _state = SocketState::Listening;
@@ -1384,7 +1386,6 @@ ListenFailed:
 
             if (!setAllOptions()) {
                 copeFailed();
-                if (_sys_errno == 0) _err = SocketError::SetOptionError;
                 return false;
             }
         }
@@ -1407,7 +1408,6 @@ ListenFailed:
             }
             if (!setAllOptions()) {
                 copeFailed();
-                if (_sys_errno == 0) _err = SocketError::SetOptionError;
                 return false;
             }
         }
@@ -1430,7 +1430,6 @@ ListenFailed:
             }
             if (!setAllOptions()) {
                 copeFailed();
-                if (_sys_errno == 0) _err = SocketError::SetOptionError;
                 return false;
             }
         }
@@ -1454,7 +1453,6 @@ ListenFailed:
             }
             if (!setAllOptions()) {
                 copeFailed();
-                if (_sys_errno == 0) _err = SocketError::SetOptionError;
                 return false;
             }
         }
@@ -1552,6 +1550,7 @@ ListenFailed:
     void Net::Socket::copeFailed() {
         _sys_errno = getLastSystemError();
         mapErrorNum(_sys_errno);
+        if (_sys_errno == 0) _err = SocketError::SetOptionError;
     }
 
     void Net::Socket::copeSuccess() {
