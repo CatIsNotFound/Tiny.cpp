@@ -179,7 +179,7 @@ jobs:
         uses: vmactions/freebsd-vm@v1
         with:
           arch: ${{ matrix.label_arch }}
-          sync: rsync
+          sync: sshfs
           sync-time: true
 
       - name: Install requirements
