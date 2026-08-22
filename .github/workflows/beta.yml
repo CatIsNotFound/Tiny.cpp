@@ -170,9 +170,6 @@ jobs:
             runner: ubuntu-latest
             label_arch: aarch64
 
-    env:
-      - ENV1: ${{ secrets.GITHUB_TOKEN }}
-
     steps:
       - name: pull project
         uses: actions/checkout@v7
