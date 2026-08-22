@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: pull project
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install requirements
         shell: bash
@@ -81,7 +81,7 @@ jobs:
           echo "artifact_name=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.package.outputs.artifact_name }}
           path: ~/MyLibs/${{ steps.package.outputs.artifact_name }}.tar.gz
@@ -98,7 +98,7 @@ jobs:
 
     steps:
       - name: pull project
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install requirements
         shell: bash
@@ -153,7 +153,91 @@ jobs:
           echo "artifact_name=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: ~/MyLibs/${{ steps.package.outputs.artifact_name }}.tar.gz
+
+  env-freebsd:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+            label_arch: x86_64
+          - arch: arm64
+            runner: ubuntu-latest
+            label_arch: aarch64
+
+    env:
+      - ENV1: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: pull project
+        uses: actions/checkout@v7
+
+      - name: start VM
+        id: env-freebsd
+        uses: vmactions/freebsd-vm@v1
+        with:
+          arch: ${{ matrix.label_arch }}
+          sync-time: true
+
+      - name: Install requirements
+        shell: freebsd {0}
+        run: |
+            sudo pkg install -y cmake ninja googletest
+
+      - name: Compiling project
+        shell: freebsd {0}
+        run: |
+          mkdir -p ~/MyLibs/
+          cmake -B build -DCMAKE_INSTALL_PREFIX=~/MyLibs/Tiny.cpp -DCMAKE_BUILD_TYPE=Debug -DTINY_GTEST_SRC=OFF
+          if [ $? -ne 0 ]; then
+              echo "* Failed to configure project!"
+              exit 1
+          fi
+          cmake --build build --target install -j8
+          if [ $? -ne 0 ]; then
+              echo "* Failed to compile and install!"
+              exit 1
+          fi
+
+      - name: Test for project
+        shell: freebsd {0}
+        run: |
+          cd build/bin/gtests
+          sudo rm -rf /etc/localtime
+          TIMEZONE=`curl ipconfig.io/json | grep time_zone | cut -d'"' -f4`
+          sudo ln -s /usr/share/zoneinfo/$TIMEZONE /etc/localtime
+          for EXE in $(ls -1); do
+              ./$EXE
+              if [ $? -ne 0 ]; then
+                  echo "* Test failed: " $EXE
+                  exit 1
+              fi
+              sleep 1
+          done
+
+      - name: Get version
+        id: version
+        shell: freebsd {0}
+        run: |
+          VERSION=$(tr -d '[:space:]' < .github/current_version.txt)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Package artifact
+        id: package
+        shell: freebsd {0}
+        run: |
+          cd ~/MyLibs
+          ARTIFACT_NAME="Tiny_cpp_v${{ steps.version.outputs.version }}_macos_${{ matrix.arch }}"
+          tar -czf ${ARTIFACT_NAME}.tar.gz Tiny.cpp
+          echo "artifact_name=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.package.outputs.artifact_name }}
           path: ~/MyLibs/${{ steps.package.outputs.artifact_name }}.tar.gz
@@ -174,7 +258,7 @@ jobs:
 
     steps:
       - name: pull project
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: setup Visual Studio
         uses: ilammy/msvc-dev-cmd@v1
@@ -227,7 +311,7 @@ jobs:
           echo "artifact_name=$artifactName" >> $env:GITHUB_OUTPUT
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.package.outputs.artifact_name }}
           path: ${{ github.workspace }}/${{ steps.package.outputs.artifact_name }}.zip
@@ -250,7 +334,7 @@ jobs:
 
     steps:
       - name: pull project
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup MSYS2
         uses: msys2/setup-msys2@v2
@@ -345,7 +429,7 @@ jobs:
           echo "artifact_name=$artifactName" >> $env:GITHUB_OUTPUT
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.package.outputs.artifact_name }}
           path: ${{ github.workspace }}/${{ steps.package.outputs.artifact_name }}.zip
