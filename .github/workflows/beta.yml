@@ -184,7 +184,7 @@ jobs:
       - name: Install requirements
         shell: freebsd {0}
         run: |
-            pkg install -y cmake ninja googletest sudo
+            pkg install -y cmake ninja googletest sudo curl
 
       - name: Compiling project
         shell: freebsd {0}
