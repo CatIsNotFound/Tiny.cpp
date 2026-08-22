@@ -1,4 +1,4 @@
-﻿name: Build and Test
+﻿name: Build
 on:
   workflow_call:
   push:
@@ -231,14 +231,14 @@ jobs:
         run: |
           cd ~/MyLibs
           ARTIFACT_NAME="Tiny_cpp_v${{ steps.version.outputs.version }}_freebsd_${{ matrix.arch }}"
-          tar -czf ${ARTIFACT_NAME}.tar.gz Tiny.cpp
+          tar -czf $GITHUB_WORKSPACE/${ARTIFACT_NAME}.tar.gz -C ~/MyLibs Tiny.cpp
           echo "artifact_name=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.package.outputs.artifact_name }}
-          path: ~/MyLibs/${{ steps.package.outputs.artifact_name }}.tar.gz
+          path: ${{ github.workspace }}/${{ steps.package.outputs.artifact_name }}.tar.gz
 
   env-windows-msvc:
     runs-on: ${{ matrix.runner }}
