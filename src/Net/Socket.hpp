@@ -31,6 +31,7 @@
 #include <cstdint>
 #include <cstring>
 #include <unordered_map>
+#include <memory>
 
 /*******************************************************************************************
  * P.S: - To enabled using Windows32 lib, please use the macro below:                      *
@@ -47,6 +48,13 @@
     #endif
 #endif
 
+#if defined(__clang__) || defined(__GNUC__)
+#   define API_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#elif defined(_MSC_VER)
+#   define API_DEPRECATED(msg) __declspec(deprecated(msg))
+#else
+#   define API_DEPRECATED(msg)
+#endif
 
 namespace Tiny {
     namespace Net {
@@ -125,7 +133,8 @@ namespace Tiny {
             ~Address();
 
             std::string toString(bool* ok = nullptr) const;
-            void* address() const;
+
+            void *address() const;
             uint16_t port() const;
             bool isValid() const;
             bool isIPv6() const;
@@ -137,6 +146,8 @@ namespace Tiny {
 
             static Address localHost();
             static Address localHostIPv6();
+            static std::vector<Address> parseFromHostname(const char *hostname, bool *ok = nullptr, int *err_cnt = nullptr);
+            static Address parseFirstHostname(const char* hostname, bool *ok = nullptr);
 
             Address(const Address&) = delete;
             Address& operator=(const Address&) = delete;
@@ -146,14 +157,19 @@ namespace Tiny {
             bool operator!=(const Address& addr) const;
         private:
             void validate(const char* full_address, uint16_t port, bool use_ipv6 = false);
-
-            void* _addr{};
+            struct Deleter {
+                Address* _self;
+                void operator()(void* ptr) const;
+            } _deleter{this};
+            std::unique_ptr<void, Deleter> _addr_ptr{nullptr, _deleter};
             uint16_t _port{UINT16_MAX};
             bool _valid{};
             bool _use_ipv6{};
         };
 
+        API_DEPRECATED("The function is moved to `Net::Address` class, please use `Net::Address::parseFromHostName` instead! It will be removed from v1.4.0.")
         std::vector<Address> parseFromHostname(const char *hostname, bool *ok = nullptr, int *err_cnt = nullptr);
+        API_DEPRECATED("The function is moved to `Net::Address` class, please use `Net::Address::parseFirstHostName` instead! It will be removed from v1.4.0.")
         Address parseFirstHostname(const char* hostname, bool *ok = nullptr);
 
         enum class SocketError : uint8_t {
@@ -208,6 +224,8 @@ namespace Tiny {
             TCP,
             UDP,
             SCTP,
+            ICMP,
+            ICMPV6,
             Custom
         };
 
@@ -218,7 +236,8 @@ namespace Tiny {
             Connected,
             Bound,
             Listening,
-            Closing
+            Closing,
+            Shutdown
         };
 
         enum class SocketOption : uint8_t {
@@ -227,86 +246,230 @@ namespace Tiny {
             /// - ValueType: int(bool) false/true
             ///
             /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
             AllowedBroadcast = 1,
             /// Bypass the outgoing routing table lookup and send directly to the network interface.
             ///
             /// - ValueType: int(bool) false/true
             ///
             /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
             DontRoute,
             /// Enabled TCP keepalive detection.
             ///
             /// - ValueType: int(bool) false/true
             ///
             /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
             KeepAlive,
             /// Try to optimize the socket for low latency. (for TCP)
             ///
             /// - ValueType: int(bool) false/true
             ///
             /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
             NoDelay,
+            /// TCP Maximum Segment Size (MSS)
+            ///
+            /// - ValueType: int
+            ///
+            /// - Supported: Set/Get
+            ///
+            /// - Supported OS: Linux, MacOS, Windows 10+
+            MaxSegmentSize,
+            /// How long the connection is idle before sending a Keepalive probe (seconds).
+            ///
+            /// - ValueType: int
+            ///
+            /// - Supported: Set/Get
+            ///
+            /// - Supported OS: Linux, MacOS, Windows 10+
+            KeepIdle,
+            /// Keepalive probe sending interval (seconds)
+            ///
+            /// - ValueType: int
+            ///
+            /// - Supported: Set/Get
+            ///
+            /// - Supported OS: Linux, MacOS, Windows 10+
+            KeepInterval,
+            /// The maximum number of probes sent before deciding the connection is lost.
+            ///
+            /// - ValueType: int
+            ///
+            /// - Supported: Set/Get
+            ///
+            /// - Supported OS: Linux, MacOS, Windows 10+
+            KeepCount,
             /// Send maximum of buffers size.
             ///
             /// - ValueType: int
             ///
             /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
             SendBufSize,
             /// Receive maximum of buffers size.
             ///
             /// - ValueType: int
             ///
             /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
             RecvBufSize,
             /// Set timeout of sending buffer.
             ///
             /// - ValueType:
-            ///     - Windows: uint32_t (Stored as milliseconds)
-            ///     - Others: The pointer of timeval
+            ///     - Windows: int (Stored as milliseconds)
+            ///     - Others: The pointer of `timeval` (from <unistd.h> header file)
             ///
             /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
             SendBufTimeout,
             /// Set timeout of receiving buffer.
             ///
             /// - ValueType:
-            ///     - Windows: uint32_t (Stored as milliseconds)
-            ///     - Others: The pointer of timeval
+            ///     - Windows: int (Stored as milliseconds)
+            ///     - Others: The pointer of `timeval`
             ///
             /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
             RecvBufTimeout,
             /// Decided how to close socket smoothly.
             ///
             /// - ValueType: The pointer of linger.
             ///
             /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
             Linger,
             /// Allowed reuse local address.
             ///
             /// - ValueType: int(bool) false/true
             ///
             /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
             ReuseAddr,
+            /// Time To Live of an IP packet.
+            ///
+            /// - ValueType: int
+            ///
+            /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
+            TTL,
+            /// IP type of service.
+            ///
+            /// - ValueType: int
+            ///
+            /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
+            TOS,
+            /// TTL of the multicast packet.
+            ///
+            /// - ValueType: int
+            ///
+            /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
+            MulticastTTL,
+            /// Allow multicast data to loop back to the local machine.
+            ///
+            /// - ValueType: int(bool) false/true
+            ///
+            /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
+            MulticastLoopback,
+            /// Add an IP group membership. (Only for IPv4 address)
+            ///
+            /// - ValueType: The pointer of `ip_mreq`
+            ///
+            /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
+            AddMembership,
+            /// Remove an IP group membership. (Only for IPv4 address)
+            ///
+            /// - ValueType: The pointer of `ip_mreq`
+            ///
+            /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
+            RemoveMembership,
             /// Disabled map IPv4 address. (Only for mapping IPv6 address)
             ///
             /// - ValueType: int(bool) false/true
             ///
             /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
             MapIPv6Only,
-            MulticastTTL,
-            MulticastLoopback,
+            /// Allow multicast data to loop back to the local machine. (Only for IPv6)
+            ///
+            /// - ValueType: int(bool) false/true
+            ///
+            /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
+            MulticastLoopbackIPv6,
+            /// Join the IPv6 multicast group.
+            ///
+            /// - ValueType: The pointer of `ipv6_mreq`
+            ///
+            /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
+            JoinGroup,
+            /// Leave the IPv6 multicast group.
+            ///
+            /// - ValueType: The pointer of `ipv6_mreq`
+            ///
+            /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
+            LeaveGroup,
+            /// IP unicast hop limit. (Only for IPv6)
+            ///
+            /// - ValueType: int
+            ///
+            /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
+            UnicastHops,
+            /// IP multicast hop limit. (Only for IPv6)
+            ///
+            /// - ValueType: int
+            ///
+            /// - Supported: Set/Get
+            ///
+            /// - Supported OS: All
+            MuticastHops,
             /// Allows the program to immediately return and continue execution
             /// if the conditions for a certain function are not met.
             ///
             /// - ValueType: int(bool) false/true
             ///
             /// - Supported: Set
+            ///
+            /// - Supported OS: All
             NonBlocking,
             /// Get current native socket error code
             ///
-            /// - ValueType: int(bool) false/true
+            /// - ValueType: int
             ///
             /// - Supported: Get
-            NativeSocketError
+            ///
+            /// - Supported OS: All
+            NativeSocketError = 255
         };
 
         struct OptionValue {
@@ -347,7 +510,7 @@ namespace Tiny {
                 var.f = v;
             }
 
-            OptionValue(const char* v) : type(String), size(strlen(v)), var() {
+            OptionValue(const char* v) : type(String), size(v ? strlen(v) : 0), var() {
                 var.s = const_cast<char *>(v);
             }
 
@@ -375,7 +538,7 @@ namespace Tiny {
 
             void set(const char* v) {
                 type = String;
-                size = strlen(v);
+                size = v ? strlen(v) : 0;
                 var.s = const_cast<char *>(v);
             }
 
@@ -406,7 +569,7 @@ namespace Tiny {
                 return *this;
             }
 
-            OptionValue& operator=(char* v) {
+            OptionValue& operator=(const char* v) {
                 set(v);
                 return *this;
             }

@@ -13,7 +13,7 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
         bool ok;
         int err_n;
-        auto ret = Net::parseFromHostname(argv[i], &ok, &err_n);
+        auto ret = Net::Address::parseFromHostname(argv[i], &ok, &err_n);
         if (!ok) {
             Terminal::perror() << TStyle::fg(Color::Red, true) << "Failed to resolve host: " << argv[i]
                                << "! \r\n" << TStyle::reset();

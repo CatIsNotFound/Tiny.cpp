@@ -227,7 +227,7 @@ int main(int argc, char *argv[]) {
 
     uint8_t mode = 0;
     Net::Address usr_addr;
-    std::string usr_addr_str{"127.0.0.1"};
+    std::string usr_addr_str{"0.0.0.0"};
     uint16_t usr_port{};
     for (auto& command : exec_list) {
         if (command.option_name == "help") {
@@ -241,7 +241,8 @@ int main(int argc, char *argv[]) {
             mode = 2;
         }
         if (command.option_name == "host") {
-            usr_addr_str = command.value;
+            strip(command.value);
+            if (!command.value.empty()) usr_addr_str = command.value;
         }
         if (command.option_name == "port") {
             strip(command.value);

@@ -40,10 +40,10 @@ namespace Tiny {
         namespace Advanced {
             using Setter = std::function<bool(Handle, uint32_t, const OptionValue &)>;
             using Getter = std::function<bool(Handle, uint32_t, OptionValue &)>;
-            bool setSocketOption(SocketOption option, OptionValue::ValueType val_type,
+            bool setSocketOption(SocketOption option,
                                  const Setter &setter,
                                  const Getter &getter);
-            void setCustomSocketOption(uint32_t option_id, OptionValue::ValueType val_type,
+            void setCustomSocketOption(uint32_t option_id,
                                        const Setter &setter,
                                        const Getter &getter);
             bool removeCustomSocketOption(uint32_t option_id);

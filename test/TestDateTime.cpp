@@ -1,4 +1,4 @@
-﻿/*************************************************************************************
+/*************************************************************************************
  * MIT License                                                                       *
  *                                                                                   *
  * Copyright (c) 2026 CatIsNotFound                                                  *
@@ -575,6 +575,45 @@ TEST(DateTimeFormatTest, WeekdayFormats) {
     EXPECT_EQ(DateTime::formatString("cccc", dt), "Monday");
 }
 
+TEST(DateTimeFormatTest, InstanceMethod) {
+    DateTime dt(2026, 6, 29, 14, 30, 45, 123);
+    EXPECT_EQ(dt.formatString("yyyy-MM-dd"), "2026-06-29");
+    EXPECT_EQ(dt.formatString("HH:mm:ss"), "14:30:45");
+}
+
+TEST(DateTimeFormatTest, Hour12Format) {
+    DateTime dt1(2026, 6, 29, 14, 30, 45);
+    EXPECT_EQ(DateTime::formatString("hh:mm:ss", dt1), "02:30:45");
+
+    DateTime dt2(2026, 6, 29, 0, 30, 45);
+    EXPECT_EQ(DateTime::formatString("hh:mm:ss", dt2), "12:30:45");
+
+    DateTime dt3(2026, 6, 29, 12, 0, 0);
+    EXPECT_EQ(DateTime::formatString("h", dt3), "12");
+}
+
+TEST(DateTimeFormatTest, AmPmFormat) {
+    DateTime dt_am(2026, 6, 29, 9, 0, 0);
+    EXPECT_EQ(DateTime::formatString("a", dt_am), "AM");
+
+    DateTime dt_pm(2026, 6, 29, 14, 0, 0);
+    EXPECT_EQ(DateTime::formatString("a", dt_pm), "PM");
+}
+
+TEST(DateTimeFormatTest, SingleDigitFormats) {
+    DateTime dt(2026, 1, 2, 3, 4, 5);
+    EXPECT_EQ(DateTime::formatString("M", dt), "1");
+    EXPECT_EQ(DateTime::formatString("d", dt), "2");
+    EXPECT_EQ(DateTime::formatString("H", dt), "3");
+    EXPECT_EQ(DateTime::formatString("m", dt), "4");
+    EXPECT_EQ(DateTime::formatString("s", dt), "5");
+}
+
+TEST(DateTimeFormatTest, EscapeCharacter) {
+    DateTime dt(2026, 6, 29, 14, 30, 45);
+    EXPECT_EQ(DateTime::formatString("\\y\\M\\d", dt), "yMd");
+}
+
 // =============================================================================
 // Time Unit Literal Tests
 // =============================================================================
@@ -758,6 +797,54 @@ TEST(DateTimeIntegrationTest, LocalUtcTimestampDifference) {
     Duration diff = dt_local.timestamps() - dt_utc.timestamps();
     EXPECT_NE(diff, 0);
     EXPECT_LT(std::abs(diff), 24 * 3600000LL);
+}
+
+// =============================================================================
+// formatStdTime Tests
+// =============================================================================
+
+TEST(FormatStdTimeTest, Basic) {
+    EXPECT_EQ(formatStdTime(0), "0:00:00");
+    EXPECT_EQ(formatStdTime(1000), "0:00:01");
+    EXPECT_EQ(formatStdTime(60000), "0:01:00");
+    EXPECT_EQ(formatStdTime(3600000), "1:00:00");
+    EXPECT_EQ(formatStdTime(3661000), "1:01:01");
+    EXPECT_EQ(formatStdTime(86399000), "23:59:59");
+}
+
+TEST(FormatStdTimeTest, WithMilliseconds) {
+    EXPECT_EQ(formatStdTime(0, true), "0:00:00.000");
+    EXPECT_EQ(formatStdTime(1234, true), "0:00:01.234");
+    EXPECT_EQ(formatStdTime(60000, true), "0:01:00.000");
+    EXPECT_EQ(formatStdTime(3661123, true), "1:01:01.123");
+}
+
+TEST(FormatStdTimeTest, LargeValues) {
+    EXPECT_EQ(formatStdTime(86400000), "0:00:00");
+    EXPECT_EQ(formatStdTime(90061000), "1:01:01");
+}
+
+// =============================================================================
+// formatTime Tests
+// =============================================================================
+
+TEST(FormatTimeTest, Basic) {
+    EXPECT_EQ(formatTime("dd:HH:mm:ss", 0), "00:00:00:00");
+    EXPECT_EQ(formatTime("dd:HH:mm:ss", 3661000), "00:01:01:01");
+    EXPECT_EQ(formatTime("dd:HH:mm:ss", 90061000), "01:01:01:01");
+}
+
+TEST(FormatTimeTest, WithMilliseconds) {
+    EXPECT_EQ(formatTime("HH:mm:ss.SSS", 3661123), "01:01:01.123");
+}
+
+TEST(FormatTimeTest, SingleDigitFormats) {
+    EXPECT_EQ(formatTime("H:m:s", 3661000), "1:1:1");
+    EXPECT_EQ(formatTime("H:m:s", 0), "0:0:0");
+}
+
+TEST(FormatTimeTest, EscapeCharacter) {
+    EXPECT_EQ(formatTime("\\d\\H", 3661000), "dH");
 }
 
 int main(int argc, char **argv) {

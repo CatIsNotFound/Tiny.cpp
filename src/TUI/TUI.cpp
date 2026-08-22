@@ -606,7 +606,7 @@ namespace Tiny {
         std::unique_lock<std::mutex> lock(self()._resize_mutex);
         usleep(100000);
         Size new_size = Terminal::screenSize();
-        if (compareSize(new_size, self()._term_size) != 0) {
+        if (new_size != self()._term_size)) {
             self()._is_resizing.store(true);
             self()._term_size = new_size;
         }

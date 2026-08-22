@@ -70,7 +70,7 @@ namespace Tiny {
             bool operator==(const Size& other) const { return (width == other.width && height == other.height); }
             bool operator!=(const Size& other) const { return (width != other.width || height != other.height); }
             bool isEqual(const Size& other) const { return width * height == other.width * other.height; }
-            int compare(const Size& other) const {
+            int8_t compare(const Size& other) const {
                 if (height < other.height) return 1;
                 if (height == other.height) {
                     return (width < other.width) ? 1 : ((width > other.width) ? -1 : 0);
@@ -115,7 +115,7 @@ namespace Tiny {
 
             bool operator==(const Position& other) const { return (row == other.row && column == other.column); }
             bool operator!=(const Position& other) const { return (row != other.row || column == other.column); }
-            int compare(const Position& other) const {
+            int8_t compare(const Position& other) const {
                 if (row < other.row) return 1;
                 if (row == other.row) {
                     return (column < other.column) ? 1 : ((column > other.column) ? -1 : 0);

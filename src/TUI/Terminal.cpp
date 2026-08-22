@@ -269,7 +269,7 @@ namespace Tiny {
     }
 
     bool TUI::isPointInRect(const Position &point, Position &start_pos, Position &end_pos) {
-        if (comparePosition(start_pos, end_pos) == -1) {
+        if (start_pos.compare(end_pos) == -1) {
             auto t = start_pos;
             start_pos = end_pos;
             end_pos = t;

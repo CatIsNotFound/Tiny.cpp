@@ -45,6 +45,7 @@
     #include <csignal>
     #include <sys/socket.h>
     #include <netinet/in.h>
+    #include <netinet/tcp.h>
     #include <arpa/inet.h>
     #include <netdb.h>
     #include <unistd.h>
@@ -210,16 +211,15 @@ namespace Tiny {
     };
 
     struct SocketSetting {
-        Net::OptionValue::ValueType real_type;
         Net::Advanced::Setter setter;
         Net::Advanced::Getter getter;
     };
 
     namespace Socket_Impl {
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        constexpr const bool USING_WIN32 = true;
+        constexpr bool USING_WIN32 = true;
 #else
-        constexpr const bool USING_WIN32 = false;
+        constexpr bool USING_WIN32 = false;
 #endif
         class InitMapSet {
             InitMapSet() {
@@ -235,24 +235,92 @@ namespace Tiny {
                     {static_cast<uint32_t>(Net::SocketOption::ReuseAddr),        SO_REUSEADDR},
                     {static_cast<uint32_t>(Net::SocketOption::NativeSocketError),SO_ERROR}
                 };
-                _SOC_LV_TYPE_MAP = {
+                _TCP_LEVEL_MAP = {
+                    {static_cast<uint32_t>(Net::SocketOption::NoDelay),          TCP_NODELAY},
+#if defined(TCP_KEEPIDLE)
+                    {static_cast<uint32_t>(Net::SocketOption::KeepIdle),         TCP_KEEPIDLE},
+#elif defined(TCP_KEEPALIVE)
+                    {static_cast<uint32_t>(Net::SocketOption::KeepIdle),         TCP_KEEPALIVE},
+#endif
+#if defined(TCP_KEEPINTVL)
+                    {static_cast<uint32_t>(Net::SocketOption::KeepInterval),     TCP_KEEPINTVL},
+#endif
+#if defined(TCP_KEEPCNT)
+                    {static_cast<uint32_t>(Net::SocketOption::KeepCount),        TCP_KEEPCNT},
+#endif
+                    {static_cast<uint32_t>(Net::SocketOption::MaxSegmentSize),   TCP_MAXSEG}
+                };
+
+                _IP_LEVEL_MAP = {
+                    {static_cast<uint32_t>(Net::SocketOption::TTL),                IP_TTL},
+                    {static_cast<uint32_t>(Net::SocketOption::TOS),                IP_TOS},
+                    {static_cast<uint32_t>(Net::SocketOption::MulticastTTL),       IP_MULTICAST_TTL},
+                    {static_cast<uint32_t>(Net::SocketOption::MulticastLoopback),  IP_MULTICAST_LOOP},
+                    {static_cast<uint32_t>(Net::SocketOption::AddMembership),      IP_ADD_MEMBERSHIP},
+                    {static_cast<uint32_t>(Net::SocketOption::RemoveMembership),   IP_DROP_MEMBERSHIP}
+                };
+                _IPV6_LEVEL_MAP = {
+                    {static_cast<uint32_t>(Net::SocketOption::MapIPv6Only),            IPV6_V6ONLY},
+                    {static_cast<uint32_t>(Net::SocketOption::MulticastLoopbackIPv6),  IPV6_MULTICAST_LOOP},
+                    {static_cast<uint32_t>(Net::SocketOption::JoinGroup),              IPV6_JOIN_GROUP},
+                    {static_cast<uint32_t>(Net::SocketOption::LeaveGroup),             IPV6_LEAVE_GROUP},
+                    {static_cast<uint32_t>(Net::SocketOption::UnicastHops),            IPV6_UNICAST_HOPS},
+                    {static_cast<uint32_t>(Net::SocketOption::MuticastHops),           IPV6_MULTICAST_HOPS}
+                };
+                _SOCKET_LEVEL_TMAP = {
                     {static_cast<uint32_t>(Net::SocketOption::AllowedBroadcast), Net::OptionValue::ValueType::Int},
                     {static_cast<uint32_t>(Net::SocketOption::DontRoute),        Net::OptionValue::ValueType::Int},
                     {static_cast<uint32_t>(Net::SocketOption::KeepAlive),        Net::OptionValue::ValueType::Int},
                     {static_cast<uint32_t>(Net::SocketOption::SendBufSize),      Net::OptionValue::ValueType::Int},
                     {static_cast<uint32_t>(Net::SocketOption::RecvBufSize),      Net::OptionValue::ValueType::Int},
                     {static_cast<uint32_t>(Net::SocketOption::SendBufTimeout),
-                          USING_WIN32 ? Net::OptionValue::ValueType::UInt : Net::OptionValue::ValueType::Custom},
+                          USING_WIN32 ? Net::OptionValue::ValueType::Int : Net::OptionValue::ValueType::Custom},
                     {static_cast<uint32_t>(Net::SocketOption::RecvBufTimeout),
-                          USING_WIN32 ? Net::OptionValue::ValueType::UInt : Net::OptionValue::ValueType::Custom},
+                          USING_WIN32 ? Net::OptionValue::ValueType::Int : Net::OptionValue::ValueType::Custom},
                     {static_cast<uint32_t>(Net::SocketOption::Linger),           Net::OptionValue::ValueType::Custom},
                     {static_cast<uint32_t>(Net::SocketOption::ReuseAddr),        Net::OptionValue::ValueType::Int},
-                    {static_cast<uint32_t>(Net::SocketOption::NativeSocketError),Net::OptionValue::ValueType::Int},
+                    {static_cast<uint32_t>(Net::SocketOption::NativeSocketError),Net::OptionValue::ValueType::Int}
+                };
+                _TCP_LEVEL_TMAP = {
+                    {static_cast<uint32_t>(Net::SocketOption::NoDelay),          Net::OptionValue::ValueType::Int},
+#if defined(TCP_KEEPIDLE)
+                    {static_cast<uint32_t>(Net::SocketOption::KeepIdle),         Net::OptionValue::ValueType::Int},
+#elif defined(TCP_KEEPALIVE)
+                    {static_cast<uint32_t>(Net::SocketOption::KeepIdle),         Net::OptionValue::ValueType::Int},
+#endif
+#if defined(TCP_KEEPINTVL)
+                    {static_cast<uint32_t>(Net::SocketOption::KeepInterval),     Net::OptionValue::ValueType::Int},
+#endif
+#if defined(TCP_KEEPCNT)
+                    {static_cast<uint32_t>(Net::SocketOption::KeepCount),        Net::OptionValue::ValueType::Int},
+#endif
+                    {static_cast<uint32_t>(Net::SocketOption::MaxSegmentSize),   Net::OptionValue::ValueType::Int}
+                };
+                _IP_LEVEL_TMAP = {
+                    {static_cast<uint32_t>(Net::SocketOption::TTL),               Net::OptionValue::ValueType::Int},
+                    {static_cast<uint32_t>(Net::SocketOption::TOS),               Net::OptionValue::ValueType::Int},
+                    {static_cast<uint32_t>(Net::SocketOption::MulticastTTL),      Net::OptionValue::ValueType::Int},
+                    {static_cast<uint32_t>(Net::SocketOption::MulticastLoopback), Net::OptionValue::ValueType::Int},
+                    {static_cast<uint32_t>(Net::SocketOption::AddMembership),     Net::OptionValue::ValueType::Custom},
+                    {static_cast<uint32_t>(Net::SocketOption::RemoveMembership),  Net::OptionValue::ValueType::Custom}
+                };
+                _IPV6_LEVEL_TMAP = {
+                    {static_cast<uint32_t>(Net::SocketOption::MapIPv6Only),           Net::OptionValue::ValueType::Int},
+                    {static_cast<uint32_t>(Net::SocketOption::MulticastLoopbackIPv6), Net::OptionValue::ValueType::Int},
+                    {static_cast<uint32_t>(Net::SocketOption::JoinGroup),             Net::OptionValue::ValueType::Custom},
+                    {static_cast<uint32_t>(Net::SocketOption::LeaveGroup),            Net::OptionValue::ValueType::Custom},
+                    {static_cast<uint32_t>(Net::SocketOption::UnicastHops),           Net::OptionValue::ValueType::Int},
+                    {static_cast<uint32_t>(Net::SocketOption::MuticastHops),          Net::OptionValue::ValueType::Int}
                 };
                 _SOC_SIZE_OF_MAP = {
-                    {static_cast<uint32_t>(Net::SocketOption::SendBufTimeout), sizeof(timeval)},
-                    {static_cast<uint32_t>(Net::SocketOption::RecvBufTimeout), sizeof(timeval)},
-                    {static_cast<uint32_t>(Net::SocketOption::Linger), sizeof(linger)}
+                    {static_cast<uint32_t>(Net::SocketOption::SendBufTimeout),   sizeof(timeval)},
+                    {static_cast<uint32_t>(Net::SocketOption::RecvBufTimeout),   sizeof(timeval)},
+                    {static_cast<uint32_t>(Net::SocketOption::Linger),           sizeof(linger)},
+                    {static_cast<uint32_t>(Net::SocketOption::AddMembership),    sizeof(ip_mreq)},
+                    {static_cast<uint32_t>(Net::SocketOption::RemoveMembership), sizeof(ip_mreq)},
+                    {static_cast<uint32_t>(Net::SocketOption::JoinGroup),        sizeof(ipv6_mreq)},
+                    {static_cast<uint32_t>(Net::SocketOption::LeaveGroup),       sizeof(ipv6_mreq)},
+
                 };
             }
 
@@ -268,8 +336,32 @@ namespace Tiny {
                 return _instance->_SOCKET_LEVEL_MAP;
             }
 
+            std::unordered_map<uint32_t, int>& tcpLevelMap() {
+                return _instance->_TCP_LEVEL_MAP;
+            }
+
+            std::unordered_map<uint32_t, int>& ipLevelMap() {
+                return _instance->_IP_LEVEL_MAP;
+            }
+
+            std::unordered_map<uint32_t, int>& ipv6LevelMap() {
+                return _instance->_IPV6_LEVEL_MAP;
+            }
+
             std::unordered_map<uint32_t, Net::OptionValue::ValueType>& socketLevelTypeMap() {
-                return _instance->_SOC_LV_TYPE_MAP;
+                return _instance->_SOCKET_LEVEL_TMAP;
+            }
+
+            std::unordered_map<uint32_t, Net::OptionValue::ValueType>& tcpLevelTypeMap() {
+                return _instance->_TCP_LEVEL_TMAP;
+            }
+
+            std::unordered_map<uint32_t, Net::OptionValue::ValueType>& ipLevelTypeMap() {
+                return _instance->_IP_LEVEL_TMAP;
+            }
+
+            std::unordered_map<uint32_t, Net::OptionValue::ValueType>& ipv6LevelTypeMap() {
+                return _instance->_IPV6_LEVEL_TMAP;
             }
 
             std::unordered_map<uint32_t, int>& socketSizeOfMap() {
@@ -278,7 +370,13 @@ namespace Tiny {
 
         private:
             std::unordered_map<uint32_t, int> _SOCKET_LEVEL_MAP;
-            std::unordered_map<uint32_t, Net::OptionValue::ValueType> _SOC_LV_TYPE_MAP;
+            std::unordered_map<uint32_t, int> _TCP_LEVEL_MAP;
+            std::unordered_map<uint32_t, int> _IP_LEVEL_MAP;
+            std::unordered_map<uint32_t, int> _IPV6_LEVEL_MAP;
+            std::unordered_map<uint32_t, Net::OptionValue::ValueType> _SOCKET_LEVEL_TMAP;
+            std::unordered_map<uint32_t, Net::OptionValue::ValueType> _TCP_LEVEL_TMAP;
+            std::unordered_map<uint32_t, Net::OptionValue::ValueType> _IP_LEVEL_TMAP;
+            std::unordered_map<uint32_t, Net::OptionValue::ValueType> _IPV6_LEVEL_TMAP;
             std::unordered_map<uint32_t, int> _SOC_SIZE_OF_MAP;
 
             static std::once_flag _once;
@@ -288,6 +386,124 @@ namespace Tiny {
         std::once_flag InitMapSet::_once;
         std::unique_ptr<InitMapSet> InitMapSet::_instance;
 
+        bool setNativeSocketOption(Net::Handle handle, int opt_id, int opt_level, const Net::OptionValue& value) {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+            char* set_val;
+            Net::OptionValue::Value v{};
+            switch (value.type) {
+                case Net::OptionValue::Int:
+                    v.i = value.var.i;
+                    set_val = reinterpret_cast<char*>(&v.i);
+                    break;
+                case Net::OptionValue::UInt:
+                    v.u = value.var.u;
+                    set_val = reinterpret_cast<char*>(&v.u);
+                    break;
+                case Net::OptionValue::Float:
+                    v.f = value.var.f;
+                    set_val = reinterpret_cast<char*>(&v.f);
+                    break;
+                case Net::OptionValue::String:
+                    v.s = value.var.s;
+                    set_val = v.s;
+                    break;
+                case Net::OptionValue::Custom:
+                    v.v = value.var.v;
+                    set_val = static_cast<char*>(v.v);
+                    break;
+                default:
+                    v.v = nullptr;
+                    set_val = nullptr;
+                    break;
+            }
+            return ::setsockopt(handle, opt_level, opt_id, set_val, value.size) != SOCKET_ERROR;
+#else
+            const void* VAL;
+            switch (value.type) {
+                case Net::OptionValue::Int:
+                    VAL = &value.var.i;
+                    break;
+                case Net::OptionValue::UInt:
+                    VAL = &value.var.u;
+                    break;
+                case Net::OptionValue::Float:
+                    VAL = &value.var.f;
+                    break;
+                case Net::OptionValue::String:
+                    VAL = value.var.s;
+                    break;
+                default:
+                    VAL = value.var.v;
+                    break;
+            }
+            return ::setsockopt(handle, opt_level, opt_id, VAL, value.size) != SOCKET_ERROR;
+#endif
+        }
+
+        int getNativeSocketOption(Net::Handle handle, int opt_id, int opt_level, Net::OptionValue& value) {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+            switch (value.type) {
+                case Net::OptionValue::Int:
+                    value.size = sizeof(int);
+                    return ::getsockopt(handle, opt_level, opt_id,
+                                       reinterpret_cast<char*>(&value.var.i), &value.size);
+                    break;
+                case Net::OptionValue::String:
+                    /// Need user to manually set size of the value.
+                    return ::getsockopt(handle, opt_level, opt_id,
+                                       value.var.s, &value.size);
+                    break;
+                case Net::OptionValue::UInt:
+                    value.size = sizeof(uint32_t);
+                    return ::getsockopt(handle, opt_level, opt_id,
+                                       reinterpret_cast<char*>(&value.var.u), &value.size);
+                    break;
+                case Net::OptionValue::Float:
+                    value.size = sizeof(float);
+                    return ::getsockopt(handle, opt_level, opt_id,
+                                       reinterpret_cast<char*>(&value.var.f), &value.size);
+                    break;
+                case Net::OptionValue::Custom:
+                    return ::getsockopt(handle, opt_level, opt_id,
+                                       reinterpret_cast<char*>(value.var.v), &value.size);
+                    break;
+                default:
+                    value.unset();
+                    break;
+            }
+#else
+            switch (value.type) {
+                case Net::OptionValue::Int:
+                    value.size = sizeof(int);
+                    return ::getsockopt(handle, opt_level, opt_id,
+                                       reinterpret_cast<void*>(&value.var.i), &value.size);
+                    break;
+                case Net::OptionValue::String:
+                    /// Need user to manually set size of the value.
+                    return ::getsockopt(handle, opt_level, opt_id,
+                                       value.var.s, &value.size);
+                    break;
+                case Net::OptionValue::UInt:
+                    value.size = sizeof(uint32_t);
+                    return ::getsockopt(handle, opt_level, opt_id,
+                                       reinterpret_cast<void*>(&value.var.u), &value.size);
+                    break;
+                case Net::OptionValue::Float:
+                    value.size = sizeof(float);
+                    return ::getsockopt(handle, opt_level, opt_id,
+                                       reinterpret_cast<void*>(&value.var.f), &value.size);
+                    break;
+                case Net::OptionValue::Custom:
+                    return ::getsockopt(handle, opt_level, opt_id,
+                                       value.var.v, &value.size);
+                    break;
+                default:
+                    value.unset();
+                    break;
+            }
+#endif
+            return SOCKET_ERROR;
+        }
 
         bool setSocketLevelOption(Net::Handle handle, uint32_t opt_id, const Net::OptionValue& value) {
             auto& __SOL_SOCKET_LEVEL_MAP__ = InitMapSet::instance().socketLevelMap();
@@ -296,57 +512,7 @@ namespace Tiny {
                 auto& so_id = __SOL_SOCKET_LEVEL_MAP__.at(opt_id);
                 auto& expected_type = __SOL_SOCKET_LEVEL_VALUE_TYPE_MAP__.at(opt_id);
                 if (expected_type == value.type) {
-#ifdef TINY_CPP_MY_OS_WINDOWS
-                    char* set_val;
-                    Net::OptionValue::Value v{};
-                    switch (value.type) {
-                        case Net::OptionValue::Int:
-                            v.i = value.var.i;
-                            set_val = reinterpret_cast<char*>(&v.i);
-                            break;
-                        case Net::OptionValue::UInt:
-                            v.u = value.var.u;
-                            set_val = reinterpret_cast<char*>(&v.u);
-                            break;
-                        case Net::OptionValue::Float:
-                            v.f = value.var.f;
-                            set_val = reinterpret_cast<char*>(&v.f);
-                            break;
-                        case Net::OptionValue::String:
-                            v.s = value.var.s;
-                            set_val = v.s;
-                            break;
-                        case Net::OptionValue::Custom:
-                            v.v = value.var.v;
-                            set_val = static_cast<char*>(v.v);
-                            break;
-                        default:
-                            v.v = nullptr;
-                            set_val = nullptr;
-                            break;
-                    }
-                    return ::setsockopt(handle, SOL_SOCKET, so_id, set_val, value.size) != SOCKET_ERROR;
-#else
-                    const void* VAL;
-                    switch (value.type) {
-                        case Net::OptionValue::Int:
-                            VAL = &value.var.i;
-                            break;
-                        case Net::OptionValue::UInt:
-                            VAL = &value.var.u;
-                            break;
-                        case Net::OptionValue::Float:
-                            VAL = &value.var.f;
-                            break;
-                        case Net::OptionValue::String:
-                            VAL = value.var.s;
-                            break;
-                        default:
-                            VAL = value.var.v;
-                            break;
-                    }
-                    return ::setsockopt(handle, SOL_SOCKET, so_id, VAL, value.size) != SOCKET_ERROR;
-#endif
+                    return setNativeSocketOption(handle, so_id, SOL_SOCKET, value);
                 }
             }
 #ifdef TINY_CPP_MY_OS_WINDOWS
@@ -367,77 +533,126 @@ namespace Tiny {
                     value.unset();
                     return true;
                 }
-                int err{};
                 auto var_type = __SOL_SOCKET_LEVEL_VALUE_TYPE_MAP__.at(opt_id);
+                if (__SOL_SOCKET_SIZE_OF_MAP__.find(opt_id) != __SOL_SOCKET_SIZE_OF_MAP__.end()) {
+                    value.size = __SOL_SOCKET_SIZE_OF_MAP__.at(opt_id);
+                }
                 value.type = var_type;
+                return getNativeSocketOption(handle, so_id, SOL_SOCKET, value) != SOCKET_ERROR;
+            }
 #ifdef TINY_CPP_MY_OS_WINDOWS
-                switch (var_type) {
-                    case Net::OptionValue::Int:
-                        value.size = sizeof(int);
-                        err = ::getsockopt(handle, SOL_SOCKET, so_id,
-                                           reinterpret_cast<char*>(&value.var.i), &value.size);
-                        break;
-                    case Net::OptionValue::String:
-                        /// Need user to manually set size of the value.
-                        err = ::getsockopt(handle, SOL_SOCKET, so_id,
-                                           value.var.s, &value.size);
-                        break;
-                    case Net::OptionValue::UInt:
-                        value.size = sizeof(uint32_t);
-                        err = ::getsockopt(handle, SOL_SOCKET, so_id,
-                                           reinterpret_cast<char*>(&value.var.u), &value.size);
-                        break;
-                    case Net::OptionValue::Float:
-                        value.size = sizeof(float);
-                        err = ::getsockopt(handle, SOL_SOCKET, so_id,
-                                           reinterpret_cast<char*>(&value.var.f), &value.size);
-                        break;
-                    case Net::OptionValue::Custom:
-                        if (__SOL_SOCKET_SIZE_OF_MAP__.find(opt_id) != __SOL_SOCKET_SIZE_OF_MAP__.end()) {
-                            value.size = __SOL_SOCKET_SIZE_OF_MAP__.at(opt_id);
-                        }
-                        err = ::getsockopt(handle, SOL_SOCKET, so_id,
-                                           reinterpret_cast<char*>(value.var.v), &value.size);
-                        break;
-                    default:
-                        value.unset();
-                        break;
-                }
+            ::WSASetLastError(WSAEOPNOTSUPP);
 #else
-                switch (var_type) {
-                    case Net::OptionValue::Int:
-                        value.size = sizeof(int);
-                        err = ::getsockopt(handle, SOL_SOCKET, so_id,
-                                           reinterpret_cast<void*>(&value.var.i), &value.size);
-                        break;
-                    case Net::OptionValue::String:
-                        /// Need user to manually set size of the value.
-                        err = ::getsockopt(handle, SOL_SOCKET, so_id,
-                                           value.var.s, &value.size);
-                        break;
-                    case Net::OptionValue::UInt:
-                        value.size = sizeof(uint32_t);
-                        err = ::getsockopt(handle, SOL_SOCKET, so_id,
-                                           reinterpret_cast<void*>(&value.var.u), &value.size);
-                        break;
-                    case Net::OptionValue::Float:
-                        value.size = sizeof(float);
-                        err = ::getsockopt(handle, SOL_SOCKET, so_id,
-                                           reinterpret_cast<void*>(&value.var.f), &value.size);
-                        break;
-                    case Net::OptionValue::Custom:
-                        if (__SOL_SOCKET_SIZE_OF_MAP__.find(opt_id) != __SOL_SOCKET_SIZE_OF_MAP__.end()) {
-                            value.size = __SOL_SOCKET_SIZE_OF_MAP__[opt_id];
-                        }
-                        err = ::getsockopt(handle, SOL_SOCKET, so_id,
-                                           value.var.v, &value.size);
-                        break;
-                    default:
-                        value.unset();
-                        break;
-                }
+            errno = ENOTSUP;
 #endif
-                return err != SOCKET_ERROR;
+            return false;
+        }
+
+        bool setTCPLevelOption(Net::Handle handle, uint32_t opt_id, const Net::OptionValue& value) {
+            auto& __TCP_LEVEL_MAP__ = InitMapSet::instance().tcpLevelMap();
+            auto& __TCP_LEVEL_TMAP__ = InitMapSet::instance().tcpLevelTypeMap();
+            if (__TCP_LEVEL_MAP__.find(opt_id) != __TCP_LEVEL_MAP__.end()) {
+                auto& op_id = __TCP_LEVEL_MAP__.at(opt_id);
+                auto& expected_type = __TCP_LEVEL_TMAP__.at(opt_id);
+                if (expected_type == value.type) {
+                    return setNativeSocketOption(handle, op_id, IPPROTO_TCP, value);
+                }
+            }
+#ifdef TINY_CPP_MY_OS_WINDOWS
+            ::WSASetLastError(WSAEOPNOTSUPP);
+#else
+            errno = ENOTSUP;
+#endif
+            return false;
+        }
+
+        bool getTCPLevelOption(Net::Handle handle, uint32_t opt_id, Net::OptionValue& value) {
+            auto& __TCP_LEVEL_MAP__ = InitMapSet::instance().tcpLevelMap();
+            auto& __TCP_LEVEL_TMAP__ = InitMapSet::instance().tcpLevelTypeMap();
+            auto& __SOL_SOCKET_SIZE_OF_MAP__ = InitMapSet::instance().socketSizeOfMap();
+            if (__TCP_LEVEL_MAP__.find(opt_id) != __TCP_LEVEL_MAP__.end()) {
+                auto& op_id = __TCP_LEVEL_MAP__.at(opt_id);
+                value.type = __TCP_LEVEL_TMAP__.at(opt_id);
+                if (__SOL_SOCKET_SIZE_OF_MAP__.find(opt_id) != __SOL_SOCKET_SIZE_OF_MAP__.end()) {
+                    value.size = __SOL_SOCKET_SIZE_OF_MAP__.at(opt_id);
+                }
+                return getNativeSocketOption(handle, op_id, IPPROTO_TCP, value) != SOCKET_ERROR;
+            }
+#ifdef TINY_CPP_MY_OS_WINDOWS
+            ::WSASetLastError(WSAEOPNOTSUPP);
+#else
+            errno = ENOTSUP;
+#endif
+            return false;
+        }
+
+        bool setIPLevelOption(Net::Handle handle, uint32_t opt_id, const Net::OptionValue& value) {
+            auto& __IP_LEVEL_MAP__ = InitMapSet::instance().ipLevelMap();
+            auto& __IP_LEVEL_TMAP__ = InitMapSet::instance().ipLevelTypeMap();
+            if (__IP_LEVEL_MAP__.find(opt_id) != __IP_LEVEL_MAP__.end()) {
+                auto& op_id = __IP_LEVEL_MAP__.at(opt_id);
+                auto& expected_type = __IP_LEVEL_TMAP__.at(opt_id);
+                if (expected_type == value.type) {
+                    return setNativeSocketOption(handle, op_id, IPPROTO_IP, value);
+                }
+            }
+#ifdef TINY_CPP_MY_OS_WINDOWS
+            ::WSASetLastError(WSAEOPNOTSUPP);
+#else
+            errno = ENOTSUP;
+#endif
+            return false;
+        }
+
+        bool getIPLevelOption(Net::Handle handle, uint32_t opt_id, Net::OptionValue& value) {
+            auto& __IP_LEVEL_MAP__ = InitMapSet::instance().ipLevelMap();
+            auto& __SOL_SOCKET_SIZE_OF_MAP__ = InitMapSet::instance().socketSizeOfMap();
+            auto& __IP_LEVEL_TMAP__ = InitMapSet::instance().ipLevelTypeMap();
+            if (__IP_LEVEL_MAP__.find(opt_id) != __IP_LEVEL_MAP__.end()) {
+                auto& op_id = __IP_LEVEL_MAP__.at(opt_id);
+                value.type = __IP_LEVEL_TMAP__.at(opt_id);
+                if (__SOL_SOCKET_SIZE_OF_MAP__.find(opt_id) != __SOL_SOCKET_SIZE_OF_MAP__.end()) {
+                    value.size = __SOL_SOCKET_SIZE_OF_MAP__.at(opt_id);
+                }
+                return getNativeSocketOption(handle, op_id, IPPROTO_IP, value) != SOCKET_ERROR;
+            }
+#ifdef TINY_CPP_MY_OS_WINDOWS
+            ::WSASetLastError(WSAEOPNOTSUPP);
+#else
+            errno = ENOTSUP;
+#endif
+            return false;
+        }
+
+        bool setIPv6LevelOption(Net::Handle handle, uint32_t opt_id, const Net::OptionValue& value) {
+            auto& __IPV6_LEVEL_MAP__ = InitMapSet::instance().ipv6LevelMap();
+            auto& __IPV6_LEVEL_TMAP__ = InitMapSet::instance().ipv6LevelTypeMap();
+            if (__IPV6_LEVEL_MAP__.find(opt_id) != __IPV6_LEVEL_MAP__.end()) {
+                auto& op_id = __IPV6_LEVEL_MAP__.at(opt_id);
+                auto& expected_type = __IPV6_LEVEL_TMAP__.at(opt_id);
+                if (expected_type == value.type) {
+                    return setNativeSocketOption(handle, op_id, IPPROTO_IPV6, value);
+                }
+            }
+#ifdef TINY_CPP_MY_OS_WINDOWS
+            ::WSASetLastError(WSAEOPNOTSUPP);
+#else
+            errno = ENOTSUP;
+#endif
+            return false;
+        }
+
+        bool getIPv6LevelOption(Net::Handle handle, uint32_t opt_id, Net::OptionValue& value) {
+            auto& __IPV6_LEVEL_MAP__ = InitMapSet::instance().ipv6LevelMap();
+            auto& __IPV6_LEVEL_TMAP__ = InitMapSet::instance().ipv6LevelTypeMap();
+            auto& __SOL_SOCKET_SIZE_OF_MAP__ = InitMapSet::instance().socketSizeOfMap();
+            if (__IPV6_LEVEL_MAP__.find(opt_id) != __IPV6_LEVEL_MAP__.end()) {
+                auto& op_id = __IPV6_LEVEL_MAP__.at(opt_id);
+                value.type = __IPV6_LEVEL_TMAP__.at(opt_id);
+                if (__SOL_SOCKET_SIZE_OF_MAP__.find(opt_id) != __SOL_SOCKET_SIZE_OF_MAP__.end()) {
+                    value.size = __SOL_SOCKET_SIZE_OF_MAP__.at(opt_id);
+                }
+                return getNativeSocketOption(handle, op_id, IPPROTO_IPV6, value) != SOCKET_ERROR;
             }
 #ifdef TINY_CPP_MY_OS_WINDOWS
             ::WSASetLastError(WSAEOPNOTSUPP);
@@ -455,6 +670,10 @@ namespace Tiny {
                     return ::socket(address.isIPv6() ? AF_INET6 : AF_INET, SOCK_DGRAM, IPPROTO_UDP);
                 case Net::SocketType::SCTP:
                     return ::socket(address.isIPv6() ? AF_INET6 : AF_INET, SOCK_SEQPACKET, IPPROTO_SCTP);
+                case Net::SocketType::ICMP:
+                    return ::socket(address.isIPv6() ? AF_INET6 : AF_INET, SOCK_RAW, IPPROTO_ICMP);
+                case Net::SocketType::ICMPV6:
+                    return ::socket(address.isIPv6() ? AF_INET6 : AF_INET, SOCK_RAW, IPPROTO_ICMPV6);
                 case Net::SocketType::Custom:
                     return ::socket(address.isIPv6() ? AF_INET6 : AF_INET, type, protocol);
                 default:
@@ -580,6 +799,16 @@ namespace Tiny {
                             static_cast<sockaddr*>(src.address()), &sz);
         }
 
+        int getsockname(Net::Handle socket, Net::Address& addr, bool use_ipv6) {
+            SOCK_LEN_T addr_size = use_ipv6 ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
+            return ::getsockname(socket, reinterpret_cast<sockaddr*>(addr.address()), &addr_size);
+        }
+
+        int getpeername(Net::Handle socket, Net::Address& addr, bool use_ipv6) {
+            SOCK_LEN_T addr_size = use_ipv6 ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
+            return ::getpeername(socket, reinterpret_cast<sockaddr*>(addr.address()), &addr_size);
+        }
+
         bool setUnblockEnabled(Net::Handle socket, uint32_t, const Net::OptionValue& value) {
             if (value.type == Net::OptionValue::Int) {
 #ifdef TINY_CPP_MY_OS_WINDOWS
@@ -603,7 +832,6 @@ namespace Tiny {
             {
                 static_cast<uint32_t>(Net::SocketOption::AllowedBroadcast),
                 {
-                    Net::OptionValue::ValueType::Int,
                     &Socket_Impl::setSocketLevelOption,
                     &Socket_Impl::getSocketLevelOption
                 }
@@ -611,7 +839,6 @@ namespace Tiny {
             {
                 static_cast<uint32_t>(Net::SocketOption::DontRoute),
                 {
-                    Net::OptionValue::ValueType::Int,
                     &Socket_Impl::setSocketLevelOption,
                     &Socket_Impl::getSocketLevelOption
                 }
@@ -619,15 +846,48 @@ namespace Tiny {
             {
                 static_cast<uint32_t>(Net::SocketOption::KeepAlive),
                 {
-                    Net::OptionValue::ValueType::Int,
                     &Socket_Impl::setSocketLevelOption,
                     &Socket_Impl::getSocketLevelOption
                 }
             },
             {
+                static_cast<uint32_t>(Net::SocketOption::NoDelay),
+                {
+                    &Socket_Impl::setTCPLevelOption,
+                    &Socket_Impl::getTCPLevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::MaxSegmentSize),
+                {
+                    &Socket_Impl::setTCPLevelOption,
+                    &Socket_Impl::getTCPLevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::KeepIdle),
+                {
+                    &Socket_Impl::setTCPLevelOption,
+                    &Socket_Impl::getTCPLevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::KeepInterval),
+                {
+                    &Socket_Impl::setTCPLevelOption,
+                    &Socket_Impl::getTCPLevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::KeepCount),
+                {
+                    &Socket_Impl::setTCPLevelOption,
+                    &Socket_Impl::getTCPLevelOption
+                }
+            },
+            {
                 static_cast<uint32_t>(Net::SocketOption::SendBufSize),
                 {
-                    Net::OptionValue::ValueType::Int,
                     &Socket_Impl::setSocketLevelOption,
                     &Socket_Impl::getSocketLevelOption
                 }
@@ -635,7 +895,6 @@ namespace Tiny {
             {
                 static_cast<uint32_t>(Net::SocketOption::RecvBufSize),
                 {
-                    Net::OptionValue::ValueType::Int,
                     &Socket_Impl::setSocketLevelOption,
                     &Socket_Impl::getSocketLevelOption
                 }
@@ -643,11 +902,6 @@ namespace Tiny {
             {
                 static_cast<uint32_t>(Net::SocketOption::SendBufTimeout),
                 {
-#ifdef TINY_CPP_MY_OS_WINDOWS
-                    Net::OptionValue::ValueType::UInt,
-#else
-                    Net::OptionValue::ValueType::Custom,
-#endif
                     &Socket_Impl::setSocketLevelOption,
                     &Socket_Impl::getSocketLevelOption
                 }
@@ -655,11 +909,6 @@ namespace Tiny {
             {
                 static_cast<uint32_t>(Net::SocketOption::RecvBufTimeout),
                 {
-#ifdef TINY_CPP_MY_OS_WINDOWS
-                    Net::OptionValue::ValueType::UInt,
-#else
-                    Net::OptionValue::ValueType::Custom,
-#endif
                     &Socket_Impl::setSocketLevelOption,
                     &Socket_Impl::getSocketLevelOption
                 }
@@ -667,7 +916,6 @@ namespace Tiny {
             {
                 static_cast<uint32_t>(Net::SocketOption::Linger),
                 {
-                    Net::OptionValue::ValueType::Custom,
                     &Socket_Impl::setSocketLevelOption,
                     &Socket_Impl::getSocketLevelOption
                 }
@@ -675,27 +923,115 @@ namespace Tiny {
             {
                 static_cast<uint32_t>(Net::SocketOption::ReuseAddr),
                 {
-                    Net::OptionValue::ValueType::Int,
                     &Socket_Impl::setSocketLevelOption,
                     &Socket_Impl::getSocketLevelOption
                 }
             },
             {
+                static_cast<uint32_t>(Net::SocketOption::TTL),
+                {
+                    &Socket_Impl::setIPLevelOption,
+                    &Socket_Impl::getIPLevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::TOS),
+                {
+                    &Socket_Impl::setIPLevelOption,
+                    &Socket_Impl::getIPLevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::MulticastTTL),
+                {
+                    &Socket_Impl::setIPLevelOption,
+                    &Socket_Impl::getIPLevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::MulticastLoopback),
+                {
+                    &Socket_Impl::setIPLevelOption,
+                    &Socket_Impl::getIPLevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::AddMembership),
+                {
+                    &Socket_Impl::setIPLevelOption,
+                    &Socket_Impl::getIPLevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::RemoveMembership),
+                {
+                    &Socket_Impl::setIPLevelOption,
+                    &Socket_Impl::getIPLevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::MapIPv6Only),
+                {
+                    &Socket_Impl::setIPv6LevelOption,
+                    &Socket_Impl::getIPv6LevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::MulticastLoopbackIPv6),
+                {
+                    &Socket_Impl::setIPv6LevelOption,
+                    &Socket_Impl::getIPv6LevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::JoinGroup),
+                {
+                    &Socket_Impl::setIPv6LevelOption,
+                    &Socket_Impl::getIPv6LevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::LeaveGroup),
+                {
+                    &Socket_Impl::setIPv6LevelOption,
+                    &Socket_Impl::getIPv6LevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::UnicastHops),
+                {
+                    &Socket_Impl::setIPv6LevelOption,
+                    &Socket_Impl::getIPv6LevelOption
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::MuticastHops),
+                {
+                    &Socket_Impl::setIPv6LevelOption,
+                    &Socket_Impl::getIPv6LevelOption
+                }
+            },
+            {
                 static_cast<uint32_t>(Net::SocketOption::NonBlocking),
                 {
-                    Net::OptionValue::ValueType::Int,
                     &Socket_Impl::setUnblockEnabled,
                     {}
+                }
+            },
+            {
+                static_cast<uint32_t>(Net::SocketOption::NativeSocketError),
+                {
+                    {},
+                    &Socket_Impl::getSocketLevelOption
                 }
             }
     };
 
-    bool Net::Advanced::setSocketOption(Net::SocketOption option, Net::OptionValue::ValueType val_type,
+    bool Net::Advanced::setSocketOption(SocketOption option,
                                         const Setter &setter, const Getter &getter) {
         auto id = static_cast<uint32_t>(option);
         if (__SocketSettingsMap__.find(id) != __SocketSettingsMap__.end()) {
             auto& socket_settings = __SocketSettingsMap__.at(id);
-            socket_settings.real_type = val_type;
             if (setter) socket_settings.setter = setter;
             if (getter) socket_settings.getter = getter;
             return true;
@@ -703,16 +1039,15 @@ namespace Tiny {
         return false;
     }
 
-    void Net::Advanced::setCustomSocketOption(uint32_t option_id, Net::OptionValue::ValueType val_type,
+    void Net::Advanced::setCustomSocketOption(uint32_t option_id,
                                               const Setter &setter,
                                               const Getter &getter) {
         if (__SocketSettingsMap__.find(option_id) != __SocketSettingsMap__.end()) {
             auto& socket_settings = __SocketSettingsMap__.at(option_id);
-            socket_settings.real_type = val_type;
             if (setter) socket_settings.setter = setter;
             if (getter) socket_settings.getter = getter;
         } else {
-            SocketSetting socket_setting = {val_type, setter, getter};
+            SocketSetting socket_setting = {setter, getter};
             __SocketSettingsMap__.emplace(option_id, std::move(socket_setting));
         }
     }
@@ -728,7 +1063,7 @@ namespace Tiny {
     bool Net::Advanced::getValueFromCustomOption(uint32_t option_id, OptionValue &value, Handle socket) {
         if (__SocketSettingsMap__.find(option_id) != __SocketSettingsMap__.end()) {
             auto& setting = __SocketSettingsMap__.at(option_id);
-            if (setting.real_type != value.type || !setting.getter) return false;
+            if (!setting.getter) return false;
             return setting.getter(socket, option_id, value);
         }
         return false;
@@ -737,12 +1072,21 @@ namespace Tiny {
     bool Net::Advanced::setValueFromCustomOption(uint32_t option_id, const OptionValue &value, Handle socket) {
         if (__SocketSettingsMap__.find(option_id) != __SocketSettingsMap__.end()) {
             auto& setting = __SocketSettingsMap__.at(option_id);
-            if (setting.real_type != value.type || !setting.setter) return false;
+            if (!setting.setter) return false;
             return setting.setter(socket, option_id, value);
         }
         return false;
     }
 
+    void Net::Address::Deleter::operator()(void *ptr) const {
+        if (!_self) return;
+        if (_self->isIPv6()) {
+            delete static_cast<sockaddr_in6*>(ptr);
+        } else {
+            delete static_cast<sockaddr_in*>(ptr);
+        }
+        ptr = nullptr;
+    }
 
     Net::Address::Address(const char *address, uint16_t port, bool use_ipv6) {
         validate(address, port, use_ipv6);
@@ -752,26 +1096,18 @@ namespace Tiny {
         validate(address, static_cast<uint16_t>(protocol_num), use_ipv6);
     }
 
-    Net::Address::~Address() {
-        if (_addr) {
-            if (_use_ipv6) {
-                delete static_cast<sockaddr_in6*>(_addr);
-            } else {
-                delete static_cast<sockaddr_in*>(_addr);
-            }
-            _addr = nullptr;
-        }
-    }
+    Net::Address::~Address() = default;
 
     std::string Net::Address::toString(bool* ok) const {
-        if (!_valid || !_addr) return {};
+        if (!_valid || !_addr_ptr) return {};
         char result[64] = {};
         bool is_ok{};
+
         if (_use_ipv6) {
-            auto ipv6 = static_cast<sockaddr_in6*>(_addr);
+            auto ipv6 = static_cast<sockaddr_in6*>(_addr_ptr.get());
             is_ok = inet_ntop(AF_INET6, &ipv6->sin6_addr, result, 64) != nullptr;;
         } else {
-            auto ipv4 = static_cast<sockaddr_in*>(_addr);
+            auto ipv4 = static_cast<sockaddr_in*>(_addr_ptr.get());
             is_ok = inet_ntop(AF_INET, &ipv4->sin_addr, result, 64) != nullptr;
         }
         if (ok) *ok = is_ok;
@@ -780,7 +1116,7 @@ namespace Tiny {
 
 
     void* Net::Address::address() const {
-        return _addr;
+        return _addr_ptr.get();
     }
 
     uint16_t Net::Address::port() const {
@@ -807,10 +1143,10 @@ namespace Tiny {
         if (!_valid) return;
         _port = port;
         if (_use_ipv6) {
-            auto ipv6 = static_cast<sockaddr_in6*>(_addr);
+            auto ipv6 = static_cast<sockaddr_in6*>(_addr_ptr.get());
             ipv6->sin6_port = htons(port);
         } else {
-            auto ipv4 = static_cast<sockaddr_in*>(_addr);
+            auto ipv4 = static_cast<sockaddr_in*>(_addr_ptr.get());
             ipv4->sin_port = htons(port);
         }
     }
@@ -819,10 +1155,10 @@ namespace Tiny {
         if (!_valid) return;
         _port = static_cast<uint16_t>(protocol_num);
         if (_use_ipv6) {
-            auto ipv6 = static_cast<sockaddr_in6*>(_addr);
+            auto ipv6 = static_cast<sockaddr_in6*>(_addr_ptr.get());
             ipv6->sin6_port = htons(_port);
         } else {
-            auto ipv4 = static_cast<sockaddr_in*>(_addr);
+            auto ipv4 = static_cast<sockaddr_in*>(_addr_ptr.get());
             ipv4->sin_port = htons(_port);
         }
     }
@@ -835,80 +1171,7 @@ namespace Tiny {
         return {"::1", 0, true};
     }
 
-    Net::Address::Address(Address && addr) noexcept {
-        _addr = addr._addr;
-        addr._addr = nullptr;
-        _port = addr._port;
-        addr._port = 0;
-        _use_ipv6 = addr._use_ipv6;
-        addr._use_ipv6 = false;
-        _valid = addr._valid;
-        addr._valid = false;
-    }
-
-    Net::Address & Net::Address::operator=(Address && addr) noexcept {
-        _addr = addr._addr;
-        addr._addr = nullptr;
-        _port = addr._port;
-        addr._port = 0;
-        _use_ipv6 = addr._use_ipv6;
-        addr._use_ipv6 = false;
-        _valid = addr._valid;
-        addr._valid = false;
-        return *this;
-    }
-
-    bool Net::Address::operator==(const Address &addr) const {
-        if (_use_ipv6 != addr._use_ipv6) return false;
-        if (_port != addr._port) return false;
-        if (toString() != addr.toString()) return false;
-        return true;
-    }
-
-    bool Net::Address::operator!=(const Address &addr) const {
-        if (_use_ipv6 != addr._use_ipv6) return true;
-        if (_port != addr._port) return true;
-        if (toString() != addr.toString()) return true;
-        return false;
-    }
-
-    void Net::Address::validate(const char *full_address, uint16_t port, bool use_ipv6) {
-        if (_addr) {
-            if (_use_ipv6) {
-                delete static_cast<sockaddr_in6*>(_addr);
-            } else {
-                delete static_cast<sockaddr_in*>(_addr);
-            }
-            _addr = nullptr;
-        }
-        if (use_ipv6) {
-            auto new_addr = new sockaddr_in6();
-            memset(new_addr, 0, sizeof(sockaddr_in6));
-            _valid = inet_pton(AF_INET6, full_address, &new_addr->sin6_addr) == 1;
-            if (!_valid) {
-                delete new_addr;
-                return;
-            }
-            new_addr->sin6_family = AF_INET6;
-            new_addr->sin6_port = htons(port);
-            _addr = new_addr;
-        } else {
-            auto new_addr = new sockaddr_in();
-            memset(new_addr, 0, sizeof(sockaddr_in));
-            _valid = inet_pton(AF_INET, full_address, &new_addr->sin_addr) == 1;
-            if (!_valid) {
-                delete new_addr;
-                return;
-            }
-            new_addr->sin_family = AF_INET;
-            new_addr->sin_port = htons(port);
-            _addr = new_addr;
-        }
-        _port = port;
-        _use_ipv6 = use_ipv6;
-    }
-
-    std::vector<Net::Address> Net::parseFromHostname(const char *hostname, bool *ok, int *err_cnt) {
+    std::vector<Net::Address> Net::Address::parseFromHostname(const char *hostname, bool *ok, int *err_cnt) {
         addrinfo hints = {}, *res;
         hints.ai_family = AF_UNSPEC;
         hints.ai_socktype = SOCK_STREAM;
@@ -947,7 +1210,7 @@ namespace Tiny {
         return result;
     }
 
-    Net::Address Net::parseFirstHostname(const char *hostname, bool *ok) {
+    Net::Address Net::Address::parseFirstHostname(const char *hostname, bool *ok) {
         addrinfo hints = {}, *res;
         hints.ai_family = AF_UNSPEC;
         hints.ai_socktype = SOCK_STREAM;
@@ -977,6 +1240,78 @@ namespace Tiny {
         freeaddrinfo(res);
         if (ok) *ok = SUCCESS;
         return result;
+    }
+
+    Net::Address::Address(Address && addr) noexcept {
+        _addr_ptr = std::move(addr._addr_ptr);
+        _port = addr._port;
+        addr._port = 0;
+        _use_ipv6 = addr._use_ipv6;
+        addr._use_ipv6 = false;
+        _valid = addr._valid;
+        addr._valid = false;
+    }
+
+    Net::Address & Net::Address::operator=(Address && addr) noexcept {
+        _addr_ptr = std::move(addr._addr_ptr);
+        _port = addr._port;
+        addr._port = 0;
+        _use_ipv6 = addr._use_ipv6;
+        addr._use_ipv6 = false;
+        _valid = addr._valid;
+        addr._valid = false;
+        return *this;
+    }
+
+    bool Net::Address::operator==(const Address &addr) const {
+        if (_use_ipv6 != addr._use_ipv6) return false;
+        if (_port != addr._port) return false;
+        if (toString() != addr.toString()) return false;
+        return true;
+    }
+
+    bool Net::Address::operator!=(const Address &addr) const {
+        if (_use_ipv6 != addr._use_ipv6) return true;
+        if (_port != addr._port) return true;
+        if (toString() != addr.toString()) return true;
+        return false;
+    }
+
+    void Net::Address::validate(const char *full_address, uint16_t port, bool use_ipv6) {
+        _addr_ptr.reset();
+        if (use_ipv6) {
+            auto new_addr = new sockaddr_in6();
+            memset(new_addr, 0, sizeof(sockaddr_in6));
+            _valid = inet_pton(AF_INET6, full_address, &new_addr->sin6_addr) == 1;
+            if (!_valid) {
+                delete new_addr;
+                return;
+            }
+            new_addr->sin6_family = AF_INET6;
+            new_addr->sin6_port = htons(port);
+            _addr_ptr = std::move(std::unique_ptr<void, Deleter>(new_addr, _deleter));
+        } else {
+            auto new_addr = new sockaddr_in();
+            memset(new_addr, 0, sizeof(sockaddr_in));
+            _valid = inet_pton(AF_INET, full_address, &new_addr->sin_addr) == 1;
+            if (!_valid) {
+                delete new_addr;
+                return;
+            }
+            new_addr->sin_family = AF_INET;
+            new_addr->sin_port = htons(port);
+            _addr_ptr = std::move(std::unique_ptr<void, Deleter>(new_addr, _deleter));
+        }
+        _port = port;
+        _use_ipv6 = use_ipv6;
+    }
+
+    std::vector<Net::Address> Net::parseFromHostname(const char *hostname, bool *ok, int *err_cnt) {
+        return Address::parseFromHostname(hostname, ok, err_cnt);
+    }
+
+    Net::Address Net::parseFirstHostname(const char *hostname, bool *ok) {
+        return Address::parseFirstHostname(hostname, ok);
     }
 
     const char *Net::getSocketErrorName(SocketError err) {
@@ -1015,7 +1350,7 @@ namespace Tiny {
     }
 
     Net::Socket::~Socket() {
-        if (_handle != INVALID_SOCKET_VAL) shutdown();
+        if (_handle != INVALID_SOCKET_VAL) close();
     }
 
     void Net::Socket::setLocalAddress(const char *address, uint16_t port, bool use_ipv6) {
@@ -1306,9 +1641,8 @@ ListenFailed:
     bool Net::Socket::shutdown() {
         _state = SocketState::Closing;
         bool ok = Socket_Impl::shutdown(_handle) == 0;
-        _handle = INVALID_SOCKET_VAL;
         if (ok) copeSuccess(); else copeFailed();
-        _state = SocketState::Unused;
+        _state = SocketState::Shutdown;
         return ok;
     }
 

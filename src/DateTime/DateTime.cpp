@@ -405,7 +405,10 @@ std::string Tiny::DT::DateTime::formatString(const char* format, const DateTime 
     std::ostringstream oss;
     int cnt = 0;
     while (*format) {
-        if (*format == 'y') {
+        if (*format == '\\') {
+            format++;
+        }
+        else if (*format == 'y') {
             while (*(format + cnt) == 'y') ++cnt;
             if (cnt == 2 || cnt == 3) {
                 oss << std::setw(cnt) << std::setfill('0') << date_time.year() % 100;
@@ -586,7 +589,7 @@ std::string Tiny::DT::formatStdTime(Duration timestamps, bool show_milliseconds)
     int64_t ms = timestamps % 1000;
     int64_t sec = (timestamps / 1000) % 60;
     int64_t min = (timestamps / 60000) % 60;
-    int64_t hour = (timestamps / 1440000) % 24;
+    int64_t hour = (timestamps / 3600000) % 24;
     std::ostringstream oss;
     oss << hour << ":" << std::setw(2) << std::setfill('0') << min << ":"
         << std::setw(2) << std::setfill('0') << sec;
@@ -595,54 +598,62 @@ std::string Tiny::DT::formatStdTime(Duration timestamps, bool show_milliseconds)
 }
 
 std::string Tiny::DT::formatTime(const char *format, Duration timestamps) {
-    std::string result;
-    uint8_t fill_n = 0;
+    std::ostringstream oss;
+    int cnt = 0;
+    int64_t ms = timestamps % 1000;
+    int64_t sec = (timestamps / 1000) % 60;
+    int64_t min = (timestamps / 60000) % 60;
+    int64_t hour = (timestamps / 3600000) % 24;
+    int64_t day  =  timestamps / 86400000;
     while (*format) {
-        if (*format == '%') {
-            if (++format) {
-                std::ostringstream temp;
-                while (true) {
-                    if (fill_n) temp << std::setfill('0') << std::setw(fill_n);
-                    switch (*format) {
-                        case '%':
-                            temp << '%';
-                            break;
-                        case 'h':
-                            temp << std::to_string((timestamps / 1440000) % 24);
-                            break;
-                        case 'm':
-                            temp << std::to_string((timestamps / 60000) % 60);
-                            break;
-                        case 's':
-                            temp << std::to_string((timestamps / 1000) % 60);
-                            break;
-                        case 'S':
-                            temp << std::to_string((timestamps % 1000));
-                            break;
-                        case '0':
-                            if (isdigit(*(format + 1))) {
-                                fill_n = *(format + 1) - '0';
-                                format += 2;
-                                continue;
-                            }
-                            temp << '%' << *format;
-                            break;
-                        default:
-                            temp << '%' << *format;
-                            break;
-                    }
-                    break;
-                }
-                result += temp.str();
-                format++;
+        if (*format == '\\') {
+            format++;
+        }
+        else if (*format == 'd') {
+            while (*(format + cnt) == 'd') ++cnt;
+            if (cnt == 2) {
+                oss << std::setw(2) << std::right << std::setfill('0') << day;
             } else {
-                result += '%';
+                oss << std::setw(cnt) << std::setfill(' ') << day;
             }
+        }
+        else if (*format == 'H') {
+            while (*(format + cnt) == 'H') ++cnt;
+            if (cnt == 2) {
+                oss << std::setw(2) << std::setfill('0') << hour;
+            } else {
+                oss << std::setw(cnt) << std::setfill(' ') << hour;
+            }
+        }
+        else if (*format == 'h') {
+            while (*(format + cnt) == 'h') ++cnt;
+            if (cnt == 2) {
+                oss << std::setw(2) << std::setfill('0') << hour;
+            } else {
+                oss << std::setw(cnt) << std::setfill(' ') << hour;
+            }
+        }
+        else if (*format == 'm') {
+            while (*(format + cnt) == 'm') ++cnt;
+            oss << std::setw(cnt) << std::setfill('0') << min;
+        }
+        else if (*format == 's') {
+            while (*(format + cnt) == 's') ++cnt;
+            oss << std::setw(cnt) << std::setfill('0') << sec;
+        }
+        else if (*format == 'S') {
+            while (*(format + cnt) == 'S') ++cnt;
+            oss << std::setw(cnt) << std::left << std::setfill('0') << ms;
+        }
+        if (cnt > 0) {
+            format += cnt;
+            cnt = 0;
         } else {
-            result += *format++;
+            oss << *format;
+            format += 1;
         }
     }
-    return result;
+    return oss.str();
 }
 
 

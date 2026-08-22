@@ -88,7 +88,7 @@ public:
 #pragma pack()
     ICMP_Socket() : _socket(SocketType::Custom) {
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        const uint32_t TIMEOUT = 5000;
+        const int32_t TIMEOUT = 5000;
         _socket.setOption(SocketOption::RecvBufTimeout, TIMEOUT);
         _socket.setOption(SocketOption::SendBufTimeout, TIMEOUT);
 #else
@@ -102,10 +102,10 @@ public:
 
     bool setAddress(Address&& address) {
         if (address.isIPv6()) {
-            _socket.setCustomSocketType(3, 58);
+            _socket.setSocketType(SocketType::ICMPV6);
             _socket.setLocalAddress("::", 0, true);
         } else {
-            _socket.setCustomSocketType(3, 1);
+            _socket.setSocketType(SocketType::ICMP);
             _socket.setLocalAddress("0.0.0.0", 0);
         }
         if (!_socket.bind()) return false;
@@ -224,8 +224,8 @@ public:
             }
             if (echo) {
                 auto ECHO = reinterpret_cast<const EchoRequest*>(PACK->data());
-                echo->id = ECHO->id;
-                echo->seq = ECHO->seq;
+                echo->id = ntohs(ECHO->id);
+                echo->seq = ntohs(ECHO->seq);
                 echo->times = DT::currentTimestamps() - ECHO->times;
 
                 memcpy(echo->data, ECHO->data, sizeof(echo->data));
@@ -359,15 +359,16 @@ int main(int argc, char** argv) {
             host = cmd.value;
         }
     }
+#ifdef TINY_CPP_MY_OS_UNIX
     if (!OS::isAdmin()) {
         Terminal::printError("ping: Permission denied! Please run as administrator/root.\r\n");
         return -1;
     }
-
+#endif
     signal(SIGINT, cancel_by_user);
 
     bool ok;
-    auto parse_host = parseFirstHostname(host.c_str(), &ok);
+    auto parse_host = Address::parseFirstHostname(host.c_str(), &ok);
 
     if (ok) {
         if (!sock.setAddress(std::move(parse_host))) {
@@ -392,8 +393,8 @@ int main(int argc, char** argv) {
                 bool is_less_zero = echo_req.times == 0;
                 times_seq_list.push_back(echo_req.times);
                 Terminal::print() << "From " << addr_str << ": "
-                                  << "id=" << static_cast<int>(ntohs(echo_req.id))
-                                  << " seq=" << static_cast<int>(ntohs(echo_req.seq))
+                                  << "id=" << static_cast<int>(echo_req.id)
+                                  << " seq=" << static_cast<int>(echo_req.seq)
                                   << " times" << (is_less_zero ? "<1" : "=" + std::to_string(echo_req.times)) << "ms";
                 if (!sock.address().isIPv6()) {
                     Terminal::print() << " TTL=" << static_cast<int>(ttl);
