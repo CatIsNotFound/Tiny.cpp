@@ -63,13 +63,23 @@ If not explicitly defined, the module automatically detects the platform based o
 
 **Description**: Platform-specific socket handle type. On Windows, it's a 64-bit unsigned integer (SOCKET type). On Unix systems, it's an integer file descriptor.
 
-### 3.2 Datas Type
+### 3.2 Datas Type (Deprecated)
 
 ```cpp
 using Datas = std::vector<char>;
 ```
 
 **Description**: Byte array type for network data transmission, used for binary send/receive operations.
+
+> **Deprecated**: Use `NetDatas` instead. `Datas` will be removed in v0.4.0.
+
+### 3.3 NetDatas Type
+
+```cpp
+using NetDatas = std::vector<char>;
+```
+
+**Description**: Byte array type for network data transmission, used for binary send/receive operations. This is the replacement for the deprecated `Datas` type.
 
 ---
 
@@ -218,6 +228,8 @@ enum class SocketType : uint8_t {
     TCP,
     UDP,
     SCTP,
+    ICMP,
+    ICMPV6,
     Custom
 };
 ```
@@ -229,6 +241,8 @@ enum class SocketType : uint8_t {
 | `TCP` | Transmission Control Protocol (reliable, connection-oriented) |
 | `UDP` | User Datagram Protocol (unreliable, connectionless) |
 | `SCTP` | Stream Control Transmission Protocol |
+| `ICMP` | Internet Control Message Protocol |
+| `ICMPV6` | Internet Control Message Protocol for IPv6 |
 | `Custom` | Custom protocol type |
 
 ### 4.4 SocketState Enum
@@ -241,7 +255,8 @@ enum class SocketState : uint8_t {
     Connected,
     Bound,
     Listening,
-    Closing
+    Closing,
+    Shutdown
 };
 ```
 
@@ -256,6 +271,7 @@ enum class SocketState : uint8_t {
 | `Bound` | Socket bound to local address |
 | `Listening` | Socket listening for incoming connections |
 | `Closing` | Socket closing in progress |
+| `Shutdown` | Socket has been shut down |
 
 ### 4.5 SocketOption Enum
 
@@ -265,17 +281,30 @@ enum class SocketOption : uint8_t {
     DontRoute,
     KeepAlive,
     NoDelay,
+    MaxSegmentSize,
+    KeepIdle,
+    KeepInterval,
+    KeepCount,
     SendBufSize,
     RecvBufSize,
     SendBufTimeout,
     RecvBufTimeout,
     Linger,
     ReuseAddr,
-    MapIPv6Only,
+    TTL,
+    TOS,
     MulticastTTL,
     MulticastLoopback,
+    AddMembership,
+    RemoveMembership,
+    MapIPv6Only,
+    MulticastLoopbackIPv6,
+    JoinGroup,
+    LeaveGroup,
+    UnicastHops,
+    MuticastHops,
     NonBlocking,
-    NativeSocketError
+    NativeSocketError = 255
 };
 ```
 
@@ -287,15 +316,28 @@ enum class SocketOption : uint8_t {
 | `DontRoute` | int (bool) | Set/Get | Bypass routing table, send directly to network interface |
 | `KeepAlive` | int (bool) | Set/Get | Enable TCP keepalive detection |
 | `NoDelay` | int (bool) | Set/Get | Disable Nagle algorithm for low latency (TCP only) |
+| `MaxSegmentSize` | int | Set/Get | TCP Maximum Segment Size (MSS). OS: Linux, MacOS, Windows 10+ |
+| `KeepIdle` | int | Set/Get | How long the connection is idle before sending a Keepalive probe (seconds). OS: Linux, MacOS, Windows 10+ |
+| `KeepInterval` | int | Set/Get | Keepalive probe sending interval (seconds). OS: Linux, MacOS, Windows 10+ |
+| `KeepCount` | int | Set/Get | The maximum number of probes sent before deciding the connection is lost. OS: Linux, MacOS, Windows 10+ |
 | `SendBufSize` | int | Set/Get | Maximum send buffer size |
 | `RecvBufSize` | int | Set/Get | Maximum receive buffer size |
 | `SendBufTimeout` | Platform-specific | Set/Get | Send buffer timeout (Windows: uint32_t ms, Others: timeval*) |
 | `RecvBufTimeout` | Platform-specific | Set/Get | Receive buffer timeout (Windows: uint32_t ms, Others: timeval*) |
 | `Linger` | linger* | Set/Get | Control how socket closes gracefully |
 | `ReuseAddr` | int (bool) | Set/Get | Allow reuse of local address |
+| `TTL` | int | Set/Get | Time To Live of an IP packet |
+| `TOS` | int | Set/Get | IP type of service |
+| `MulticastTTL` | int | Set/Get | TTL of the multicast packet |
+| `MulticastLoopback` | int (bool) | Set/Get | Allow multicast data to loop back to the local machine |
+| `AddMembership` | ip_mreq* | Set/Get | Add an IP group membership (IPv4 only) |
+| `RemoveMembership` | ip_mreq* | Set/Get | Remove an IP group membership (IPv4 only) |
 | `MapIPv6Only` | int (bool) | Set/Get | Disable IPv4-mapped IPv6 addresses |
-| `MulticastTTL` | int | Set/Get | Multicast time-to-live |
-| `MulticastLoopback` | int (bool) | Set/Get | Enable multicast loopback |
+| `MulticastLoopbackIPv6` | int (bool) | Set/Get | Allow multicast data to loop back to the local machine (IPv6 only) |
+| `JoinGroup` | ipv6_mreq* | Set/Get | Join the IPv6 multicast group |
+| `LeaveGroup` | ipv6_mreq* | Set/Get | Leave the IPv6 multicast group |
+| `UnicastHops` | int | Set/Get | IP unicast hop limit (IPv6 only) |
+| `MuticastHops` | int | Set/Get | IP multicast hop limit (IPv6 only) |
 | `NonBlocking` | int (bool) | Set | Enable non-blocking mode |
 | `NativeSocketError` | int | Get | Get native socket error code |
 
@@ -446,6 +488,49 @@ static Address localHostIPv6();
 - **Function**: Get localhost IPv6 address (::1)
 - **Return Value**: Address object with port UINT16_MAX
 
+#### parseFromHostname
+
+```cpp
+static std::vector<Address> parseFromHostname(const char* hostname, bool* ok = nullptr, int* err_cnt = nullptr);
+```
+
+- **Function**: Resolve hostname to multiple IP addresses
+- **Parameters**:
+  - `hostname` - Hostname to resolve (e.g., "www.example.com")
+  - `ok` - Optional pointer to receive success status
+  - `err_cnt` - Optional pointer to receive error count
+- **Return Value**: Vector of Address objects (all resolved addresses)
+- **Example**:
+```cpp
+bool success;
+auto addresses = Tiny::Net::Address::parseFromHostname("www.google.com", &success);
+if (success) {
+    for (const auto& addr : addresses) {
+        std::cout << "Resolved: " << addr.toString() << std::endl;
+    }
+}
+```
+
+#### parseFirstHostname
+
+```cpp
+static Address parseFirstHostname(const char* hostname, bool* ok = nullptr);
+```
+
+- **Function**: Resolve hostname to first IP address
+- **Parameters**:
+  - `hostname` - Hostname to resolve
+  - `ok` - Optional pointer to receive success status
+- **Return Value**: First resolved Address object
+- **Example**:
+```cpp
+bool success;
+auto addr = Tiny::Net::Address::parseFirstHostname("www.google.com", &success);
+if (success) {
+    std::cout << "First IP: " << addr.toString() << std::endl;
+}
+```
+
 ---
 
 ## 6. OptionValue Struct
@@ -544,13 +629,15 @@ Cross-platform socket operation class. Supports TCP/UDP/SCTP protocols, connecti
 ### 7.2 Constructors
 
 ```cpp
-Socket(SocketType type = SocketType::TCP);
+Socket(SocketType type = SocketType::TCP, uint8_t msg_type = 0, uint8_t proto_no = 0);
 Socket(Socket&& other) noexcept;
 ```
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `type` | `SocketType` | Socket protocol type (default: TCP) |
+| `msg_type` | `uint8_t` | Message type (default: 0) |
+| `proto_no` | `uint8_t` | Protocol number (default: 0) |
 
 ### 7.3 Destructor
 
@@ -612,6 +699,17 @@ void setSocketType(SocketType type);
 ```
 
 - **Function**: Set socket protocol type
+
+#### setCustomSocketType
+
+```cpp
+void setCustomSocketType(uint8_t type, uint8_t proto_no);
+```
+
+- **Function**: Set custom socket type and protocol number
+- **Parameters**:
+  - `type` - Custom socket type value
+  - `proto_no` - Protocol number
 
 ### 7.6 Connection Methods
 
@@ -696,7 +794,7 @@ bool shutdown();
 
 ```cpp
 bool send(const std::string& message, int* sended_length = nullptr);
-bool send(const Datas& data, int* sended_length = nullptr);
+bool send(const NetDatas& data, int* sended_length = nullptr);
 ```
 
 - **Function**: Send data to connected peer
@@ -709,7 +807,7 @@ bool send(const Datas& data, int* sended_length = nullptr);
 #### recv
 
 ```cpp
-bool recv(Datas& data, size_t max_length, int* received_length = nullptr);
+bool recv(NetDatas& data, size_t max_length, int* received_length = nullptr);
 bool recv(std::string& message, size_t max_length, int* received_length = nullptr);
 ```
 
@@ -724,7 +822,7 @@ bool recv(std::string& message, size_t max_length, int* received_length = nullpt
 
 ```cpp
 bool sendTo(const std::string& message, const Address& address, int* sended_length = nullptr);
-bool sendTo(const Datas& message, const Address& address, int* sended_length = nullptr);
+bool sendTo(const NetDatas& message, const Address& address, int* sended_length = nullptr);
 ```
 
 - **Function**: Send data to specific address (for UDP)
@@ -738,7 +836,7 @@ bool sendTo(const Datas& message, const Address& address, int* sended_length = n
 
 ```cpp
 bool recvFrom(std::string& message, size_t max_length, const Address& address, int* received_length = nullptr);
-bool recvFrom(Datas& data, size_t max_length, const Address& address, int* received_length = nullptr);
+bool recvFrom(NetDatas& data, size_t max_length, const Address& address, int* received_length = nullptr);
 ```
 
 - **Function**: Receive data from specific address (for UDP)
@@ -852,7 +950,7 @@ int nativeErrorNo() const;
 
 ## 8. Free Functions
 
-### 8.1 parseFromHostname
+### 8.1 parseFromHostname (Deprecated)
 
 ```cpp
 std::vector<Address> parseFromHostname(const char* hostname, bool* ok = nullptr, int* err_cnt = nullptr);
@@ -864,6 +962,7 @@ std::vector<Address> parseFromHostname(const char* hostname, bool* ok = nullptr,
   - `ok` - Optional pointer to receive success status
   - `err_cnt` - Optional pointer to receive error count
 - **Return Value**: Vector of Address objects (all resolved addresses)
+- **Deprecated**: Use `Address::parseFromHostname` instead. Will be removed in v0.4.0.
 - **Example**:
 ```cpp
 bool success;
@@ -875,7 +974,7 @@ if (success) {
 }
 ```
 
-### 8.2 parseFirstHostname
+### 8.2 parseFirstHostname (Deprecated)
 
 ```cpp
 Address parseFirstHostname(const char* hostname, bool* ok = nullptr);
@@ -886,6 +985,7 @@ Address parseFirstHostname(const char* hostname, bool* ok = nullptr);
   - `hostname` - Hostname to resolve
   - `ok` - Optional pointer to receive success status
 - **Return Value**: First resolved Address object
+- **Deprecated**: Use `Address::parseFirstHostname` instead. Will be removed in v0.4.0.
 - **Example**:
 ```cpp
 bool success;

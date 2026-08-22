@@ -13,8 +13,12 @@ Namespace: `Tiny::TUI`
 5. [Terminal Class](#5-terminal-class)
 6. [Renderer Class](#6-renderer-class)
 7. [AbstractWidget Class](#7-abstractwidget-class)
-8. [Usage Examples](#8-usage-examples)
-9. [Notes](#9-notes)
+8. [EventBus Class](#8-eventbus-class)
+9. [Application Class](#9-application-class)
+10. [AbstractLayout Class](#10-abstractlayout-class)
+11. [Label Class](#11-label-class)
+12. [Usage Examples](#12-usage-examples)
+13. [Notes](#13-notes)
 
 ---
 
@@ -55,10 +59,12 @@ std::string splitFront(const char* data);
 ### 3.2 splitUTF8
 
 ```cpp
-std::vector<std::string> splitUTF8(const char* data);
+std::vector<std::string> splitUTF8(const char* data, size_t *display_size = nullptr);
 ```
 - **Function**: Split UTF-8 string into character array
-- **Parameter**: `data` - UTF-8 string
+- **Parameters**: 
+  - `data` - UTF-8 string
+  - `display_size` - Optional output parameter for display width (default: `nullptr`)
 - **Return Value**: Character array
 
 ### 3.3 getKeyName
@@ -81,7 +87,7 @@ const char* getMouseName(const SP_Mouse& SP);
 - **Parameter**: `SP` - Mouse event type
 - **Return Value**: Event name string
 
-### 3.5 comparePosition
+### 3.5 comparePosition (Deprecated)
 
 ```cpp
 int8_t comparePosition(const Position& pos1, const Position& pos2);
@@ -94,8 +100,9 @@ int8_t comparePosition(const Position& pos1, const Position& pos2);
   - `-1` - pos1 is before pos2
   - `0` - Same position
   - `1` - pos1 is after pos2
+- **Deprecated**: This function is deprecated and will be removed in a future version
 
-### 3.6 compareSize
+### 3.6 compareSize (Deprecated)
 
 ```cpp
 int8_t compareSize(const Size& size1, const Size& size2);
@@ -108,6 +115,7 @@ int8_t compareSize(const Size& size1, const Size& size2);
   - `-1` - size1 is smaller than size2
   - `0` - Same size
   - `1` - size1 is larger than size2
+- **Deprecated**: This function is deprecated and will be removed in a future version
 
 ### 3.7 isPointInRect
 
@@ -390,6 +398,49 @@ A lightweight wrapper for a single character (supports UTF-8 multi-byte characte
 | `operator==` / `operator!=` | Comparison operators |
 | `data()` | Get the underlying string representation of the character |
 | `length()` | Get the byte length of the character |
+
+### 4.11 Alignment Enum
+
+```cpp
+enum class Alignment : uint8_t {
+    LeftTop,
+    CenterTop,
+    RightTop,
+    Left,
+    Center,
+    Right,
+    LeftBottom,
+    CenterBottom,
+    RightBottom
+};
+```
+
+Widget alignment within layout.
+
+### 4.12 TextAlignment Enum
+
+```cpp
+enum class TextAlignment : uint8_t {
+    Left,
+    Center,
+    Right
+};
+```
+
+Text alignment within widget.
+
+### 4.13 SizePolicy Enum
+
+```cpp
+enum class SizePolicy : uint8_t {
+    Ignored,
+    Fixed,
+    Maximized,
+    Minimized
+};
+```
+
+Widget size policy for layout management.
 
 ---
 
@@ -1052,7 +1103,7 @@ void unsetRect(const Position& start_pos, const Position& end_pos);
   - `start_pos` - Start position
   - `end_pos` - End position
 
-#### setResizeEvent
+#### setResizeEvent (Deprecated)
 
 ```cpp
 void setResizeEvent(const std::function<void(Renderer&)>& event);
@@ -1060,6 +1111,36 @@ void setResizeEvent(const std::function<void(Renderer&)>& event);
 - **Function**: Set terminal resize event callback
 - **Parameter**: `event` - Callback function, receives Renderer reference
 - **Note**: Triggered when terminal window size changes
+- **Deprecated**: Replaced by EventBus, will be removed in v1.4.0
+
+#### setStyle
+
+```cpp
+void setStyle(const Position& pos, Style style);
+void setStyle(uint32_t x, uint32_t y, Style style);
+```
+- **Function**: Set style at specified position
+- **Parameters**: 
+  - `pos` / `x, y` - Position
+  - `style` - Style to apply
+
+#### charAt
+
+```cpp
+const Char& charAt(const Position& position);
+```
+- **Function**: Get character at specified position
+- **Parameter**: `position` - Position to query
+- **Return Value**: Character reference
+
+#### styleAt
+
+```cpp
+const Style& styleAt(const Position& position);
+```
+- **Function**: Get style at specified position
+- **Parameter**: `position` - Position to query
+- **Return Value**: Style reference
 
 #### clear
 
@@ -1148,13 +1229,64 @@ void resize(uint32_t w, uint32_t h);
 - **Function**: Resize widget
 - **Parameters**: New size
 
-#### draw (v1.2.0)
+#### setMinimumSize
+
+```cpp
+void setMinimumSize(const Size& size);
+void setMinimumSize(uint32_t w, uint32_t h);
+```
+- **Function**: Set minimum widget size
+- **Parameters**: Minimum size constraints
+
+#### setMaximumSize
+
+```cpp
+void setMaximumSize(const Size& size);
+void setMaximumSize(uint32_t w, uint32_t h);
+```
+- **Function**: Set maximum widget size
+- **Parameters**: Maximum size constraints
+
+#### setEnabled
+
+```cpp
+void setEnabled(bool enabled);
+```
+- **Function**: Enable or disable widget
+- **Parameter**: `enabled` - Whether widget is enabled
+
+#### setVisible
+
+```cpp
+void setVisible(bool visible);
+```
+- **Function**: Show or hide widget
+- **Parameter**: `visible` - Whether widget is visible
+
+#### setFocus
+
+```cpp
+void setFocus(bool focus);
+```
+- **Function**: Set widget focus state
+- **Parameter**: `focus` - Whether widget has focus
+
+#### setSizePolicy
+
+```cpp
+void setSizePolicy(SizePolicy policy);
+```
+- **Function**: Set widget size policy
+- **Parameter**: `policy` - Size policy for layout management
+
+#### draw (v1.2.0, Deprecated)
 
 ```cpp
 void draw();
 ```
 - **Function**: Trigger widget rendering
 - **Note**: New in v1.2.0, public method to invoke the render process
+- **Deprecated**: Replaced by EventBus, will be removed in v1.4.0
 
 #### name
 
@@ -1180,12 +1312,61 @@ void draw();
 - **Function**: Get widget size
 - **Return Value**: Size reference
 
+#### minimumSize
+
+```cpp
+[[nodiscard]] const Size& minimumSize() const;
+```
+- **Function**: Get widget minimum size
+- **Return Value**: Minimum size reference
+
+#### maximumSize
+
+```cpp
+[[nodiscard]] const Size& maximumSize() const;
+```
+- **Function**: Get widget maximum size
+- **Return Value**: Maximum size reference
+
+#### enabled
+
+```cpp
+[[nodiscard]] bool enabled() const;
+```
+- **Function**: Check if widget is enabled
+- **Return Value**: `true` if enabled
+
+#### visible
+
+```cpp
+[[nodiscard]] bool visible() const;
+```
+- **Function**: Check if widget is visible
+- **Return Value**: `true` if visible
+
+#### focus
+
+```cpp
+[[nodiscard]] bool focus() const;
+```
+- **Function**: Check if widget has focus
+- **Return Value**: `true` if has focus
+
+#### sizePolicy
+
+```cpp
+[[nodiscard]] SizePolicy sizePolicy() const;
+```
+- **Function**: Get widget size policy
+- **Return Value**: Size policy enum value
+
 ### 7.5 Protected Virtual Functions (v1.2.0)
 
 ```cpp
-virtual void renderEvent() = 0;
+virtual void renderEvent(Renderer& renderer) = 0;
 ```
 - **Function**: Render event handling, must be overridden by subclasses to customize widget rendering
+- **Parameters**: `renderer` - Renderer instance for drawing
 - **Note**: Changed to pure virtual in v1.2.0
 
 ```cpp
@@ -1206,11 +1387,492 @@ virtual void moveEvent(uint32_t x, uint32_t y) = 0;
   - `y` - New y coordinate
 - **Note**: New pure virtual function in v1.2.0
 
+```cpp
+virtual void keyEvent(KeyEvent keyboard) = 0;
+```
+- **Function**: Keyboard event handling, must be overridden by subclasses
+- **Parameter**: `keyboard` - Keyboard event data
+
+```cpp
+virtual void mouseEvent(MouseEvent mouse) = 0;
+```
+- **Function**: Mouse event handling, must be overridden by subclasses
+- **Parameter**: `mouse` - Mouse event data
+
+```cpp
+virtual void focusEvent(bool focus) = 0;
+```
+- **Function**: Focus event handling, must be overridden by subclasses
+- **Parameter**: `focus` - Whether widget gained focus
+
+```cpp
+virtual void enableEvent(bool enable) = 0;
+```
+- **Function**: Enable/disable event handling, must be overridden by subclasses
+- **Parameter**: `enable` - Whether widget is enabled
+
+```cpp
+virtual void clickedEvent() = 0;
+```
+- **Function**: Click event handling, must be overridden by subclasses
+
+```cpp
+virtual void execEvent(const AbstractEvent& event);
+```
+- **Function**: Generic event execution handler
+- **Parameter**: `event` - Event to process
+- **Note**: Can be overridden for custom event handling
+
+```cpp
+void callDrawEvent();
+```
+- **Function**: Internal draw event caller
+- **Note**: Used internally to trigger rendering
+
 ---
 
-## 8. Usage Examples
+## 8. EventBus Class
 
-### 8.1 Basic Terminal Control
+### 8.1 Class Overview
+
+Event bus for managing and dispatching events in the TUI system.
+
+### 8.2 Event Types
+
+#### AbstractEvent
+
+```cpp
+class AbstractEvent {
+public:
+    AbstractEvent(std::type_index type);
+    virtual ~AbstractEvent() = default;
+    size_t hash() const;
+};
+```
+
+Base class for all events.
+
+#### UserInputEvent
+
+```cpp
+class UserInputEvent : public AbstractEvent {
+public:
+    UserInputEvent(InputEvent input_event);
+    virtual ~UserInputEvent() = default;
+    const InputEvent& inputEvent() const;
+};
+```
+
+Event for user input (keyboard/mouse).
+
+#### RefreshRenderEvent
+
+```cpp
+class RefreshRenderEvent : public AbstractEvent {
+public:
+    RefreshRenderEvent();
+    virtual ~RefreshRenderEvent() = default;
+};
+```
+
+Event for triggering renderer refresh.
+
+#### ResizeTermEvent
+
+```cpp
+class ResizeTermEvent : public AbstractEvent {
+public:
+    ResizeTermEvent(const Size& old_size, const Size& new_size);
+    virtual ~ResizeTermEvent() = default;
+    const Size& oldSize() const;
+    const Size& newSize() const;
+};
+```
+
+Event for terminal resize.
+
+### 8.3 Type Aliases
+
+```cpp
+using Subscriber = std::function<void(const AbstractEvent&)>;
+using SubscriberMap = std::unordered_map<size_t, Subscriber>;
+using SubscriberID = size_t;
+```
+
+### 8.4 Member Functions
+
+#### self
+
+```cpp
+static EventBus& self();
+```
+- **Function**: Get event bus singleton
+- **Return Value**: EventBus reference
+
+#### subscribe
+
+```cpp
+template <typename T>
+SubscriberID subscribe(const Subscriber& subscriber);
+template <typename T>
+SubscriberID subscribe(Subscriber&& subscriber);
+```
+- **Function**: Subscribe to event type
+- **Parameter**: `subscriber` - Callback function
+- **Return Value**: Subscriber ID for unsubscribing
+
+#### unsubscribe
+
+```cpp
+template <typename T>
+void unsubscribe(SubscriberID id);
+```
+- **Function**: Unsubscribe from event type
+- **Parameter**: `id` - Subscriber ID returned from subscribe
+
+#### publish
+
+```cpp
+template <typename T>
+void publish(SubscriberID id, AbstractEvent *event, size_t priority = 0);
+template <typename T>
+void publish(AbstractEvent *event, size_t priority = 0);
+```
+- **Function**: Publish event to subscribers
+- **Parameters**: 
+  - `id` - Specific subscriber ID (optional)
+  - `event` - Event to publish
+  - `priority` - Event priority (higher = executed first)
+
+#### pollEvents
+
+```cpp
+void pollEvents();
+```
+- **Function**: Process all pending events
+
+#### clear
+
+```cpp
+void clear();
+```
+- **Function**: Clear all subscribers and pending events
+
+---
+
+## 9. Application Class
+
+### 9.1 Class Overview
+
+Main application class for TUI programs.
+
+### 9.2 Constructor
+
+```cpp
+Application(int argc, char* argv[]);
+```
+- **Parameters**: 
+  - `argc` - Argument count
+  - `argv` - Argument values
+
+### 9.3 Destructor
+
+```cpp
+virtual ~Application() = default;
+```
+
+### 9.4 Member Functions
+
+#### run
+
+```cpp
+int run();
+```
+- **Function**: Run the application main loop
+- **Return Value**: Exit code
+
+#### exit
+
+```cpp
+void exit();
+```
+- **Function**: Exit the application
+
+---
+
+## 10. AbstractLayout Class
+
+### 10.1 Class Overview
+
+Abstract layout base class for managing widget arrangements.
+
+### 10.2 Type Aliases
+
+```cpp
+using WidgetIter = std::vector<AbstractWidget*>::iterator;
+using CWidgetIter = std::vector<AbstractWidget*>::const_iterator;
+```
+
+### 10.3 Constructor
+
+```cpp
+AbstractLayout(const std::string& name);
+```
+- **Parameter**: `name` - Layout name
+
+### 10.4 Destructor
+
+```cpp
+virtual ~AbstractLayout() = default;
+```
+
+### 10.5 Member Functions
+
+#### rename
+
+```cpp
+void rename(const std::string& name);
+```
+- **Function**: Rename layout
+- **Parameter**: `name` - New name
+
+#### move
+
+```cpp
+void move(const Position& position);
+void move(uint32_t x, uint32_t y);
+```
+- **Function**: Move layout position
+- **Parameters**: New position
+
+#### resize
+
+```cpp
+void resize(const Size& size);
+void resize(uint32_t w, uint32_t h);
+```
+- **Function**: Resize layout
+- **Parameters**: New size
+
+#### setEnabled
+
+```cpp
+void setEnabled(bool enabled);
+```
+- **Function**: Enable or disable layout
+- **Parameter**: `enabled` - Whether layout is enabled
+
+#### setVisible
+
+```cpp
+void setVisible(bool visible);
+```
+- **Function**: Show or hide layout
+- **Parameter**: `visible` - Whether layout is visible
+
+#### appendWidget
+
+```cpp
+bool appendWidget(AbstractWidget* widget);
+```
+- **Function**: Add widget to end of layout
+- **Parameter**: `widget` - Widget to add
+- **Return Value**: `true` if successful
+
+#### insertWidget
+
+```cpp
+bool insertWidget(uint64_t index, AbstractWidget* widget);
+```
+- **Function**: Insert widget at specified index
+- **Parameters**: 
+  - `index` - Position to insert
+  - `widget` - Widget to insert
+- **Return Value**: `true` if successful
+
+#### removeWidget
+
+```cpp
+bool removeWidget(AbstractWidget* widget);
+bool removeWidget(uint64_t index);
+```
+- **Function**: Remove widget from layout
+- **Parameters**: Widget pointer or index
+- **Return Value**: `true` if successful
+
+#### swapWidget
+
+```cpp
+bool swapWidget(uint64_t index_1, uint64_t index_2);
+bool swapWidget(AbstractWidget* widget_1, AbstractWidget* widget_2);
+```
+- **Function**: Swap two widgets
+- **Parameters**: Widget pointers or indices
+- **Return Value**: `true` if successful
+
+#### clear
+
+```cpp
+void clear();
+```
+- **Function**: Remove all widgets from layout
+
+#### name
+
+```cpp
+[[nodiscard]] const std::string& name() const;
+```
+- **Function**: Get layout name
+- **Return Value**: Name reference
+
+#### position
+
+```cpp
+[[nodiscard]] const Position& position() const;
+```
+- **Function**: Get layout position
+- **Return Value**: Position reference
+
+#### size
+
+```cpp
+[[nodiscard]] const Size& size() const;
+```
+- **Function**: Get layout size
+- **Return Value**: Size reference
+
+#### enabled
+
+```cpp
+[[nodiscard]] bool enabled() const;
+```
+- **Function**: Check if layout is enabled
+- **Return Value**: `true` if enabled
+
+#### visible
+
+```cpp
+[[nodiscard]] bool visible() const;
+```
+- **Function**: Check if layout is visible
+- **Return Value**: `true` if visible
+
+#### begin
+
+```cpp
+[[nodiscard]] WidgetIter begin();
+```
+- **Function**: Get iterator to first widget
+- **Return Value**: Iterator
+
+#### end
+
+```cpp
+[[nodiscard]] WidgetIter end();
+```
+- **Function**: Get iterator past last widget
+- **Return Value**: Iterator
+
+#### cbegin
+
+```cpp
+[[nodiscard]] CWidgetIter cbegin() const;
+```
+- **Function**: Get const iterator to first widget
+- **Return Value**: Const iterator
+
+#### cend
+
+```cpp
+[[nodiscard]] CWidgetIter cend() const;
+```
+- **Function**: Get const iterator past last widget
+- **Return Value**: Const iterator
+
+#### count
+
+```cpp
+[[nodiscard]] size_t count() const;
+```
+- **Function**: Get number of widgets
+- **Return Value**: Widget count
+
+#### widget
+
+```cpp
+[[nodiscard]] AbstractWidget* widget(size_t index) const;
+```
+- **Function**: Get widget at index
+- **Parameter**: `index` - Widget index
+- **Return Value**: Widget pointer
+
+#### indexOf
+
+```cpp
+[[nodiscard]] uint64_t indexOf(const AbstractWidget* widget) const;
+```
+- **Function**: Get index of widget
+- **Parameter**: `widget` - Widget to find
+- **Return Value**: Widget index
+
+### 10.6 Protected Virtual Functions
+
+```cpp
+virtual void renderEvent(Renderer& renderer) = 0;
+```
+- **Function**: Render event handling
+- **Parameter**: `renderer` - Renderer instance
+
+```cpp
+virtual void moveEvent(uint32_t x, uint32_t y) = 0;
+```
+- **Function**: Move event handling
+- **Parameters**: New coordinates
+
+```cpp
+virtual void resizeEvent(uint32_t width, uint32_t height) = 0;
+```
+- **Function**: Resize event handling
+- **Parameters**: New dimensions
+
+---
+
+## 11. Label Class
+
+### 11.1 Class Overview
+
+Simple text label widget.
+
+### 11.2 Constructor
+
+```cpp
+explicit Label(const std::string& name, const Position& position);
+```
+- **Parameters**: 
+  - `name` - Widget name
+  - `position` - Widget position
+
+### 11.3 Destructor
+
+```cpp
+virtual ~Label() = default;
+```
+
+### 11.4 Member Functions
+
+#### setText
+
+```cpp
+void setText(const std::string& text);
+```
+- **Function**: Set label text
+- **Parameter**: `text` - Text to display
+
+---
+
+## 12. Usage Examples
+
+### 12.1 Basic Terminal Control
 
 ```cpp
 #include "TUI/TUI.hpp"
@@ -1255,7 +1917,7 @@ int main() {
 }
 ```
 
-### 8.2 Renderer Usage
+### 12.2 Renderer Usage
 
 ```cpp
 #include "TUI/TUI.hpp"
@@ -1303,7 +1965,7 @@ int main() {
 }
 ```
 
-### 8.3 Mouse Event Handling
+### 12.3 Mouse Event Handling
 
 ```cpp
 #include "TUI/TUI.hpp"
@@ -1347,7 +2009,7 @@ int main() {
 }
 ```
 
-### 8.4 Color and Style Example
+### 12.4 Color and Style Example
 
 ```cpp
 #include "TUI/TUI.hpp"
@@ -1387,41 +2049,41 @@ int main() {
 
 ---
 
-## 9. Notes
+## 13. Notes
 
-### 9.1 Raw Mode
+### 13.1 Raw Mode
 
 - After entering raw mode, terminal will not automatically handle input/output
 - Must manually handle Enter, Backspace, and other keys
 - Must call `leaveRawMode()` before program exit
 - Recommended to use RAII pattern to ensure terminal state restoration
 
-### 9.2 Terminal Compatibility
+### 13.2 Terminal Compatibility
 
 - Requires terminal supporting ANSI escape sequences
 - Windows 10+, modern Linux terminals, macOS Terminal are all supported
 - Windows 7/8 may need to enable virtual terminal processing
 
-### 9.3 Mouse Support
+### 13.3 Mouse Support
 
 - Requires terminal supporting mouse events
 - After enabling, mouse events are returned via `getKey()` as `KEY_SPECIAL`
 - Then call `getMouseButton()` to get detailed information
 
-### 9.4 Renderer Usage
+### 13.4 Renderer Usage
 
 - Uses double buffering mechanism, draws to buffer first
 - Call `present()` to actually output to screen
 - Call `clear()` to clear the front buffer before redrawing
 - Terminal size changes are handled internally by `resizeEvent()`; use `setResizeEvent()` to register custom callbacks
 
-### 9.5 UTF-8 Support
+### 13.5 UTF-8 Support
 
 - Supports multi-byte character display
 - Use `splitUTF8()` to process strings
 - Note width calculation for full-width characters like Chinese
 
-### 9.6 Performance Considerations
+### 13.6 Performance Considerations
 
 - Avoid frequent `present()` calls
 - Batch drawing and present uniformly

@@ -63,7 +63,7 @@ namespace Tiny {
 #elif defined(TINY_CPP_MY_OS_UNIX)
         using Handle = int;
 #endif
-        /// @warning Use 'NetDatas' instead, it will be removed in v1.4.0.
+        /// @warning Use 'NetDatas' instead, it will be removed in v0.4.0.
         using Datas = std::vector<char>;
         using NetDatas = std::vector<char>;
 

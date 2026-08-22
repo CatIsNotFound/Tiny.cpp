@@ -53,7 +53,7 @@ constexpr const char* Name("...");
 | macOS | `"apple"` |
 | Unix | `"unix"` |
 | Android | `"android"` |
-| OpenHarmony | `"openHarmony"` |
+| FreeBSD | `"FreeBSD"` |
 | Others | `"unknown"` |
 
 **Usage Example**:

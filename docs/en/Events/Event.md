@@ -1,6 +1,6 @@
 # Events Module - Event Class
 
-Namespace: `Tiny`
+Namespace: `Tiny::EV`
 
 ---
 
@@ -476,7 +476,7 @@ constIter cend() const;
 
 int main() {
     // Create timer event (execute once per second, 5 times total)
-    Tiny::Event timer(1, "Timer",
+    Tiny::EV::Event timer(1, "Timer",
         [] { return true; },  // Condition: always execute
         [](const std::atomic<bool>& running) {
             if (running) {
@@ -506,7 +506,7 @@ int main() {
 std::atomic<bool> shouldRun{false};
 
 int main() {
-    Tiny::Event conditionalEvent(2, "Conditional",
+    Tiny::EV::Event conditionalEvent(2, "Conditional",
         [] { return shouldRun.load(); },  // Condition: shouldRun is true
         [](const std::atomic<bool>& running) {
             std::cout << "Condition met, executing!" << std::endl;
@@ -537,7 +537,7 @@ int main() {
 
 int main() {
     // Create empty event first
-    Tiny::Event delayedEvent(3, "Delayed");
+    Tiny::EV::Event delayedEvent(3, "Delayed");
     
     // Set callback later
     int counter = 0;
@@ -568,7 +568,7 @@ int main() {
 #include <vector>
 
 int main() {
-    std::vector<Tiny::Event> events;
+    std::vector<Tiny::EV::Event> events;
     
     // Create multiple timers
     for (int i = 0; i < 3; ++i) {

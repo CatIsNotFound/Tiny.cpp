@@ -1,6 +1,6 @@
 # Events 模块 - Event 类
 
-命名空间: `Tiny`
+命名空间: `Tiny::EV`
 
 ---
 
@@ -40,6 +40,8 @@
 // 直接复制源代码方式
 #include "Events/Events.hpp"
 ```
+
+**p.s: 在其它 Unix 系统下，仅编译单文件下，可能仍需要手动包含 `pthread` 静态库。**
 
 ---
 

@@ -34,6 +34,8 @@
 #include "OS/System.hpp"
 ```
 
+**p.s: 在 Windows 环境下，若仅编译单文件，需要手动包含 `pdh` 和 `advapi32` 静态库。**
+
 ---
 
 ## 3. 全局常量
@@ -53,7 +55,7 @@ constexpr const char* Name("...");
 | macOS | `"apple"` |
 | Unix | `"unix"` |
 | Android | `"android"` |
-| OpenHarmony | `"openHarmony"` |
+| FreeBSD | `"FreeBSD"` |
 | 其他 | `"unknown"` |
 
 **使用示例**:

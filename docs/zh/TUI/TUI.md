@@ -13,9 +13,13 @@
 5. [Terminal 类](#5-terminal-类)
 6. [Renderer 类](#6-renderer-类)
 7. [AbstractWidget 类](#7-abstractwidget-类)
-8. [使用示例](#8-使用示例)
-9. [注意事项](#9-注意事项)
-10. [如何在 Linux 控制台下使用 GPM 库](#10-如何在-Linux-控制台下使用-GPM-库)
+8. [EventBus 类](#8-eventbus-类)
+9. [Application 类](#9-application-类)
+10. [AbstractLayout 类](#10-abstractlayout-类)
+11. [Label 类](#11-label-类)
+12. [使用示例](#12-使用示例)
+13. [注意事项](#13-注意事项)
+14. [如何在 Linux 控制台下使用 GPM 库](#14-如何在-Linux-控制台下使用-GPM-库)
 
 ---
 
@@ -56,10 +60,12 @@ std::string splitFront(const char* data);
 ### 3.2 splitUTF8
 
 ```cpp
-std::vector<std::string> splitUTF8(const char* data);
+std::vector<std::string> splitUTF8(const char* data, size_t *display_size = nullptr);
 ```
 - **功能**: 将 UTF-8 字符串分割为字符数组
-- **参数**: `data` - UTF-8 字符串
+- **参数**: 
+  - `data` - UTF-8 字符串
+  - `display_size` - 可选输出参数，用于获取显示宽度（默认值：`nullptr`）
 - **返回值**: 字符数组
 
 ### 3.3 getKeyName
@@ -82,7 +88,7 @@ const char* getMouseName(const SP_Mouse& SP);
 - **参数**: `SP` - 鼠标事件类型
 - **返回值**: 事件名称字符串
 
-### 3.5 comparePosition
+### 3.5 comparePosition (已弃用)
 
 ```cpp
 int8_t comparePosition(const Position& pos1, const Position& pos2);
@@ -95,8 +101,9 @@ int8_t comparePosition(const Position& pos1, const Position& pos2);
   - `-1` - pos1 在 pos2 之前
   - `0` - 位置相同
   - `1` - pos1 在 pos2 之后
+- **已弃用**: 此函数已弃用，将在未来版本移除
 
-### 3.6 compareSize
+### 3.6 compareSize (已弃用)
 
 ```cpp
 int8_t compareSize(const Size& size1, const Size& size2);
@@ -109,6 +116,7 @@ int8_t compareSize(const Size& size1, const Size& size2);
   - `-1` - size1 小于 size2
   - `0` - 尺寸相同
   - `1` - size1 大于 size2
+- **已弃用**: 此函数已弃用，将在未来版本移除
 
 ### 3.7 isPointInRect
 
@@ -391,6 +399,49 @@ public:
 | `operator==` / `operator!=` | 比较运算符 |
 | `data()` | 获取字符的底层字符串表示 |
 | `length()` | 获取字符的字节长度 |
+
+### 4.11 Alignment 枚举
+
+```cpp
+enum class Alignment : uint8_t {
+    LeftTop,
+    CenterTop,
+    RightTop,
+    Left,
+    Center,
+    Right,
+    LeftBottom,
+    CenterBottom,
+    RightBottom
+};
+```
+
+控件在布局中的对齐方式。
+
+### 4.12 TextAlignment 枚举
+
+```cpp
+enum class TextAlignment : uint8_t {
+    Left,
+    Center,
+    Right
+};
+```
+
+控件内文本的对齐方式。
+
+### 4.13 SizePolicy 枚举
+
+```cpp
+enum class SizePolicy : uint8_t {
+    Ignored,
+    Fixed,
+    Maximized,
+    Minimized
+};
+```
+
+控件在布局管理中的尺寸策略。
 
 ---
 
@@ -906,7 +957,7 @@ void unsetRect(const Position& start_pos, const Position& end_pos);
   - `start_pos` - 起始位置
   - `end_pos` - 结束位置
 
-#### setResizeEvent
+#### setResizeEvent (已弃用)
 
 ```cpp
 void setResizeEvent(const std::function<void(Renderer&)>& event);
@@ -914,6 +965,36 @@ void setResizeEvent(const std::function<void(Renderer&)>& event);
 - **功能**: 设置终端尺寸变化事件回调
 - **参数**: `event` - 回调函数，接收 Renderer 引用
 - **说明**: 当终端窗口大小变化时触发
+- **已弃用**: 已被 EventBus 替代，将在 v1.4.0 移除
+
+#### setStyle
+
+```cpp
+void setStyle(const Position& pos, Style style);
+void setStyle(uint32_t x, uint32_t y, Style style);
+```
+- **功能**: 在指定位置设置样式
+- **参数**: 
+  - `pos` / `x, y` - 位置
+  - `style` - 要应用的样式
+
+#### charAt
+
+```cpp
+const Char& charAt(const Position& position);
+```
+- **功能**: 获取指定位置的字符
+- **参数**: `position` - 要查询的位置
+- **返回值**: 字符引用
+
+#### styleAt
+
+```cpp
+const Style& styleAt(const Position& position);
+```
+- **功能**: 获取指定位置的样式
+- **参数**: `position` - 要查询的位置
+- **返回值**: 样式引用
 
 #### clear
 
@@ -1002,6 +1083,65 @@ void resize(uint32_t w, uint32_t h);
 - **功能**: 调整控件大小
 - **参数**: 新大小
 
+#### setMinimumSize
+
+```cpp
+void setMinimumSize(const Size& size);
+void setMinimumSize(uint32_t w, uint32_t h);
+```
+- **功能**: 设置控件最小尺寸
+- **参数**: 最小尺寸约束
+
+#### setMaximumSize
+
+```cpp
+void setMaximumSize(const Size& size);
+void setMaximumSize(uint32_t w, uint32_t h);
+```
+- **功能**: 设置控件最大尺寸
+- **参数**: 最大尺寸约束
+
+#### setEnabled
+
+```cpp
+void setEnabled(bool enabled);
+```
+- **功能**: 启用或禁用控件
+- **参数**: `enabled` - 是否启用
+
+#### setVisible
+
+```cpp
+void setVisible(bool visible);
+```
+- **功能**: 显示或隐藏控件
+- **参数**: `visible` - 是否可见
+
+#### setFocus
+
+```cpp
+void setFocus(bool focus);
+```
+- **功能**: 设置控件焦点状态
+- **参数**: `focus` - 是否拥有焦点
+
+#### setSizePolicy
+
+```cpp
+void setSizePolicy(SizePolicy policy);
+```
+- **功能**: 设置控件尺寸策略
+- **参数**: `policy` - 布局管理的尺寸策略
+
+#### draw (v1.2.0, 已弃用)
+
+```cpp
+void draw();
+```
+- **功能**: 触发控件渲染
+- **说明**: v1.2.0 新增，用于调用渲染流程的公开方法
+- **已弃用**: 已被 EventBus 替代，将在 v1.4.0 移除
+
 #### name
 
 ```cpp
@@ -1026,19 +1166,567 @@ void resize(uint32_t w, uint32_t h);
 - **功能**: 获取控件大小
 - **返回值**: 大小引用
 
+#### minimumSize
+
+```cpp
+[[nodiscard]] const Size& minimumSize() const;
+```
+- **功能**: 获取控件最小尺寸
+- **返回值**: 最小尺寸引用
+
+#### maximumSize
+
+```cpp
+[[nodiscard]] const Size& maximumSize() const;
+```
+- **功能**: 获取控件最大尺寸
+- **返回值**: 最大尺寸引用
+
+#### enabled
+
+```cpp
+[[nodiscard]] bool enabled() const;
+```
+- **功能**: 检查控件是否启用
+- **返回值**: `true` 表示已启用
+
+#### visible
+
+```cpp
+[[nodiscard]] bool visible() const;
+```
+- **功能**: 检查控件是否可见
+- **返回值**: `true` 表示可见
+
+#### focus
+
+```cpp
+[[nodiscard]] bool focus() const;
+```
+- **功能**: 检查控件是否拥有焦点
+- **返回值**: `true` 表示拥有焦点
+
+#### sizePolicy
+
+```cpp
+[[nodiscard]] SizePolicy sizePolicy() const;
+```
+- **功能**: 获取控件尺寸策略
+- **返回值**: 尺寸策略枚举值
+
 ### 7.5 受保护虚函数
 
 ```cpp
-virtual void renderEvent();
+virtual void renderEvent(Renderer& renderer) = 0;
 ```
-- **功能**: 渲染事件处理，子类可重写以自定义控件渲染
-- **说明**: 基类提供默认空实现
+- **功能**: 渲染事件处理，必须由子类重写以自定义控件渲染
+- **参数**: `renderer` - 用于绘制的 Renderer 实例
+- **说明**: 纯虚函数
+
+```cpp
+virtual void resizeEvent(uint32_t width, uint32_t height) = 0;
+```
+- **功能**: 尺寸变化事件处理，必须由子类重写
+- **参数**:
+  - `width` - 新宽度
+  - `height` - 新高度
+- **说明**: 纯虚函数
+
+```cpp
+virtual void moveEvent(uint32_t x, uint32_t y) = 0;
+```
+- **功能**: 移动事件处理，必须由子类重写
+- **参数**:
+  - `x` - 新 x 坐标
+  - `y` - 新 y 坐标
+- **说明**: 纯虚函数
+
+```cpp
+virtual void keyEvent(KeyEvent keyboard) = 0;
+```
+- **功能**: 键盘事件处理，必须由子类重写
+- **参数**: `keyboard` - 键盘事件数据
+
+```cpp
+virtual void mouseEvent(MouseEvent mouse) = 0;
+```
+- **功能**: 鼠标事件处理，必须由子类重写
+- **参数**: `mouse` - 鼠标事件数据
+
+```cpp
+virtual void focusEvent(bool focus) = 0;
+```
+- **功能**: 焦点事件处理，必须由子类重写
+- **参数**: `focus` - 是否获得焦点
+
+```cpp
+virtual void enableEvent(bool enable) = 0;
+```
+- **功能**: 启用/禁用事件处理，必须由子类重写
+- **参数**: `enable` - 是否启用
+
+```cpp
+virtual void clickedEvent() = 0;
+```
+- **功能**: 点击事件处理，必须由子类重写
+
+```cpp
+virtual void execEvent(const AbstractEvent& event);
+```
+- **功能**: 通用事件执行处理器
+- **参数**: `event` - 要处理的事件
+- **说明**: 可重写以自定义事件处理
+
+```cpp
+void callDrawEvent();
+```
+- **功能**: 内部绘制事件调用器
+- **说明**: 内部使用以触发渲染
 
 ---
 
-## 8. 使用示例
+## 8. EventBus 类
 
-### 8.1 基本终端控制
+### 8.1 类简介
+
+事件总线，用于管理 TUI 系统中的事件分发。
+
+### 8.2 事件类型
+
+#### AbstractEvent
+
+```cpp
+class AbstractEvent {
+public:
+    AbstractEvent(std::type_index type);
+    virtual ~AbstractEvent() = default;
+    size_t hash() const;
+};
+```
+
+所有事件的基类。
+
+#### UserInputEvent
+
+```cpp
+class UserInputEvent : public AbstractEvent {
+public:
+    UserInputEvent(InputEvent input_event);
+    virtual ~UserInputEvent() = default;
+    const InputEvent& inputEvent() const;
+};
+```
+
+用户输入事件（键盘/鼠标）。
+
+#### RefreshRenderEvent
+
+```cpp
+class RefreshRenderEvent : public AbstractEvent {
+public:
+    RefreshRenderEvent();
+    virtual ~RefreshRenderEvent() = default;
+};
+```
+
+触发渲染器刷新的事件。
+
+#### ResizeTermEvent
+
+```cpp
+class ResizeTermEvent : public AbstractEvent {
+public:
+    ResizeTermEvent(const Size& old_size, const Size& new_size);
+    virtual ~ResizeTermEvent() = default;
+    const Size& oldSize() const;
+    const Size& newSize() const;
+};
+```
+
+终端尺寸变化事件。
+
+### 8.3 类型别名
+
+```cpp
+using Subscriber = std::function<void(const AbstractEvent&)>;
+using SubscriberMap = std::unordered_map<size_t, Subscriber>;
+using SubscriberID = size_t;
+```
+
+### 8.4 成员函数
+
+#### self
+
+```cpp
+static EventBus& self();
+```
+- **功能**: 获取事件总线单例
+- **返回值**: EventBus 引用
+
+#### subscribe
+
+```cpp
+template <typename T>
+SubscriberID subscribe(const Subscriber& subscriber);
+template <typename T>
+SubscriberID subscribe(Subscriber&& subscriber);
+```
+- **功能**: 订阅事件类型
+- **参数**: `subscriber` - 回调函数
+- **返回值**: 用于取消订阅的订阅者 ID
+
+#### unsubscribe
+
+```cpp
+template <typename T>
+void unsubscribe(SubscriberID id);
+```
+- **功能**: 取消订阅事件类型
+- **参数**: `id` - subscribe 返回的订阅者 ID
+
+#### publish
+
+```cpp
+template <typename T>
+void publish(SubscriberID id, AbstractEvent *event, size_t priority = 0);
+template <typename T>
+void publish(AbstractEvent *event, size_t priority = 0);
+```
+- **功能**: 发布事件给订阅者
+- **参数**: 
+  - `id` - 特定订阅者 ID（可选）
+  - `event` - 要发布的事件
+  - `priority` - 事件优先级（越高越先执行）
+
+#### pollEvents
+
+```cpp
+void pollEvents();
+```
+- **功能**: 处理所有待处理事件
+
+#### clear
+
+```cpp
+void clear();
+```
+- **功能**: 清除所有订阅者和待处理事件
+
+---
+
+## 9. Application 类
+
+### 9.1 类简介
+
+TUI 程序的主应用类。
+
+### 9.2 构造函数
+
+```cpp
+Application(int argc, char* argv[]);
+```
+- **参数**: 
+  - `argc` - 参数数量
+  - `argv` - 参数值
+
+### 9.3 析构函数
+
+```cpp
+virtual ~Application() = default;
+```
+
+### 9.4 成员函数
+
+#### run
+
+```cpp
+int run();
+```
+- **功能**: 运行应用程序主循环
+- **返回值**: 退出码
+
+#### exit
+
+```cpp
+void exit();
+```
+- **功能**: 退出应用程序
+
+---
+
+## 10. AbstractLayout 类
+
+### 10.1 类简介
+
+抽象布局基类，用于管理控件排列。
+
+### 10.2 类型别名
+
+```cpp
+using WidgetIter = std::vector<AbstractWidget*>::iterator;
+using CWidgetIter = std::vector<AbstractWidget*>::const_iterator;
+```
+
+### 10.3 构造函数
+
+```cpp
+AbstractLayout(const std::string& name);
+```
+- **参数**: `name` - 布局名称
+
+### 10.4 析构函数
+
+```cpp
+virtual ~AbstractLayout() = default;
+```
+
+### 10.5 成员函数
+
+#### rename
+
+```cpp
+void rename(const std::string& name);
+```
+- **功能**: 重命名布局
+- **参数**: `name` - 新名称
+
+#### move
+
+```cpp
+void move(const Position& position);
+void move(uint32_t x, uint32_t y);
+```
+- **功能**: 移动布局位置
+- **参数**: 新位置
+
+#### resize
+
+```cpp
+void resize(const Size& size);
+void resize(uint32_t w, uint32_t h);
+```
+- **功能**: 调整布局大小
+- **参数**: 新大小
+
+#### setEnabled
+
+```cpp
+void setEnabled(bool enabled);
+```
+- **功能**: 启用或禁用布局
+- **参数**: `enabled` - 是否启用
+
+#### setVisible
+
+```cpp
+void setVisible(bool visible);
+```
+- **功能**: 显示或隐藏布局
+- **参数**: `visible` - 是否可见
+
+#### appendWidget
+
+```cpp
+bool appendWidget(AbstractWidget* widget);
+```
+- **功能**: 添加控件到布局末尾
+- **参数**: `widget` - 要添加的控件
+- **返回值**: 成功返回 `true`
+
+#### insertWidget
+
+```cpp
+bool insertWidget(uint64_t index, AbstractWidget* widget);
+```
+- **功能**: 在指定索引插入控件
+- **参数**: 
+  - `index` - 插入位置
+  - `widget` - 要插入的控件
+- **返回值**: 成功返回 `true`
+
+#### removeWidget
+
+```cpp
+bool removeWidget(AbstractWidget* widget);
+bool removeWidget(uint64_t index);
+```
+- **功能**: 从布局移除控件
+- **参数**: 控件指针或索引
+- **返回值**: 成功返回 `true`
+
+#### swapWidget
+
+```cpp
+bool swapWidget(uint64_t index_1, uint64_t index_2);
+bool swapWidget(AbstractWidget* widget_1, AbstractWidget* widget_2);
+```
+- **功能**: 交换两个控件
+- **参数**: 控件指针或索引
+- **返回值**: 成功返回 `true`
+
+#### clear
+
+```cpp
+void clear();
+```
+- **功能**: 移除布局中的所有控件
+
+#### name
+
+```cpp
+[[nodiscard]] const std::string& name() const;
+```
+- **功能**: 获取布局名称
+- **返回值**: 名称引用
+
+#### position
+
+```cpp
+[[nodiscard]] const Position& position() const;
+```
+- **功能**: 获取布局位置
+- **返回值**: 位置引用
+
+#### size
+
+```cpp
+[[nodiscard]] const Size& size() const;
+```
+- **功能**: 获取布局大小
+- **返回值**: 大小引用
+
+#### enabled
+
+```cpp
+[[nodiscard]] bool enabled() const;
+```
+- **功能**: 检查布局是否启用
+- **返回值**: `true` 表示已启用
+
+#### visible
+
+```cpp
+[[nodiscard]] bool visible() const;
+```
+- **功能**: 检查布局是否可见
+- **返回值**: `true` 表示可见
+
+#### begin
+
+```cpp
+[[nodiscard]] WidgetIter begin();
+```
+- **功能**: 获取第一个控件的迭代器
+- **返回值**: 迭代器
+
+#### end
+
+```cpp
+[[nodiscard]] WidgetIter end();
+```
+- **功能**: 获取最后一个控件之后的迭代器
+- **返回值**: 迭代器
+
+#### cbegin
+
+```cpp
+[[nodiscard]] CWidgetIter cbegin() const;
+```
+- **功能**: 获取第一个控件的常量迭代器
+- **返回值**: 常量迭代器
+
+#### cend
+
+```cpp
+[[nodiscard]] CWidgetIter cend() const;
+```
+- **功能**: 获取最后一个控件之后的常量迭代器
+- **返回值**: 常量迭代器
+
+#### count
+
+```cpp
+[[nodiscard]] size_t count() const;
+```
+- **功能**: 获取控件数量
+- **返回值**: 控件数量
+
+#### widget
+
+```cpp
+[[nodiscard]] AbstractWidget* widget(size_t index) const;
+```
+- **功能**: 获取指定索引的控件
+- **参数**: `index` - 控件索引
+- **返回值**: 控件指针
+
+#### indexOf
+
+```cpp
+[[nodiscard]] uint64_t indexOf(const AbstractWidget* widget) const;
+```
+- **功能**: 获取控件的索引
+- **参数**: `widget` - 要查找的控件
+- **返回值**: 控件索引
+
+### 10.6 受保护虚函数
+
+```cpp
+virtual void renderEvent(Renderer& renderer) = 0;
+```
+- **功能**: 渲染事件处理
+- **参数**: `renderer` - Renderer 实例
+
+```cpp
+virtual void moveEvent(uint32_t x, uint32_t y) = 0;
+```
+- **功能**: 移动事件处理
+- **参数**: 新坐标
+
+```cpp
+virtual void resizeEvent(uint32_t width, uint32_t height) = 0;
+```
+- **功能**: 尺寸变化事件处理
+- **参数**: 新尺寸
+
+---
+
+## 11. Label 类
+
+### 11.1 类简介
+
+简单文本标签控件。
+
+### 11.2 构造函数
+
+```cpp
+explicit Label(const std::string& name, const Position& position);
+```
+- **参数**: 
+  - `name` - 控件名称
+  - `position` - 控件位置
+
+### 11.3 析构函数
+
+```cpp
+virtual ~Label() = default;
+```
+
+### 11.4 成员函数
+
+#### setText
+
+```cpp
+void setText(const std::string& text);
+```
+- **功能**: 设置标签文本
+- **参数**: `text` - 要显示的文本
+
+---
+
+## 12. 使用示例
+
+### 12.1 基本终端控制
 
 ```cpp
 #include "TUI/TUI.hpp"
@@ -1083,7 +1771,7 @@ int main() {
 }
 ```
 
-### 8.2 渲染器使用
+### 12.2 渲染器使用
 
 ```cpp
 #include "TUI/TUI.hpp"
@@ -1131,7 +1819,7 @@ int main() {
 }
 ```
 
-### 8.3 鼠标事件处理
+### 12.3 鼠标事件处理
 
 ```cpp
 #include "TUI/TUI.hpp"
@@ -1175,7 +1863,7 @@ int main() {
 }
 ```
 
-### 8.4 颜色样式示例
+### 12.4 颜色样式示例
 
 ```cpp
 #include "TUI/TUI.hpp"
@@ -1215,46 +1903,46 @@ int main() {
 
 ---
 
-## 9. 注意事项
+## 13. 注意事项
 
-### 9.1 原始模式
+### 13.1 原始模式
 
 - 进入原始模式后，终端不会自动处理输入输出
 - 必须手动处理回车、退格等按键
 - 程序退出前必须调用 `leaveRawMode()`
 - 建议使用 RAII 模式确保恢复终端状态
 
-### 9.2 终端兼容性
+### 13.2 终端兼容性
 
 - 需要支持 ANSI 转义序列的终端
 - Windows 10+、现代 Linux 终端、macOS Terminal 均支持
 - Windows 7/8 可能需要启用虚拟终端处理
 
-### 9.3 鼠标支持
+### 13.3 鼠标支持
 
 - 需要终端支持鼠标事件
 - 启用后鼠标事件通过 `getKey()` 返回 `KEY_SPECIAL`
 - 然后调用 `getMouseButton()` 获取详细信息
 
-### 9.4 渲染器使用
+### 13.4 渲染器使用
 
 - 使用双缓冲机制，先绘制到缓冲区
 - 调用 `present()` 才实际输出到屏幕
 - 调用 `clear()` 清空前缓冲区以便重新绘制
 - 终端尺寸变化由 `resizeEvent()` 内部处理；可使用 `setResizeEvent()` 注册自定义回调
 
-### 9.5 UTF-8 支持
+### 13.5 UTF-8 支持
 
 - 支持多字节字符显示
 - 使用 `splitUTF8()` 处理字符串
 - 注意中文字符等宽字符的宽度计算
 
-### 9.6 性能考虑
+### 13.6 性能考虑
 
 - 避免频繁调用 `present()`
 - 批量绘制后统一呈现
 - 使用脏标记减少不必要的重绘
 
-## 10. 如何在 Linux 控制台下使用 GPM 库
+## 14. 如何在 Linux 控制台下使用 GPM 库
 
 见文章 [GPM_In_Linux.md](GPM_In_Linux.md)，介绍了如何在 Linux 无桌面环境下使用 GPM 库以解决 TTY 模式下的鼠标事件处理问题。

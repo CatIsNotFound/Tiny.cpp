@@ -41,6 +41,8 @@
 #include "Net/Socket.hpp"
 ```
 
+**p.s: 在 Windows 环境下，若仅编译单文件，需要手动包含 `ws2_32` 静态库。**
+
 **平台宏定义**:
 - `TINY_CPP_MY_OS_WINDOWS` - 启用 Windows Socket 支持
 - `TINY_CPP_MY_OS_UNIX` - 启用 Unix Socket 支持（Linux、macOS 等）
@@ -63,13 +65,23 @@
 
 **描述**: 平台特定的 Socket 句柄类型。在 Windows 上是 64 位无符号整数（SOCKET 类型）。在 Unix 系统上是整数文件描述符。
 
-### 3.2 Datas 类型
+### 3.2 Datas 类型（已弃用）
 
 ```cpp
 using Datas = std::vector<char>;
 ```
 
 **描述**: 用于网络数据传输的字节数组类型，用于二进制发送/接收操作。
+
+> **已弃用**: 请使用 `NetDatas` 替代。`Datas` 将在 v0.4.0 中移除。
+
+### 3.3 NetDatas 类型
+
+```cpp
+using NetDatas = std::vector<char>;
+```
+
+**描述**: 用于网络数据传输的字节数组类型，用于二进制发送/接收操作。这是已弃用的 `Datas` 类型的替代品。
 
 ---
 
@@ -218,6 +230,8 @@ enum class SocketType : uint8_t {
     TCP,
     UDP,
     SCTP,
+    ICMP,
+    ICMPV6,
     Custom
 };
 ```
@@ -229,6 +243,8 @@ enum class SocketType : uint8_t {
 | `TCP` | 传输控制协议（可靠、面向连接） |
 | `UDP` | 用户数据报协议（不可靠、无连接） |
 | `SCTP` | 流控制传输协议 |
+| `ICMP` | Internet 控制消息协议 |
+| `ICMPV6` | IPv6 的 Internet 控制消息协议 |
 | `Custom` | 自定义协议类型 |
 
 ### 4.4 SocketState 枚举
@@ -241,7 +257,8 @@ enum class SocketState : uint8_t {
     Connected,
     Bound,
     Listening,
-    Closing
+    Closing,
+    Shutdown
 };
 ```
 
@@ -256,6 +273,7 @@ enum class SocketState : uint8_t {
 | `Bound` | Socket 已绑定到本地地址 |
 | `Listening` | Socket 正在监听传入连接 |
 | `Closing` | Socket 关闭中 |
+| `Shutdown` | Socket 已关闭 |
 
 ### 4.5 SocketOption 枚举
 
@@ -265,17 +283,30 @@ enum class SocketOption : uint8_t {
     DontRoute,
     KeepAlive,
     NoDelay,
+    MaxSegmentSize,
+    KeepIdle,
+    KeepInterval,
+    KeepCount,
     SendBufSize,
     RecvBufSize,
     SendBufTimeout,
     RecvBufTimeout,
     Linger,
     ReuseAddr,
-    MapIPv6Only,
+    TTL,
+    TOS,
     MulticastTTL,
     MulticastLoopback,
+    AddMembership,
+    RemoveMembership,
+    MapIPv6Only,
+    MulticastLoopbackIPv6,
+    JoinGroup,
+    LeaveGroup,
+    UnicastHops,
+    MuticastHops,
     NonBlocking,
-    NativeSocketError
+    NativeSocketError = 255
 };
 ```
 
@@ -287,15 +318,28 @@ enum class SocketOption : uint8_t {
 | `DontRoute` | int (bool) | 设置/获取 | 绕过路由表，直接发送到网络接口 |
 | `KeepAlive` | int (bool) | 设置/获取 | 启用 TCP 保活检测 |
 | `NoDelay` | int (bool) | 设置/获取 | 禁用 Nagle 算法以降低延迟（仅限 TCP） |
+| `MaxSegmentSize` | int | 设置/获取 | TCP 最大分段大小（MSS）。操作系统：Linux, MacOS, Windows 10+ |
+| `KeepIdle` | int | 设置/获取 | 连接空闲多久后发送保活探测（秒）。操作系统：Linux, MacOS, Windows 10+ |
+| `KeepInterval` | int | 设置/获取 | 保活探测发送间隔（秒）。操作系统：Linux, MacOS, Windows 10+ |
+| `KeepCount` | int | 设置/获取 | 在判定连接丢失前发送的最大探测数。操作系统：Linux, MacOS, Windows 10+ |
 | `SendBufSize` | int | 设置/获取 | 最大发送缓冲区大小 |
 | `RecvBufSize` | int | 设置/获取 | 最大接收缓冲区大小 |
 | `SendBufTimeout` | 平台相关 | 设置/获取 | 发送缓冲区超时（Windows: uint32_t 毫秒，其他: timeval*） |
 | `RecvBufTimeout` | 平台相关 | 设置/获取 | 接收缓冲区超时（Windows: uint32_t 毫秒，其他: timeval*） |
 | `Linger` | linger* | 设置/获取 | 控制 Socket 如何优雅关闭 |
 | `ReuseAddr` | int (bool) | 设置/获取 | 允许重用本地地址 |
+| `TTL` | int | 设置/获取 | IP 数据包的生存时间 |
+| `TOS` | int | 设置/获取 | IP 服务类型 |
+| `MulticastTTL` | int | 设置/获取 | 多播数据包的生存时间 |
+| `MulticastLoopback` | int (bool) | 设置/获取 | 允许多播数据环回到本地机器 |
+| `AddMembership` | ip_mreq* | 设置/获取 | 添加 IP 组成员身份（仅限 IPv4） |
+| `RemoveMembership` | ip_mreq* | 设置/获取 | 移除 IP 组成员身份（仅限 IPv4） |
 | `MapIPv6Only` | int (bool) | 设置/获取 | 禁用 IPv4 映射的 IPv6 地址 |
-| `MulticastTTL` | int | 设置/获取 | 多播生存时间 |
-| `MulticastLoopback` | int (bool) | 设置/获取 | 启用多播环回 |
+| `MulticastLoopbackIPv6` | int (bool) | 设置/获取 | 允许多播数据环回到本地机器（仅限 IPv6） |
+| `JoinGroup` | ipv6_mreq* | 设置/获取 | 加入 IPv6 多播组 |
+| `LeaveGroup` | ipv6_mreq* | 设置/获取 | 离开 IPv6 多播组 |
+| `UnicastHops` | int | 设置/获取 | IP 单播跳数限制（仅限 IPv6） |
+| `MuticastHops` | int | 设置/获取 | IP 多播跳数限制（仅限 IPv6） |
 | `NonBlocking` | int (bool) | 设置 | 启用非阻塞模式 |
 | `NativeSocketError` | int | 获取 | 获取原生 Socket 错误码 |
 
@@ -446,6 +490,49 @@ static Address localHostIPv6();
 - **功能**: 获取本地主机 IPv6 地址（::1）
 - **返回值**: 端口为 UINT16_MAX 的 Address 对象
 
+#### parseFromHostname
+
+```cpp
+static std::vector<Address> parseFromHostname(const char* hostname, bool* ok = nullptr, int* err_cnt = nullptr);
+```
+
+- **功能**: 将主机名解析为多个 IP 地址
+- **参数**:
+  - `hostname` - 要解析的主机名（例如："www.example.com"）
+  - `ok` - 可选指针，用于接收成功状态
+  - `err_cnt` - 可选指针，用于接收错误计数
+- **返回值**: Address 对象向量（所有解析的地址）
+- **示例**:
+```cpp
+bool success;
+auto addresses = Tiny::Net::Address::parseFromHostname("www.google.com", &success);
+if (success) {
+    for (const auto& addr : addresses) {
+        std::cout << "解析结果: " << addr.toString() << std::endl;
+    }
+}
+```
+
+#### parseFirstHostname
+
+```cpp
+static Address parseFirstHostname(const char* hostname, bool* ok = nullptr);
+```
+
+- **功能**: 将主机名解析为第一个 IP 地址
+- **参数**:
+  - `hostname` - 要解析的主机名
+  - `ok` - 可选指针，用于接收成功状态
+- **返回值**: 第一个解析的 Address 对象
+- **示例**:
+```cpp
+bool success;
+auto addr = Tiny::Net::Address::parseFirstHostname("www.google.com", &success);
+if (success) {
+    std::cout << "第一个 IP: " << addr.toString() << std::endl;
+}
+```
+
 ---
 
 ## 6. OptionValue 结构体
@@ -544,13 +631,15 @@ bool operator!=(const OptionValue& other) const;
 ### 7.2 构造函数
 
 ```cpp
-Socket(SocketType type = SocketType::TCP);
+Socket(SocketType type = SocketType::TCP, uint8_t msg_type = 0, uint8_t proto_no = 0);
 Socket(Socket&& other) noexcept;
 ```
 
 | 参数 | 类型 | 描述 |
 |------|------|------|
 | `type` | `SocketType` | Socket 协议类型（默认：TCP） |
+| `msg_type` | `uint8_t` | 消息类型（默认：0） |
+| `proto_no` | `uint8_t` | 协议号（默认：0） |
 
 ### 7.3 析构函数
 
@@ -612,6 +701,17 @@ void setSocketType(SocketType type);
 ```
 
 - **功能**: 设置 Socket 协议类型
+
+#### setCustomSocketType
+
+```cpp
+void setCustomSocketType(uint8_t type, uint8_t proto_no);
+```
+
+- **功能**: 设置自定义 Socket 类型和协议号
+- **参数**:
+  - `type` - 自定义 Socket 类型值
+  - `proto_no` - 协议号
 
 ### 7.6 连接方法
 
@@ -696,7 +796,7 @@ bool shutdown();
 
 ```cpp
 bool send(const std::string& message, int* sended_length = nullptr);
-bool send(const Datas& data, int* sended_length = nullptr);
+bool send(const NetDatas& data, int* sended_length = nullptr);
 ```
 
 - **功能**: 向已连接的对端发送数据
@@ -709,7 +809,7 @@ bool send(const Datas& data, int* sended_length = nullptr);
 #### recv
 
 ```cpp
-bool recv(Datas& data, size_t max_length, int* received_length = nullptr);
+bool recv(NetDatas& data, size_t max_length, int* received_length = nullptr);
 bool recv(std::string& message, size_t max_length, int* received_length = nullptr);
 ```
 
@@ -724,7 +824,7 @@ bool recv(std::string& message, size_t max_length, int* received_length = nullpt
 
 ```cpp
 bool sendTo(const std::string& message, const Address& address, int* sended_length = nullptr);
-bool sendTo(const Datas& message, const Address& address, int* sended_length = nullptr);
+bool sendTo(const NetDatas& message, const Address& address, int* sended_length = nullptr);
 ```
 
 - **功能**: 向特定地址发送数据（用于 UDP）
@@ -738,7 +838,7 @@ bool sendTo(const Datas& message, const Address& address, int* sended_length = n
 
 ```cpp
 bool recvFrom(std::string& message, size_t max_length, const Address& address, int* received_length = nullptr);
-bool recvFrom(Datas& data, size_t max_length, const Address& address, int* received_length = nullptr);
+bool recvFrom(NetDatas& data, size_t max_length, const Address& address, int* received_length = nullptr);
 ```
 
 - **功能**: 从特定地址接收数据（用于 UDP）
@@ -852,7 +952,7 @@ int nativeErrorNo() const;
 
 ## 8. 自由函数
 
-### 8.1 parseFromHostname
+### 8.1 parseFromHostname（已弃用）
 
 ```cpp
 std::vector<Address> parseFromHostname(const char* hostname, bool* ok = nullptr, int* err_cnt = nullptr);
@@ -864,6 +964,7 @@ std::vector<Address> parseFromHostname(const char* hostname, bool* ok = nullptr,
   - `ok` - 可选指针，用于接收成功状态
   - `err_cnt` - 可选指针，用于接收错误计数
 - **返回值**: Address 对象向量（所有解析的地址）
+- **已弃用**: 请使用 `Address::parseFromHostname` 替代。将在 v0.4.0 中移除。
 - **示例**:
 ```cpp
 bool success;
@@ -875,7 +976,7 @@ if (success) {
 }
 ```
 
-### 8.2 parseFirstHostname
+### 8.2 parseFirstHostname（已弃用）
 
 ```cpp
 Address parseFirstHostname(const char* hostname, bool* ok = nullptr);
@@ -886,6 +987,7 @@ Address parseFirstHostname(const char* hostname, bool* ok = nullptr);
   - `hostname` - 要解析的主机名
   - `ok` - 可选指针，用于接收成功状态
 - **返回值**: 第一个解析的 Address 对象
+- **已弃用**: 请使用 `Address::parseFirstHostname` 替代。将在 v0.4.0 中移除。
 - **示例**:
 ```cpp
 bool success;

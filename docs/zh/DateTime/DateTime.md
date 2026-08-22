@@ -59,7 +59,7 @@ using Duration = std::int64_t;
 ### 4.1 Month
 
 ```cpp
-enum Month : uint8_t {
+enum class Month : uint8_t {
     January = 1, Jan = 1,
     February,    Feb = 2,
     March,       Mar = 3,
@@ -93,7 +93,7 @@ enum Month : uint8_t {
 ### 4.2 Weekday
 
 ```cpp
-enum Weekday : uint8_t {
+enum class Weekday : uint8_t {
     Sunday,    Sun = 0,
     Monday,    Mon = 1,
     Tuesday,   Tue = 2,
