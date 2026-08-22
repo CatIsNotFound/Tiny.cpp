@@ -34,6 +34,7 @@
 #include <clocale>
 #include <cwchar>
 #include <climits>
+#include <unistd.h>
 #endif
 
 namespace {
