@@ -5,7 +5,7 @@
 ![C++11](https://img.shields.io/badge/C++-11-blue.svg)
 ![License](https://img.shields.io/github/license/CatIsNotFound/Tiny.cpp)
 ![Release](https://img.shields.io/github/release/CatIsNotFound/Tiny.cpp)
-![Workflow](https://github.com/CatIsNotFound/Tiny.cpp/workflows/Build/badge.svg)
+![Workflow](https://github.com/CatIsNotFound/Tiny.cpp/workflows/Build%20and%20Test/badge.svg)
 
 
 ![Supported](https://img.shields.io/badge/Supported-OS-ffffff)
