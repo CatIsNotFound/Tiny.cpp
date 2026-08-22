@@ -167,9 +167,9 @@ namespace Tiny {
             bool _use_ipv6{};
         };
 
-        API_DEPRECATED("The function is moved to `Net::Address` class, please use `Net::Address::parseFromHostName` instead! It will be removed from v1.4.0.")
+        API_DEPRECATED("The function is moved to `Net::Address` class, please use `Net::Address::parseFromHostName` instead! It will be removed from v0.4.0.")
         std::vector<Address> parseFromHostname(const char *hostname, bool *ok = nullptr, int *err_cnt = nullptr);
-        API_DEPRECATED("The function is moved to `Net::Address` class, please use `Net::Address::parseFirstHostName` instead! It will be removed from v1.4.0.")
+        API_DEPRECATED("The function is moved to `Net::Address` class, please use `Net::Address::parseFirstHostName` instead! It will be removed from v0.4.0.")
         Address parseFirstHostname(const char* hostname, bool *ok = nullptr);
 
         enum class SocketError : uint8_t {
