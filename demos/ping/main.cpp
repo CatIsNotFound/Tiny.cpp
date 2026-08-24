@@ -114,10 +114,16 @@ public:
     }
 
     bool setAddress(const char* address) {
-        _socket.setCustomSocketType(3, 1);
-        _socket.setLocalAddress("0.0.0.0", 0);
+        _socket.setPeerAddress(Address::parseFirstHostname(address));
+        if (!_socket.peerAddress().isValid()) return false;
+        if (_socket.peerAddress().isIPv6()) {
+            _socket.setSocketType(SocketType::ICMPV6);
+            _socket.setLocalAddress("::", 0, true);
+        } else {
+            _socket.setSocketType(SocketType::ICMP);
+            _socket.setLocalAddress("0.0.0.0", 0);
+        }
         if (!_socket.bind()) return false;
-        _socket.setPeerAddress(address, 0);
         return _socket.peerAddress().isValid();
     }
 
@@ -194,10 +200,7 @@ public:
             if (recv_count == 0) break;
             if (!ok) return false;
             size_t ihl{};
-            if (_socket.peerAddress().isIPv6()) {
-                ihl = data.find_first_of(static_cast<char>(0x81));
-                if (ihl == std::string::npos) return false;
-            } else {
+            if (!_socket.peerAddress().isIPv6()) {
                 ihl = (data[0] & 0x0f) * 4;
             }
             auto PACK = reinterpret_cast<const ICMP_Packet*>(data.c_str() + ihl);
@@ -209,11 +212,16 @@ public:
                         continue;
                     }
                     *TTL = data.c_str()[idx - 1];
+                } else {
+                    *TTL = 0;
                 }
             }
-            if (_socket.peerAddress().isIPv6() && PACK->type() != 129) {
-                _errco = 4;
-                continue;
+            if (_socket.peerAddress().isIPv6()) {
+                if (PACK->type() == 128) continue;
+                if (PACK->type() != 129) {
+                    _errco = 4;
+                    continue;
+                }
             }
             if (!_socket.peerAddress().isIPv6() && PACK->type() != 0) {
                 _errco = 4;
@@ -380,7 +388,7 @@ int main(int argc, char** argv) {
         return -1;
     }
     auto addr_str = sock.address().toString();
-    Terminal::printFormat("Sending 32-byte packet(s) to {}:\r\n", addr_str);
+    Terminal::printFormat("Sending packet(s) to {}:\r\n", addr_str);
     if (seq_count == 0) seq_count = INT_MAX;
 
     while (sock.sendCount() < seq_count) {
