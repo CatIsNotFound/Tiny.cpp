@@ -41,6 +41,8 @@ The `Event` class provides asynchronous event management functionality, supporti
 #include "Events/Events.hpp"
 ```
 
+**p.s: On other Unix systems, when compiling a single file, you may still need to manually include the `pthread` static library.**
+
 ---
 
 ## 3. Constructors

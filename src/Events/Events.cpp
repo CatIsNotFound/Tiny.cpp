@@ -312,7 +312,7 @@ namespace Tiny {
 
     const EV::Event & EV::EventsMap::event(size_t event_id) const {
         if (exist(event_id)) return _event_map.at(event_id);
-        throw std::out_of_range("Tiny::EventsMap: The specified event id is not found!");
+        throw std::out_of_range("Tiny::EV::EventsMap: The specified event id is not found!");
     }
 
     EV::EventsMap::constIter EV::EventsMap::cbegin() const {

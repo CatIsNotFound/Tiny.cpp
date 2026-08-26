@@ -41,6 +41,8 @@ The module supports both Windows and Unix-like systems (Linux, macOS) through co
 #include "Net/Socket.hpp"
 ```
 
+**p.s: On Windows, when compiling a single file, you need to manually include the `ws2_32` static library.**
+
 **Platform Macros**:
 - `TINY_CPP_MY_OS_WINDOWS` - Enable Windows socket support
 - `TINY_CPP_MY_OS_UNIX` - Enable Unix socket support (Linux, macOS, etc.)
@@ -63,23 +65,13 @@ If not explicitly defined, the module automatically detects the platform based o
 
 **Description**: Platform-specific socket handle type. On Windows, it's a 64-bit unsigned integer (SOCKET type). On Unix systems, it's an integer file descriptor.
 
-### 3.2 Datas Type (Deprecated)
-
-```cpp
-using Datas = std::vector<char>;
-```
-
-**Description**: Byte array type for network data transmission, used for binary send/receive operations.
-
-> **Deprecated**: Use `NetDatas` instead. `Datas` will be removed in v0.4.0.
-
-### 3.3 NetDatas Type
+### 3.2 NetDatas Type
 
 ```cpp
 using NetDatas = std::vector<char>;
 ```
 
-**Description**: Byte array type for network data transmission, used for binary send/receive operations. This is the replacement for the deprecated `Datas` type.
+**Description**: Byte array type for network data transmission, used for binary send/receive operations.
 
 ---
 

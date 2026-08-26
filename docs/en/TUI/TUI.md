@@ -87,37 +87,7 @@ const char* getMouseName(const SP_Mouse& SP);
 - **Parameter**: `SP` - Mouse event type
 - **Return Value**: Event name string
 
-### 3.5 comparePosition (Deprecated)
-
-```cpp
-int8_t comparePosition(const Position& pos1, const Position& pos2);
-```
-- **Function**: Compare two positions
-- **Parameters**: 
-  - `pos1` - First position
-  - `pos2` - Second position
-- **Return Value**: 
-  - `-1` - pos1 is before pos2
-  - `0` - Same position
-  - `1` - pos1 is after pos2
-- **Deprecated**: This function is deprecated and will be removed in a future version
-
-### 3.6 compareSize (Deprecated)
-
-```cpp
-int8_t compareSize(const Size& size1, const Size& size2);
-```
-- **Function**: Compare two sizes
-- **Parameters**: 
-  - `size1` - First size
-  - `size2` - Second size
-- **Return Value**: 
-  - `-1` - size1 is smaller than size2
-  - `0` - Same size
-  - `1` - size1 is larger than size2
-- **Deprecated**: This function is deprecated and will be removed in a future version
-
-### 3.7 isPointInRect
+### 3.5 isPointInRect
 
 ```cpp
 bool isPointInRect(const Position& point, Position& start_pos, Position& end_pos);
@@ -129,7 +99,7 @@ bool isPointInRect(const Position& point, Position& start_pos, Position& end_pos
   - `end_pos` - Bottom-right corner of rectangle
 - **Return Value**: `true` if point is inside the rectangle
 
-### 3.8 KEY_BACKSPACE
+### 3.6 KEY_BACKSPACE
 
 ```cpp
 constexpr bool KEY_BACKSPACE(uint8_t key);
@@ -139,7 +109,7 @@ constexpr bool KEY_BACKSPACE(uint8_t key);
 - **Return Value**: `true` if key is `KEY_BK` (8) or `KEY_DEL` (127)
 - **Note**: Helper function for convenient backspace key detection
 
-### 3.9 KEY_ENTER
+### 3.7 KEY_ENTER
 
 ```cpp
 constexpr bool KEY_ENTER(uint8_t key);
@@ -1279,14 +1249,12 @@ void setSizePolicy(SizePolicy policy);
 - **Function**: Set widget size policy
 - **Parameter**: `policy` - Size policy for layout management
 
-#### draw (v1.2.0, Deprecated)
+#### draw
 
 ```cpp
 void draw();
 ```
 - **Function**: Trigger widget rendering
-- **Note**: New in v1.2.0, public method to invoke the render process
-- **Deprecated**: Replaced by EventBus, will be removed in v1.4.0
 
 #### name
 
@@ -2088,3 +2056,7 @@ int main() {
 - Avoid frequent `present()` calls
 - Batch drawing and present uniformly
 - Use dirty marking to reduce unnecessary redraws
+
+## 14. How to Use the GPM Library on Linux Console
+
+See [GPM_In_Linux.md](GPM_In_Linux.md), which describes how to use the GPM library in a Linux non-desktop environment to solve mouse event handling issues in TTY mode.

@@ -34,6 +34,8 @@ The `OS::System` module provides system information retrieval and file system op
 #include "OS/System.hpp"
 ```
 
+**p.s: On Windows, when compiling a single file, you need to manually include the `pdh` and `advapi32` static libraries.**
+
 ---
 
 ## 3. Global Constants

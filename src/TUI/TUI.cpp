@@ -27,6 +27,7 @@
 #include <algorithm>
 
 #ifdef TINY_CPP_MY_OS_WINDOWS
+#define NOMINMAX
 #include <windows.h>
 #include <csignal>
 #else
@@ -107,8 +108,6 @@ namespace {
 }
 
 namespace Misc {
-#undef min
-#undef max
     template <typename T>
     static T min(T a, T b) {
         return a < b ? a : b;

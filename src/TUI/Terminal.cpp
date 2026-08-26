@@ -252,22 +252,6 @@ namespace Tiny {
         }
     }
 
-    int8_t TUI::comparePosition(const TUI::Position &pos1, const TUI::Position &pos2) {
-        if (pos1.row < pos2.row) return 1;
-        if (pos1.row == pos2.row) {
-            return (pos1.column < pos2.column) ? 1 : ((pos1.column > pos2.column) ? -1 : 0);
-        }
-        return -1;
-    }
-
-    int8_t TUI::compareSize(const TUI::Size &size1, const TUI::Size &size2) {
-        if (size1.height < size2.height) return 1;
-        if (size1.height == size2.height) {
-            return (size1.width < size2.width) ? 1 : ((size1.width > size2.width) ? -1 : 0);
-        }
-        return -1;
-    }
-
     bool TUI::isPointInRect(const Position &point, Position &start_pos, Position &end_pos) {
         if (start_pos.compare(end_pos) == -1) {
             auto t = start_pos;

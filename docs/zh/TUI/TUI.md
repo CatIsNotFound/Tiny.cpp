@@ -88,37 +88,7 @@ const char* getMouseName(const SP_Mouse& SP);
 - **参数**: `SP` - 鼠标事件类型
 - **返回值**: 事件名称字符串
 
-### 3.5 comparePosition (已弃用)
-
-```cpp
-int8_t comparePosition(const Position& pos1, const Position& pos2);
-```
-- **功能**: 比较两个位置
-- **参数**: 
-  - `pos1` - 第一个位置
-  - `pos2` - 第二个位置
-- **返回值**: 
-  - `-1` - pos1 在 pos2 之前
-  - `0` - 位置相同
-  - `1` - pos1 在 pos2 之后
-- **已弃用**: 此函数已弃用，将在未来版本移除
-
-### 3.6 compareSize (已弃用)
-
-```cpp
-int8_t compareSize(const Size& size1, const Size& size2);
-```
-- **功能**: 比较两个尺寸
-- **参数**: 
-  - `size1` - 第一个尺寸
-  - `size2` - 第二个尺寸
-- **返回值**: 
-  - `-1` - size1 小于 size2
-  - `0` - 尺寸相同
-  - `1` - size1 大于 size2
-- **已弃用**: 此函数已弃用，将在未来版本移除
-
-### 3.7 isPointInRect
+### 3.5 isPointInRect
 
 ```cpp
 bool isPointInRect(const Position& point, Position& start_pos, Position& end_pos);
@@ -130,7 +100,7 @@ bool isPointInRect(const Position& point, Position& start_pos, Position& end_pos
   - `end_pos` - 矩形右下角
 - **返回值**: `true` 表示点在矩形内
 
-### 3.8 KEY_BACKSPACE
+### 3.6 KEY_BACKSPACE
 
 ```cpp
 constexpr bool KEY_BACKSPACE(uint8_t key);
@@ -140,7 +110,7 @@ constexpr bool KEY_BACKSPACE(uint8_t key);
 - **返回值**: `true` 表示是退格键（KEY_BK 或 KEY_DEL）
 - **说明**: constexpr 辅助函数，用于按键匹配
 
-### 3.9 KEY_ENTER
+### 3.7 KEY_ENTER
 
 ```cpp
 constexpr bool KEY_ENTER(uint8_t key);
@@ -1133,14 +1103,12 @@ void setSizePolicy(SizePolicy policy);
 - **功能**: 设置控件尺寸策略
 - **参数**: `policy` - 布局管理的尺寸策略
 
-#### draw (v1.2.0, 已弃用)
+#### draw
 
 ```cpp
 void draw();
 ```
 - **功能**: 触发控件渲染
-- **说明**: v1.2.0 新增，用于调用渲染流程的公开方法
-- **已弃用**: 已被 EventBus 替代，将在 v1.4.0 移除
 
 #### name
 

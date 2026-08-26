@@ -277,15 +277,9 @@ namespace Tiny {
 
         const char* getKeyName(const uint8_t &KEY, const SP_Keys &SP);
         const char* getMouseName(const SP_Mouse &SP);
-        API_DEPRECATED("Use `Tiny::TUI::Position::compare()` function instead. The function will be removed from v0.4.0.")
-        int8_t comparePosition(const Position& pos1, const Position& pos2);
-        API_DEPRECATED("Use `Tiny::TUI::Size::compare()` function instead. The function will be removed from v0.4.0.")
-        int8_t compareSize(const Size& size1, const Size& size2);
         bool   isPointInRect(const Position& point, Position& start_pos, Position& end_pos);
 
         struct InputEvent {
-            /// @note  Since v1.3.0, enum classes have added simpler keywords to make them easier to use
-            /// @since v1.3.0
             enum Type : uint8_t {
                 None,
                 N = 0,

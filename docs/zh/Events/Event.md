@@ -478,7 +478,7 @@ constIter cend() const;
 
 int main() {
     // 创建定时器事件（每秒执行一次，共执行 5 次）
-    Tiny::Event timer(1, "Timer",
+    Tiny::EV::Event timer(1, "Timer",
         [] { return true; },  // 条件：始终执行
         [](const std::atomic<bool>& running) {
             if (running) {
@@ -508,7 +508,7 @@ int main() {
 std::atomic<bool> shouldRun{false};
 
 int main() {
-    Tiny::Event conditionalEvent(2, "Conditional",
+    Tiny::EV::Event conditionalEvent(2, "Conditional",
         [] { return shouldRun.load(); },  // 条件：shouldRun 为 true
         [](const std::atomic<bool>& running) {
             std::cout << "Condition met, executing!" << std::endl;
@@ -539,7 +539,7 @@ int main() {
 
 int main() {
     // 先创建空事件
-    Tiny::Event delayedEvent(3, "Delayed");
+    Tiny::EV::Event delayedEvent(3, "Delayed");
     
     // 稍后设置回调
     int counter = 0;
@@ -570,7 +570,7 @@ int main() {
 #include <vector>
 
 int main() {
-    std::vector<Tiny::Event> events;
+    std::vector<Tiny::EV::Event> events;
     
     // 创建多个定时器
     for (int i = 0; i < 3; ++i) {
@@ -608,7 +608,7 @@ int main() {
 Event event(1, "Test", [](const std::atomic<bool>&) {
     throw std::runtime_error("Error!");
 });
-// 输出: "Tiny::Event: An error has occurred: Error!"
+// 输出: "Tiny::EV::Event: An error has occurred: Error!"
 ```
 
 ### 9.3 停止事件
