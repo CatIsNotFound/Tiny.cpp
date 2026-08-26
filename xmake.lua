@@ -1,6 +1,6 @@
 add_rules("mode.debug", "mode.release")
 set_project("Tiny.cpp")
-set_version("0.3.0")
+set_version("0.1.0")
 
 set_languages("c++11")
 

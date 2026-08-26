@@ -5,14 +5,6 @@
 ![Release](https://img.shields.io/github/release/CatIsNotFound/Tiny.cpp)
 ![Workflow](https://github.com/CatIsNotFound/Tiny.cpp/workflows/Build%20and%20Test/badge.svg)
 
-
-![Supported](https://img.shields.io/badge/Supported-OS-ffffff)
-![Windows](https://img.shields.io/badge/Windows-0067b8?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyMyAyMyI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0xIDNoOXY5SDF6bTEwIDBoOXY5SDExem0tMTAgMTBoOXY5SDF6bTEwIDBoOXY5SDExeiIvPjwvc3ZnPg==&logoColor=white)
-![Linux](https://img.shields.io/badge/Linux-ffd133?logo=linux&logoColor=black)
-![macOS](https://img.shields.io/badge/macOS-333333?logo=apple&logoColor=white)
-![FreeBSD](https://img.shields.io/badge/FreeBSD-ab2b28?logo=freebsd&logoColor=white)
-![and so on](https://img.shields.io/badge/etc.-ffffff)
-
 一个极度微小、极度轻量、简单易用的基础库。
 
 ## 主要特点
@@ -193,7 +185,7 @@ int main() {
 }
 ```
 
-**P.S: 要查看更详细的使用说明，请查看 [API 参考文档](docs/home_zh.md)。**
+**P.S: 要查看更详细的帮助，请[参考文档](docs/home_zh.md)。**
 
 ## 许可证说明
 

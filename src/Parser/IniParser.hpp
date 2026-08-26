@@ -23,8 +23,8 @@
  *                                                                                   *
  *************************************************************************************/
 
-#ifndef TINY_INIPARSER_HPP
-#define TINY_INIPARSER_HPP
+#ifndef TINY_INI_PARSER_HPP
+#define TINY_INI_PARSER_HPP
 #include <cstdint>
 #include <string>
 #include <unordered_map>

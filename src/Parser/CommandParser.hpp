@@ -23,8 +23,8 @@
  *                                                                                   *
  *************************************************************************************/
 
-#ifndef TINY_CPP_PARSER_COMMANDPARSER_HPP
-#define TINY_CPP_PARSER_COMMANDPARSER_HPP
+#ifndef TINY_CPP_COMMAND_PARSER_HPP
+#define TINY_CPP_COMMAND_PARSER_HPP
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -128,7 +128,7 @@ namespace Tiny {
 
 
 
-#endif // TINY_CPP_PARSER_COMMANDPARSER_HPP
+#endif // TINY_CPP_COMMAND_PARSER_HPP
 
 /*************************************************************************************
  * MIT License                                                                       *

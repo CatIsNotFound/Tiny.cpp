@@ -561,7 +561,7 @@ TEST(SocketErrorTest, ErrorSocketOptionID) {
 TEST(UtilityTest, ParseFromHostname) {
     bool ok = false;
     int err_cnt = 0;
-    auto addresses = parseFromHostname("localhost", &ok, &err_cnt);
+    auto addresses = Address::parseFromHostname("localhost", &ok, &err_cnt);
     
     EXPECT_TRUE(ok);
     EXPECT_GE(addresses.size(), 1);
@@ -569,7 +569,7 @@ TEST(UtilityTest, ParseFromHostname) {
 
 TEST(UtilityTest, ParseFirstHostname) {
     bool ok = false;
-    Address addr = parseFirstHostname("localhost", &ok);
+    Address addr = Address::parseFirstHostname("localhost", &ok);
     
     EXPECT_TRUE(ok);
     EXPECT_TRUE(addr.isValid());

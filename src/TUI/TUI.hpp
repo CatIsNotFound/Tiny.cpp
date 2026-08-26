@@ -198,7 +198,6 @@ namespace Tiny {
             void unsetRow(uint32_t row);
             void unsetCol(uint32_t col);
             void unsetRect(const Position &start_pos, const Position &end_pos);
-            API_DEPRECATED("It has been replaced by EventBus, and will be removed in v1.4.0.")
             void setResizeEvent(const std::function<void(Renderer&)>& event);
 
             void clear();
@@ -436,7 +435,6 @@ namespace Tiny {
             void setVisible(bool visible);
             void setFocus(bool focus);
             void setSizePolicy(SizePolicy policy);
-            API_DEPRECATED("It has been replaced by EventBus, and will be removed in v1.4.0.")
             void draw();
 
             [[nodiscard]] const std::string& name() const;

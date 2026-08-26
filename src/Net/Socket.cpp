@@ -1306,14 +1306,6 @@ namespace Tiny {
         _use_ipv6 = use_ipv6;
     }
 
-    std::vector<Net::Address> Net::parseFromHostname(const char *hostname, bool *ok, int *err_cnt) {
-        return Address::parseFromHostname(hostname, ok, err_cnt);
-    }
-
-    Net::Address Net::parseFirstHostname(const char *hostname, bool *ok) {
-        return Address::parseFirstHostname(hostname, ok);
-    }
-
     const char *Net::getSocketErrorName(SocketError err) {
         if (__SocketErrorStrings__.find(err) != __SocketErrorStrings__.end()) {
             return __SocketErrorStrings__.at(err);
