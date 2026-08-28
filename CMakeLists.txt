@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(Tiny LANGUAGES CXX VERSION 0.1.0)
+project(Tiny LANGUAGES C CXX VERSION 0.1.0)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -34,7 +34,7 @@ else()
 endif()
 endif()
 
-add_library(${PROJECT_NAME} STATIC
+set(SOURCE_FILES
         src/Tiny.hpp
         src/Tiny.cpp
         src/OS/File.hpp
@@ -59,6 +59,17 @@ add_library(${PROJECT_NAME} STATIC
         src/Net/SocketAdv.hpp
         src/Events/EventBus.cpp
         src/Events/EventBus.hpp
+)
+
+if (WIN32)
+    list(APPEND SOURCE_FILES
+        src/TUI/win/wcwidth.c
+        src/TUI/win/wcwidth.h
+    )
+endif ()
+
+add_library(${PROJECT_NAME} STATIC
+        ${SOURCE_FILES}
 )
 
 # Link Windows libraries

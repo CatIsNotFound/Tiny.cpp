@@ -248,7 +248,9 @@ namespace Tiny {
 #if defined(TCP_KEEPCNT)
                     {static_cast<uint32_t>(Net::SocketOption::KeepCount),        TCP_KEEPCNT},
 #endif
+#if defined(TCP_MAXSEG)
                     {static_cast<uint32_t>(Net::SocketOption::MaxSegmentSize),   TCP_MAXSEG}
+#endif
                 };
 
                 _IP_LEVEL_MAP = {

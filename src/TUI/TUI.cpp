@@ -30,6 +30,7 @@
 #define NOMINMAX
 #include <windows.h>
 #include <csignal>
+#include "win/wcwidth.h"
 #else
 #include <csignal>
 #include <clocale>
@@ -39,71 +40,8 @@
 #endif
 
 namespace {
-#ifdef TINY_CPP_MY_OS_WINDOWS
-    uint32_t strToCodePoint(const std::string& utf8_char) {
-        uint8_t ch = utf8_char[0];
-        uint32_t cp = 0;
-        if ((ch & 0x80) == 0) {                     // 1 字节 ASCII
-            cp = ch;
-        } else if ((ch & 0xE0) == 0xC0) {           // 2 字节
-            cp = (ch & 0x1F) << 6 | (utf8_char[1] & 0x3F);
-        } else if ((ch & 0xF0) == 0xE0) {           // 3 字节
-            cp = (ch & 0x0F) << 12 | (utf8_char[1] & 0x3F) << 6 | (utf8_char[2] & 0x3F);
-        } else if ((ch & 0xF8) == 0xF0) {           // 4 字节
-            cp = (ch & 0x07) << 18 | (utf8_char[1] & 0x3F) << 12 |
-                 (utf8_char[2] & 0x3F) << 6 | (utf8_char[3] & 0x3F);
-        }
-        return cp;
-    }
-
-    size_t wcwidth(const std::string& str) {
-        uint32_t cp = strToCodePoint(str);
-        if (cp == 0 || iswcntrl(cp)) return 0;
-        if (cp < 0x80) return 1;
-        if ((cp >= 0x1100 && cp <= 0x115F) ||   // Hangul Jamo
-        (cp >= 0x2600 && cp <= 0x26FF) ||       // Miscellaneous Symbols
-        (cp >= 0x2700 && cp <= 0x27FF) ||       // Decorative Symbols
-        (cp >= 0x2E80 && cp <= 0x2EFF) ||       // CJK Radicals Supplement
-        (cp >= 0x3000 && cp <= 0x303F) ||       // CJK Symbols and Punctuation
-        (cp >= 0x3040 && cp <= 0x309F) ||       // Hiragana
-        (cp >= 0x30A0 && cp <= 0x30FF) ||       // Katakana
-        (cp >= 0x3100 && cp <= 0x312F) ||       // Bopomofo
-        (cp >= 0x3130 && cp <= 0x318F) ||       // Hangul Compatibility Jamo
-        (cp >= 0x31A0 && cp <= 0x31BF) ||       // Bopomofo Extended
-        (cp >= 0x31C0 && cp <= 0x31EF) ||       // CJK Strokes
-        (cp >= 0x3200 && cp <= 0x32FF) ||       // Enclosed CJK Letters and Months
-        (cp >= 0x3300 && cp <= 0x33FF) ||       // CJK Compatibility
-        (cp >= 0x3400 && cp <= 0x4DBF) ||       // CJK Unified Ideographs Extension A
-        (cp >= 0x4E00 && cp <= 0x9FFF) ||       // CJK Unified Ideographs
-        (cp >= 0xF900 && cp <= 0xFAFF) ||       // CJK Compatibility Ideographs
-        (cp >= 0xFE10 && cp <= 0xFE1F) ||       // Vertical Forms
-        (cp >= 0xFE30 && cp <= 0xFE4F) ||       // CJK Compatibility Forms
-        (cp >= 0xFF00 && cp <= 0xFFEF) ||       // Halfwidth and Fullwidth Forms
-        (cp >= 0x1F300 && cp <= 0x1F6FF) ||     // Emoji
-        (cp >= 0x1F900 && cp <= 0x1F9FF) ||     // Emoji Extension
-        (cp >= 0x20000 && cp <= 0x2A6DF) ||     // CJK Unified Ideographs Extension B
-        (cp >= 0x2A700 && cp <= 0x2B73F) ||     // CJK Unified Ideographs Extension C
-        (cp >= 0x2B740 && cp <= 0x2B81F) ||     // CJK Unified Ideographs Extension D
-        (cp >= 0x2B820 && cp <= 0x2CEAF) ||     // CJK Unified Ideographs Extension E
-        (cp >= 0x2CEB0 && cp <= 0x2EBEF) ||     // CJK Unified Ideographs Extension F
-        (cp >= 0x30000 && cp <= 0x3134F) ||     // CJK Unified Ideographs Extension G
-        (cp >= 0xE0100 && cp <= 0xE01EF)) {     // Variation Selectors Supplement
-            return 2;
-        }
-        return 1;
-    }
-#endif
-
-    size_t calcStrDisplayWidth(const std::string& data) {
-#ifdef TINY_CPP_MY_OS_UNIX
-        wchar_t w_ch[8];
-        std::mbtowc(w_ch, data.c_str(), data.size());
-        size_t width = wcwidth(*w_ch);
-        if (width == 0) width = 1;
-#elif defined(TINY_CPP_MY_OS_WINDOWS)
-        size_t width = wcwidth(data);
-#endif
-        return width;
+    Tiny::TUI::Position calcEndOfPosition(const Tiny::TUI::Position& position, const Tiny::TUI::Size& size) {
+        return { position.row + size.height - 1, position.column + size.width - 1 };
     }
 }
 
@@ -120,42 +58,20 @@ namespace Misc {
 }
 
 namespace Tiny {
-    std::string TUI::splitFront(const char *data) {
-        std::string str;
-        if (data == nullptr) return str; 
-        uint8_t ch = *data;
-        if ((ch & 0xE0) == 0xc0) {
-            str += *data++;
-            str += *data;
-        } else if ((ch & 0xF0) == 0xE0) {
-            str += *data++;
-            str += *data++;
-            str += *data;
-        } else if ((ch & 0xF8) == 0xF0) {
-            str += *data++;
-            str += *data++;
-            str += *data++;
-            str += *data;
-        } else {
-            str += *data;
-        }
-        return str;
-    }
-
-    TUI::Char::Char(const char *data) : _data(splitFront(data)), _length(calcStrDisplayWidth(_data)) {}
+    TUI::Char::Char(const char *data) : _data(Code::splitFront(data)), _length(Code::calcStrDisplayWidth(_data)) {}
 
     TUI::Char::Char(const std::string &data)
-        : _data(splitFront(data.c_str())), _length(calcStrDisplayWidth(_data)) {}
+        : _data(Code::splitFront(data.c_str())), _length(Code::calcStrDisplayWidth(_data)) {}
 
     TUI::Char & TUI::Char::operator=(const std::string &ch) {
         _data = ch;
-        _length = calcStrDisplayWidth(_data);
+        _length = Code::calcStrDisplayWidth(_data);
         return *this;
     }
 
     TUI::Char & TUI::Char::operator=(const char *ch) {
         _data = ch;
-        _length = calcStrDisplayWidth(_data);
+        _length = Code::calcStrDisplayWidth(_data);
         return *this;
     }
 
@@ -165,33 +81,7 @@ namespace Tiny {
         return *this;
     }
 
-    std::vector<std::string> TUI::splitUTF8(const char *data, size_t *display_size) {
-        std::vector<std::string> result;
-        if (display_size) *display_size = 0;
-        if (data == nullptr) return result; 
-        while (*data) {
-            std::string str;
-            uint8_t ch = *data;
-            if ((ch & 0xE0) == 0xc0) {
-                str += *data++;
-                str += *data++;
-            } else if ((ch & 0xF0) == 0xE0) {
-                str += *data++;
-                str += *data++;
-                str += *data++;
-            } else if ((ch & 0xF8) == 0xF0) {
-                str += *data++;
-                str += *data++;
-                str += *data++;
-                str += *data++;
-            } else {
-                str += *data++;
-            }
-            result.push_back(str);
-            if (display_size) *display_size += calcStrDisplayWidth(str);
-        }
-        return result;
-    }
+
 
     TUI::Renderer & TUI::Renderer::self() {
         static Renderer instance;
@@ -226,13 +116,13 @@ namespace Tiny {
     void TUI::Renderer::set(const Position &pos, const std::string &str, Style style) {
         std::lock_guard<std::mutex> lock(_buffer_mutex);
         if (pos.row >= _front_buffer.size() || pos.column >= _front_buffer[0].size()) return;
-        _front_buffer[pos.row][pos.column].set(splitFront(str.c_str()).c_str(), style);
+        _front_buffer[pos.row][pos.column].set(Code::splitFront(str.c_str()).c_str(), style);
     }
 
     void TUI::Renderer::set(uint32_t x, uint32_t y, const std::string &str, Style style) {
         std::lock_guard<std::mutex> lock(_buffer_mutex);
         if (y >= _front_buffer.size() || x >= _front_buffer[0].size()) return;
-        _front_buffer[y][x].set(splitFront(str.c_str()).c_str(), style);
+        _front_buffer[y][x].set(Code::splitFront(str.c_str()).c_str(), style);
     }
 
     void TUI::Renderer::setStyle(const Position &pos, Style style) {
@@ -335,7 +225,7 @@ namespace Tiny {
         for (uint32_t r = start_pos.row; r <= end_pos.row; r++) {
             for (uint32_t c = start_pos.column; c <= end_pos.column; c++) {
                 if (isOutOfRange(r, c)) break;
-                _front_buffer[r][c].set(splitFront(ch.c_str()).c_str(), style);
+                _front_buffer[r][c].set(Code::splitFront(ch.c_str()).c_str(), style);
             }
         }
     }
@@ -506,7 +396,7 @@ namespace Tiny {
     }
 
     size_t TUI::Renderer::setChars(const Position &pos, const std::string &str, const Style &style) {
-        auto strs = splitUTF8(str.c_str());
+        auto strs = Code::splitUTF8(str.c_str());
         auto size = Terminal::screenSize();
         Position temp = pos;
         size_t filled_cnt = 0;
@@ -516,7 +406,7 @@ namespace Tiny {
                 temp.row += 1;
             }
             set(temp, s, style);
-            size_t display_width = calcStrDisplayWidth(s);
+            size_t display_width = Code::calcStrDisplayWidth(s);
             if (display_width > 1) {
                 std::lock_guard<std::mutex> lock(_buffer_mutex);
                 for (size_t i = 1; i < display_width; ++i) {
@@ -685,8 +575,74 @@ namespace Tiny {
         _event_map.clear();
     }
 
-    TUI::Application::Application(int argc, char *argv[]) : _argc(argc), _argv(argv) {
-        // _event_bus.subscribe<Application>();
+        TUI::Object::Object(const std::string &name, std::type_index type_id, Object *parent)
+            : _name(name), _type_index(type_id), _parent(parent) {
+        if (parent != nullptr) {
+            parent->_children.push_back(this);
+            return;
+        }
+        _parent = nullptr;
+    }
+
+    void TUI::Object::renameObject(const std::string &name) {
+        _name = name;
+        onObjectNameChanged();
+    }
+
+    const std::string & TUI::Object::objectName() const {
+        return _name;
+    }
+
+    void TUI::Object::setParent(Object *parent) {
+        /// Banned Application class to bind parent.
+        if (_type_index.hash_code() == typeid(Application).hash_code()) return;
+        if (parent != nullptr) {
+            if (_parent) {
+                auto p = std::find(_parent->_children.begin(), _parent->_children.end(), this);
+                if (p != _parent->_children.end()) {
+                    _parent->_children.erase(p);
+                }
+            }
+            parent->_children.push_back(this);
+            _parent = parent;
+        }
+    }
+
+    TUI::Object * TUI::Object::parent() const {
+        return _parent;
+    }
+
+    size_t TUI::Object::hash() const {
+        return _type_index.hash_code();
+    }
+
+    const char * TUI::Object::className() const {
+        return _type_index.name();
+    }
+
+    bool TUI::Object::isChild(Object *child) const {
+        return std::find(_children.begin(), _children.end(), child) != _children.end();
+    }
+
+    TUI::Object * TUI::Object::findChild(const std::string &name) const {
+        auto iter = std::find_if(_children.begin(), _children.end(), [&name] (const Object* obj) {
+            return obj->objectName() == name;
+        });
+        return (iter != _children.end()) ? *iter : nullptr;
+    }
+
+    TUI::Object * TUI::Object::findChild(std::type_index type_id, const std::string &name) const {
+        auto iter = std::find_if(_children.begin(), _children.end(), [&type_id, &name] (const Object* obj) {
+            return obj->hash() == type_id.hash_code() && obj->objectName() == name;
+        });
+        return (iter != _children.end()) ? *iter : nullptr;
+    }
+
+    const std::vector<Tiny::TUI::Object*>& TUI::Object::children() const {
+        return _children;
+    }
+
+    TUI::Application::Application(const std::string name) : Object(name, typeid(Application)) {
         Renderer::self();
     }
 
@@ -695,7 +651,7 @@ namespace Tiny {
             auto input = Terminal::getInput();
             if (input.type != InputEvent::None)
                 EventBus::self().publish<Application>(new UserInputEvent(input), SIZE_MAX);
-            if (input.type == InputEvent::Keyboard && input.input.keyboard.key == KEY_CTRL_C) {
+            if (_quit.load() && input.type == InputEvent::Keyboard && input.input.keyboard.key == KEY_CTRL_C) {
                 _running.store(false);
             }
             //std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -709,12 +665,37 @@ namespace Tiny {
         _running.store(false);
     }
 
-    TUI::AbstractWidget::AbstractWidget(const std::string &name, const Position &position, const Size &size)
-            : _name(name), _pos(position), _size(size),
-              _min_size(0, 0), _max_size(INT_MAX, INT_MAX) {}
+    void TUI::Application::setEnabledExitByKey(bool enabled) {
+        _quit.store(enabled);
+    }
 
-    void TUI::AbstractWidget::rename(const std::string &name) {
-        _name = name;
+    bool TUI::Application::isEnabledExitByKey() const {
+        return _quit.load();
+    }
+
+    void TUI::Application::onEvent(const AbstractEvent &event) {}
+    void TUI::Application::onObjectNameChanged() {}
+    void TUI::Application::onParentChanged() {}
+
+    TUI::AbstractWidget::AbstractWidget(const std::string &name, const Position &position, const Size &size,
+                                        std::type_index type_id, Object* parent)
+            : Object(name, type_id, parent), _pos(position), _size(size),
+              _min_size(0, 0), _max_size(INT_MAX, INT_MAX) {
+        _styles[S_Normal].intensity = 1;
+        _styles[S_Active].intensity = 2;
+        _styles[S_Disabled].intensity = 0;
+        _status_flag.set(F_Enabled, true);
+        _status_flag.set(F_Visible, true);
+    }
+
+    TUI::AbstractWidget::AbstractWidget(const std::string &name, std::type_index type_id, Object *parent)
+            : Object(name, type_id, parent), _pos(0, 0), _size(0, 0),
+              _min_size(0, 0), _max_size(INT_MAX, INT_MAX) {
+        _styles[S_Normal].intensity = 1;
+        _styles[S_Active].intensity = 2;
+        _styles[S_Disabled].intensity = 0;
+        _status_flag.set(F_Enabled, true);
+        _status_flag.set(F_Visible, true);
     }
 
     void TUI::AbstractWidget::move(const Position &position) {
@@ -775,42 +756,45 @@ namespace Tiny {
     }
 
     void TUI::AbstractWidget::setEnabled(bool enabled) {
-        _status_flag.set(2, enabled);
+        _status_flag.set(F_Enabled, enabled);
+        _status_flag.set(F_Style + S_Disabled, !enabled);
     }
 
     void TUI::AbstractWidget::setVisible(bool visible) {
-        _status_flag.set(1, visible);
+        _status_flag.set(F_Visible, visible);
     }
 
     void TUI::AbstractWidget::setFocus(bool focus) {
-        _status_flag.set(0, focus);
+        _status_flag.set(F_Focus, focus);
+        _status_flag.set(F_Style + S_Active, focus);
     }
 
     void TUI::AbstractWidget::setSizePolicy(SizePolicy policy) {
-        _status_flag.set(3, false);
-        _status_flag.set(4, false);
-        _status_flag.set(5, false);
+        _status_flag.set(F_SizePolicy, false);
+        _status_flag.set(F_SizePolicy + 1, false);
+        _status_flag.set(F_SizePolicy + 2, false);
         switch (policy) {
             case SizePolicy::Ignored:
                 break;
             case SizePolicy::Fixed:
-                _status_flag.set(3, true);
+                _status_flag.set(F_SizePolicy, true);
                 break;
             case SizePolicy::Maximized:
-                _status_flag.set(4, true);
+                _status_flag.set(F_SizePolicy + 1, true);
                 break;
             case SizePolicy::Minimized:
-                _status_flag.set(5, true);
+                _status_flag.set(F_SizePolicy + 2, true);
                 break;
         }
     }
 
-    void TUI::AbstractWidget::draw() {
-        callDrawEvent();
+    void TUI::AbstractWidget::setStyle(uint8_t status, const Renderer::Style &style) {
+        if (status >= _styles.size()) return;
+        _styles[status] = style;
     }
 
-    const std::string & TUI::AbstractWidget::name() const {
-        return _name;
+    void TUI::AbstractWidget::draw() {
+        callDrawEvent();
     }
 
     const TUI::Position & TUI::AbstractWidget::position() const {
@@ -830,35 +814,62 @@ namespace Tiny {
     }
 
     bool TUI::AbstractWidget::enabled() const {
-        return _status_flag.test(2);
+        return _status_flag.test(F_Enabled);
     }
 
     bool TUI::AbstractWidget::visible() const {
-        return _status_flag.test(1);
+        return _status_flag.test(F_Visible);
     }
 
     bool TUI::AbstractWidget::focus() const {
-        return _status_flag.test(0);
+        return _status_flag.test(F_Focus);
     }
 
     TUI::SizePolicy TUI::AbstractWidget::sizePolicy() const {
-        if (_status_flag.test(3)) return SizePolicy::Fixed;
-        if (_status_flag.test(4)) return SizePolicy::Maximized;
-        if (_status_flag.test(5)) return SizePolicy::Minimized;
+        if (_status_flag.test(F_SizePolicy)) return SizePolicy::Fixed;
+        if (_status_flag.test(F_SizePolicy + 1)) return SizePolicy::Maximized;
+        if (_status_flag.test(F_SizePolicy + 2)) return SizePolicy::Minimized;
         return SizePolicy::Ignored;
     }
 
-    void TUI::AbstractWidget::execEvent(const AbstractEvent& event) {
-        auto hash = event.hash();
-        if (hash == typeid(UserInputEvent).hash_code()) {
-            auto ev = dynamic_cast<const UserInputEvent&>(event).inputEvent();
-            if (ev.type == InputEvent::Keyboard) keyEvent(ev.input.keyboard);
-            else if (ev.type == InputEvent::Mouse) mouseEvent(ev.input.mouse);
+    TUI::Renderer::Style TUI::AbstractWidget::style(uint8_t status) const {
+        if (status >= _styles.size()) return {};
+        return _styles[status];
+    }
+
+    void TUI::AbstractWidget::onEvent(const AbstractEvent &event) {}
+    void TUI::AbstractWidget::onObjectNameChanged() {}
+    void TUI::AbstractWidget::onParentChanged() {}
+
+    void TUI::AbstractWidget::execEvent(const UserInputEvent& event) {
+        auto ev = event.inputEvent();
+        if (ev.type == InputEvent::Keyboard) {
+            keyEvent(ev.input.keyboard);
+            if (ev.input.keyboard.is_pressed) clickedEvent();
+        }
+        else if (ev.type == InputEvent::Mouse) {
+            mouseEvent(ev.input.mouse);
+            if (ev.input.mouse.button == SP_MOUSE_LEFT_BUTTON) {
+                _status_flag.set(F_Style + S_Pressed, ev.input.mouse.is_pressed);
+                if (ev.input.mouse.is_pressed) clickedEvent();
+            }
         }
     }
 
     void TUI::AbstractWidget::callDrawEvent() {
-        renderEvent(Renderer::self());
+        if (_status_flag.test(1)) renderEvent(Renderer::self());
+    }
+
+    void TUI::AbstractWidget::resizeWithoutCalledEvent(uint32_t width, uint32_t height) {
+        _size.width = width;
+        _size.height = height;
+    }
+
+    const TUI::Renderer::Style & TUI::AbstractWidget::currentStyle() const {
+        for (uint8_t i = 0; i < _styles.size(); i++) {
+            if (_status_flag.test(F_Style + i)) return _styles[i];
+        }
+        return _styles[0];
     }
 
     TUI::AbstractLayout::AbstractLayout(const std::string &name) : _name(name) {
@@ -1006,6 +1017,127 @@ namespace Tiny {
 
     void TUI::AbstractLayout::calcSize() {
 
+    }
+
+    TUI::Label::Label(const std::string &name, const Position &position, Object* parent)
+            : AbstractWidget(name, position, {}, typeid(TUI::Label), parent) {
+        setMinimumSize(8, 1);
+        _status_flag.set(10, true);
+        calcAutoSize();
+    }
+
+    TUI::Label::Label(const std::string &name, const Position &position, const Size &size, Object* parent)
+            : AbstractWidget(name, position, size, typeid(TUI::Label), parent) {
+        setMinimumSize(8, 1);
+        if (size.width < 8 || size.height < 1) resize(8, 1);
+        calcDisplaySize();
+    }
+
+
+    void TUI::Label::setText(const std::string &text) {
+        _text = text;
+        Code::splitUTF8(_text.c_str(), &_text_size);
+        if (_status_flag.test(10)) {
+            calcAutoSize();
+        } else {
+            calcDisplaySize();
+        }
+    }
+
+    const std::string & TUI::Label::text() const {
+        return _text;
+    }
+
+    void TUI::Label::setAutoSizeEnabled(bool enabled) {
+        _status_flag.set(10, enabled);
+        if (enabled) calcAutoSize(); else calcDisplaySize();
+    }
+
+    bool TUI::Label::autoSizeEnabled() const {
+        return _status_flag.test(10);
+    }
+
+    void TUI::Label::setAlignment(Alignment alignment) {
+        for (uint8_t i = 0; i < 9; ++i) _status_flag.reset(i);
+        _status_flag.set(static_cast<uint8_t>(alignment), true);
+    }
+
+    TUI::Alignment TUI::Label::alignment() const {
+        for (uint8_t i = 0; i < 9; ++i) {
+            if (_status_flag.test(i)) return static_cast<Alignment>(i);
+        }
+        return Alignment::LeftTop;
+    }
+
+    void TUI::Label::onEvent(const AbstractEvent &event) {
+        AbstractWidget::onEvent(event);
+    }
+
+    void TUI::Label::onObjectNameChanged() {
+        AbstractWidget::onObjectNameChanged();
+    }
+
+    void TUI::Label::onParentChanged() {
+        AbstractWidget::onParentChanged();
+    }
+
+    void TUI::Label::renderEvent(Renderer &renderer) {
+        Renderer::self().setSSF(_text_pos, _dis_text.c_str(), currentStyle());
+    }
+
+    void TUI::Label::resizeEvent(uint32_t w, uint32_t h) {
+        if (_status_flag.test(10)) {
+            calcAutoSize();
+        } else {
+            calcDisplaySize();
+        }
+    }
+
+    void TUI::Label::moveEvent(uint32_t x, uint32_t y) {
+        if (_status_flag.test(10)) {
+            calcAutoSize();
+        } else {
+            calcDisplaySize();
+        }
+    }
+
+    void TUI::Label::keyEvent(KeyEvent) {
+    }
+
+    void TUI::Label::mouseEvent(MouseEvent) {
+    }
+
+    void TUI::Label::focusEvent(bool) {
+    }
+
+    void TUI::Label::enableEvent(bool) {
+    }
+
+    void TUI::Label::clickedEvent() {
+    }
+
+    void TUI::Label::calcAutoSize() {
+        resizeWithoutCalledEvent(_text_size, 1);
+        _text_pos = position();
+        const auto END_POS = calcEndOfPosition(position(), size());
+        auto scr = Terminal::screenSize() - Size(1, 1);
+        const auto R = END_POS.column >= scr.width;
+        if (R) {
+            _dis_text = Code::subUTF8(_text.c_str(), _text_size - (END_POS.column - scr.width + 1));
+        } else {
+            _dis_text = _text;
+        }
+    }
+
+    void TUI::Label::calcDisplaySize() {
+        const Size& SIZE = size();
+        const auto END_POS = calcEndOfPosition(position(), SIZE);
+        const auto R = END_POS.compare(Terminal::screenSize());
+        if (R > 0) {
+            /// TODO:
+            return;
+        }
+        
     }
 }
 

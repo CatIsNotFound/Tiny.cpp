@@ -27,6 +27,7 @@
 #define TINY_CPP_TUI_TERMINAL_HPP
 #include <string>
 #include <sstream>
+#include <vector>
 #include <cstdint>
 #include <cwchar>
 
@@ -62,6 +63,20 @@ struct Gpm_Connect;
 #endif
 
 namespace Tiny {
+    namespace Code {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        std::wstring string2Wide(const std::string& str, uint32_t codepage = 65001);
+        std::string wide2String(const std::wstring& str, uint32_t codepage = 65001);
+#else
+        std::wstring string2Wide(const std::string& str);
+        std::string wide2String(const std::wstring& str);
+#endif
+        size_t calcStrDisplayWidth(const std::string& str);
+        std::string splitFront(const char* data);
+        std::vector<std::string> splitUTF8(const char* data, size_t *display_size = nullptr);
+        std::string subUTF8(const char* data, size_t display_count, size_t offset = 0);
+    }
+
     namespace TUI {
         struct Size {
             uint32_t width, height;
@@ -112,7 +127,7 @@ namespace Tiny {
             uint32_t row, column;
             Position() : row(0), column(0) {}
             Position(uint32_t row, uint32_t column) : row(row), column(column) {}
-
+            Position(const Size& size) : row(size.height), column(size.width) {}
             bool operator==(const Position& other) const { return (row == other.row && column == other.column); }
             bool operator!=(const Position& other) const { return (row != other.row || column == other.column); }
             int8_t compare(const Position& other) const {
@@ -392,12 +407,13 @@ namespace Tiny {
         };
 #elif defined(TINY_CPP_MY_OS_UNIX)
             static std::string readLineOnRaw();
+            static std::string readLineOnRawEX();
             static bool isReady(int fd);
             static bool pushBuffers(int fd, size_t msec);
             static bool nextBuffers(std::string& buffer);
             static ssize_t readAfterDelay(int fd, void* buffer, size_t size, size_t delay = 50);
             static ssize_t writeAfterDelay(int fd, void* buffer, size_t size, size_t delay = 50);
-            static size_t removeFrontCharCount(const std::string& buf);
+            static size_t removeLastCharCount(const std::string& buf);
             static InputEvent parseInputEvent(const char* signal);
             static KeyEvent parseKeyboardEvent(const std::string& buf, bool& ok);
             static MouseEvent parseMouseEvent(const std::string& buf, bool& ok);    

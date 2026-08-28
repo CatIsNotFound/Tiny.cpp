@@ -24,15 +24,13 @@
  *************************************************************************************/
 
 #include "../TUI/Terminal.hpp"
-#include "../OS/File.hpp"
-#include <sstream>
 
 #if defined(TINY_CPP_MY_OS_WINDOWS)
 #include <windows.h>
 #include <conio.h>
+#include "win/wcwidth.h"
 #elif defined(TINY_CPP_MY_OS_UNIX)
 #include <cstring>
-#include <cwchar>
 #include <clocale>
 #include <unistd.h>
 #include <fcntl.h>
@@ -45,9 +43,9 @@
 #endif
 #endif
 
+namespace Tiny {
 #if defined(TINY_CPP_MY_OS_WINDOWS)
-namespace {
-    std::wstring string2Wide(const std::string& str, uint32_t codepage = 65001) {
+    std::wstring Code::string2Wide(const std::string& str, uint32_t codepage) {
         auto len = MultiByteToWideChar(codepage, 0, str.data(),
         str.size(), nullptr, 0);
         std::wstring w_str(len, 0);
@@ -56,7 +54,7 @@ namespace {
         return w_str;
     }
 
-    std::string wide2String(const std::wstring& w_str, uint32_t codepage = 65001) {
+    std::string Code::wide2String(const std::wstring& w_str, uint32_t codepage) {
         auto len = WideCharToMultiByte(codepage, 0, w_str.data(), w_str.size(),
             nullptr, 0, nullptr, nullptr);
         std::string str(len, 0);
@@ -64,10 +62,9 @@ namespace {
             &str[0], len, nullptr, nullptr);
         return str;
     }
-}
+    
 #elif defined(TINY_CPP_MY_OS_UNIX)
-namespace {
-    std::wstring string2Wide(const std::string& str) {
+    std::wstring Code::string2Wide(const std::string& str) {
         setlocale(LC_ALL, "");
         std::mbstate_t state{};
         auto data = str.data();
@@ -78,7 +75,7 @@ namespace {
         return w_str;
     }
 
-    std::string wide2String(const std::wstring& w_str) {
+    std::string Code::wide2String(const std::wstring& w_str) {
         setlocale(LC_ALL, "");
         std::mbstate_t state{};
         auto data = w_str.data();
@@ -88,8 +85,97 @@ namespace {
         std::wcsrtombs(&str[0], &data, len, &state);
         return str;
     }
-}
 #endif
+
+    size_t Code::calcStrDisplayWidth(const std::string& data) {
+        return wcwidth(*Tiny::Code::string2Wide(data).c_str());
+    }
+
+    std::string Code::splitFront(const char *data) {
+        std::string str;
+        if (data == nullptr) return str; 
+        uint8_t ch = *data;
+        if ((ch & 0xE0) == 0xc0) {
+            str += *data++;
+            str += *data;
+        } else if ((ch & 0xF0) == 0xE0) {
+            str += *data++;
+            str += *data++;
+            str += *data;
+        } else if ((ch & 0xF8) == 0xF0) {
+            str += *data++;
+            str += *data++;
+            str += *data++;
+            str += *data;
+        } else {
+            str += *data;
+        }
+        return str;
+    }
+
+    std::vector<std::string> Code::splitUTF8(const char *data, size_t *display_size) {
+        std::vector<std::string> result;
+        if (display_size) *display_size = 0;
+        if (data == nullptr) return result;
+        while (*data) {
+            std::string str;
+            uint8_t ch = *data;
+            if ((ch & 0xE0) == 0xc0) {
+                str += *data++;
+                str += *data++;
+            } else if ((ch & 0xF0) == 0xE0) {
+                str += *data++;
+                str += *data++;
+                str += *data++;
+            } else if ((ch & 0xF8) == 0xF0) {
+                str += *data++;
+                str += *data++;
+                str += *data++;
+                str += *data++;
+            } else {
+                str += *data++;
+            }
+            result.push_back(str);
+            if (display_size) *display_size += calcStrDisplayWidth(str);
+        }
+        return result;
+    }
+
+    std::string Code::subUTF8(const char* data, size_t display_count, size_t offset) {
+        if (!data || display_count == 0) return {};
+        std::string result;
+        size_t now_cnt = 0, sum_offset = 0;
+        bool add_list = offset == 0;
+        while (*data) {
+            std::string str;
+            uint8_t ch = *data;
+            if ((ch & 0xE0) == 0xc0) {
+                str += *data++;
+                str += *data++;
+            } else if ((ch & 0xF0) == 0xE0) {
+                str += *data++;
+                str += *data++;
+                str += *data++;
+            } else if ((ch & 0xF8) == 0xF0) {
+                str += *data++;
+                str += *data++;
+                str += *data++;
+                str += *data++;
+            } else {
+                str += *data++;
+            }
+            result.append(str);
+            auto add = calcStrDisplayWidth(str);
+            if (add_list) {
+                if (now_cnt + add >= display_count) break;
+                now_cnt += add;
+            } else {
+                if (++sum_offset >= offset) add_list = true;
+            }
+        }
+        return result;
+    }
+}
 
 namespace Tiny {
     const char* TUI::getKeyName(const uint8_t &KEY, const SP_Keys &SP) {
@@ -436,7 +522,7 @@ namespace Tiny {
     bool TUI::Terminal::printW(wchar_t ch) {
         wchar_t w_text[] = {ch, L'\0'};
 #ifdef TINY_CPP_MY_OS_UNIX
-        auto text = wide2String(w_text);
+        auto text = Code::wide2String(w_text);
         write(STDOUT_FILENO, text.data(), 1);
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -464,7 +550,7 @@ namespace Tiny {
 
     bool TUI::Terminal::printW(const std::wstring &text) {
 #ifdef TINY_CPP_MY_OS_UNIX
-        auto data = wide2String(text);
+        auto data = Code::wide2String(text);
         write(STDOUT_FILENO, data.c_str(), data.length());
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -494,7 +580,7 @@ namespace Tiny {
     bool TUI::Terminal::printLineW(const std::wstring &text) {
 #ifdef TINY_CPP_MY_OS_UNIX
         auto w_text = text + L"\r\n";
-        auto cmd = wide2String(w_text);
+        auto cmd = Code::wide2String(w_text);
         write(STDOUT_FILENO, cmd.c_str(), cmd.length());
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -522,7 +608,7 @@ namespace Tiny {
 
     bool TUI::Terminal::printErrorW(const std::wstring &text) {
 #ifdef TINY_CPP_MY_OS_UNIX
-        auto data = wide2String(text);
+        auto data = Code::wide2String(text);
         write(STDERR_FILENO, data.c_str(), data.length());
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_ERROR_HANDLE);
@@ -709,12 +795,13 @@ namespace Tiny {
         std::string out;
 #ifdef TINY_CPP_MY_OS_UNIX
         if (_is_in_raw_mode) {
-            out = readLineOnRaw();
+            out = readLineOnRawEX();
         } else {
             char buffer[1024] = {};
             while (true) {
                 ssize_t read_count = readAfterDelay(STDIN_FILENO, buffer, 1024);
                 if (read_count <= 0) continue;
+                write(STDOUT_FILENO, buffer, read_count);
                 if (buffer[read_count - 1] == '\n') read_count -= 1;
                 out.resize(read_count);
                 strncpy(&out[0], buffer, read_count);
@@ -738,12 +825,12 @@ namespace Tiny {
         std::wstring out;
 #ifdef TINY_CPP_MY_OS_UNIX
         if (_is_in_raw_mode) {
-            out = string2Wide(readLineOnRaw());
+            out = Code::string2Wide(readLineOnRawEX());
         } else {
             char buffer[2048] = {};
             size_t read_count = readAfterDelay(STDIN_FILENO, buffer, 2048);
             if (buffer[read_count - 1] == '\n') read_count -= 1;
-            out = string2Wide(buffer);
+            out = Code::string2Wide(buffer);
             if (out.back() == L'\n') out.pop_back();
         }
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
@@ -1256,7 +1343,7 @@ namespace Tiny {
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(use_output_term ? STD_OUTPUT_HANDLE : STD_ERROR_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return false;
-        auto w_str = string2Wide(str);
+        auto w_str = Code::string2Wide(str);
         if (!WriteConsoleW(console, w_str.c_str(), w_str.size(), nullptr, nullptr)) return false;
         return true;
 #endif
@@ -1406,11 +1493,11 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_UNIX
     std::string TUI::Terminal::readLineOnRaw() {
         std::string result;
-        char temp[256] = {};
+        char temp[64] = {};
         size_t read_bytes = 0;
         auto start_pos = cursorPosition();
         do {
-            read_bytes = readAfterDelay(STDIN_FILENO, temp, 256);
+            read_bytes = readAfterDelay(STDIN_FILENO, temp, 64);
             if (read_bytes < 0) break;
             if (KEY_ENTER(temp[0])) {
                 auto enter = "\r\n";
@@ -1419,8 +1506,8 @@ namespace Tiny {
             } else if (KEY_BACKSPACE(temp[0])) {
                 if (!result.empty()) {
                     size_t ori_length = result.size();
-                    size_t del_length = removeFrontCharCount(result);
-                    result = result.substr(0, result.size() - del_length);
+                    size_t del_length = removeLastCharCount(result);
+                    result = result.substr(0, ori_length - del_length);
                     moveCursor(start_pos);
                     auto cover = std::string(ori_length, ' ');
                     write(STDOUT_FILENO, cover.c_str(), cover.size());
@@ -1430,6 +1517,111 @@ namespace Tiny {
             } else if (temp[0] != '\x1b') {
                 result += temp;
                 write(STDOUT_FILENO, temp, read_bytes);
+                size_t d = 0;
+                do {
+                    temp[d++] = '\0';
+                } while (temp[d]);
+            }
+        } while (read_bytes > 0);
+
+        return result;
+    }
+
+    std::string TUI::Terminal::readLineOnRawEX() {
+        std::string result;
+        std::vector<std::string> text_buffer;
+        size_t read_bytes = 0, dis_sum = 0;
+        size_t cur_pos = 0, cur_text_pos = 0;
+        auto start_pos = cursorPosition();
+        do {
+            char temp[64] = {};
+            read_bytes = readAfterDelay(STDIN_FILENO, temp, 64);
+            if (read_bytes < 0) break;
+            if (KEY_ENTER(temp[0])) {
+                auto enter = "\r\n";
+                write(STDOUT_FILENO, enter, 2);
+                break;
+            } else if (KEY_BACKSPACE(temp[0])) {
+                if (!result.empty()) {
+                    size_t ori_length = result.size();
+                    size_t del_length = removeLastCharCount(result.substr(0, cur_text_pos));
+                    char t[8]{};
+                    size_t d = 0, s = cur_text_pos - del_length;
+                    do {
+                        t[d] = result[s + d];
+                    } while (++d < del_length);
+                    auto dis_len = wcwidth(*Code::string2Wide(t).c_str());
+                    dis_sum -= dis_len;
+                    if (cur_text_pos >= ori_length) {
+                        result = result.substr(0, ori_length - del_length);
+                    } else {
+                        result = result.substr(0, cur_text_pos - del_length) + result.substr(cur_text_pos);
+                    }
+                    cur_text_pos -= del_length;
+                    size_t ret = cur_pos - dis_len;
+                    cur_pos = (cur_pos < ret) ? cur_pos : ret;
+                    moveCursor(start_pos);
+                    auto cover = std::string(ori_length, ' ');
+                    write(STDOUT_FILENO, cover.c_str(), cover.size());
+                    moveCursor(start_pos);
+                    write(STDOUT_FILENO, result.data(), result.size());
+                    moveCursor({start_pos.row, start_pos.column + static_cast<uint32_t>(cur_pos)});
+                }
+            } else if (temp[0] != '\x1b') {
+                bool insert_mode = (cur_text_pos < result.size());
+                if (!insert_mode) {
+                    result += temp;
+                    write(STDOUT_FILENO, temp, read_bytes);
+                } else {
+                    result.insert(cur_text_pos, temp);
+                    auto insert_data = result.substr(cur_text_pos);
+                    write(STDOUT_FILENO, insert_data.data(), insert_data.size());
+                }
+                cur_text_pos += read_bytes;
+                if (read_bytes > 1) {
+                    size_t dis_size{};
+                    Code::splitUTF8(temp, &dis_size);
+                    cur_pos += dis_size;
+                    dis_sum += dis_size;
+                } else {
+                    cur_pos += 1;
+                    dis_sum += 1;
+                }
+                if (insert_mode) {
+                    moveCursor({start_pos.row, start_pos.column + static_cast<uint32_t>(cur_pos)});
+                }
+            } else if (strcmp(temp, "\x1b[D") == 0) {  // Press Left key
+                if (cur_text_pos == 0) continue;
+                size_t mov_length = removeLastCharCount(result.substr(0, cur_text_pos));
+                char t[8]{};
+                size_t d = 0, s = cur_text_pos - mov_length;
+                do {
+                    t[d] = result[s + d];
+                } while (++d < mov_length);
+                auto dis_len = wcwidth(*Code::string2Wide(t).c_str());
+                cur_text_pos -= mov_length;
+                cur_pos -= dis_len;
+                moveLeftCursor(dis_len);
+            } else if (strcmp(temp, "\x1b[C") == 0) {  // Press Right key
+                if (cur_text_pos == result.size()) continue;
+                size_t mov_length = Code::splitFront(result.substr(cur_text_pos).c_str()).size();
+                char t[8]{};
+                size_t d = 0;
+                do {
+                    t[d] = result[cur_text_pos + d];
+                } while (++d < mov_length);
+                auto dis_len = wcwidth(*Code::string2Wide(t).c_str());
+                cur_text_pos += mov_length;
+                cur_pos += dis_len;
+                moveRightCursor(dis_len);
+            } else if (strcmp(temp, "\x1b[H") == 0) {  // Press Home key
+                cur_text_pos = 0;
+                cur_pos = 0;
+                moveCursor(start_pos);
+            } else if (strcmp(temp, "\x1b[F") == 0) {  // Press End key
+                cur_text_pos = result.size();
+                cur_pos = dis_sum;
+                moveCursor({start_pos.row, start_pos.column + static_cast<uint32_t>(cur_pos)});
             }
         } while (read_bytes > 0);
 
@@ -1553,8 +1745,25 @@ namespace Tiny {
         return write(fd, buffer, size);
     }
 
-    size_t TUI::Terminal::removeFrontCharCount(const std::string& buf) {
+    size_t TUI::Terminal::removeLastCharCount(const std::string& buf) {
         if (buf.empty()) return 0;
+        auto esc_pos = buf.rfind('\x1b');
+        static auto is_csi = [](char c) -> bool {
+            const auto& U = static_cast<uint8_t>(c);
+            return U >= 0x40 && U <= 0x7e;
+        };
+        if (esc_pos != std::string::npos) {
+            size_t dis = buf.size() - esc_pos;
+            if (dis >= 3 && buf[esc_pos + 1] == '[') {
+                size_t i = 3;   // find end of csi char.
+                size_t t = 0;
+                do {
+                    t = esc_pos + i;
+                    if (is_csi(buf[t])) break;
+                } while (++i < dis && t < buf.size());
+                if (esc_pos + i == buf.size() - 1) return i;
+            }
+        }
         size_t cnt = 0;
         for (size_t i = buf.size() - 1; ; --i) {
             cnt++;

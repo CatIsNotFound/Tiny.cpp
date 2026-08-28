@@ -39,13 +39,10 @@
 #include <deque>
 #include <unordered_set>
 #include <algorithm>
-#include <set>
+#include <array>
 
 namespace Tiny {
     namespace TUI {
-        std::string splitFront(const char* data);
-        std::vector<std::string> splitUTF8(const char* data, size_t *display_size = nullptr);
-
         struct RGBColor {
             uint8_t r, g, b;
 
@@ -380,17 +377,52 @@ namespace Tiny {
             }
         }
 
-        class Application {
+        class Object {
         public:
-            Application(int argc, char* argv[]);
+            explicit Object(const std::string& name, std::type_index hash, Object* parent = nullptr);
+            virtual ~Object() = default;
+
+            void renameObject(const std::string& name);
+            [[nodiscard]] const std::string& objectName() const;
+            void setParent(Object* parent);
+            Object* parent() const;
+            size_t hash() const;
+            const char* className() const;
+            bool isChild(Object* child) const;
+            Object* findChild(const std::string& name) const;
+            Object* findChild(std::type_index type_id, const std::string& name) const;
+            [[nodiscard]] const std::vector<Object*>& children() const;
+        protected:
+            virtual void onEvent(const AbstractEvent& event) = 0;
+            virtual void onObjectNameChanged() = 0;
+            virtual void onParentChanged() = 0;
+        private:
+            std::string _name;
+            std::type_index _type_index;
+            Object* _parent;
+            std::vector<Object*> _children;
+        };
+
+        class Application : public Object {
+        public:
+            explicit Application(const std::string name);
             int run();
             void exit();
+            void setEnabledExitByKey(bool enabled);
+            bool isEnabledExitByKey() const;
             virtual ~Application() = default;
+
+        protected:
+            virtual void onEvent(const AbstractEvent& event);
+            virtual void onObjectNameChanged();
+            virtual void onParentChanged();
+
         private:
-            char** _argv;
-            int _argc;
+            std::atomic<bool> _quit{true};
             std::atomic<bool> _running{true};
         };
+
+
 
         enum class Alignment : uint8_t {
             LeftTop,
@@ -417,12 +449,27 @@ namespace Tiny {
             Minimized
         };
 
-        class AbstractWidget {
+        class AbstractWidget : public Object {
+            enum Flag : uint8_t {
+                F_Enabled,
+                F_Visible,
+                F_Focus,
+                F_MousePressedDown,
+                F_Style = 4,
+                F_SizePolicy = 9
+            };
         public:
-            explicit AbstractWidget(const std::string& name, const Position& position, const Size& size);
-            virtual ~AbstractWidget() = 0;
+            enum StyleStatus : uint8_t {
+                S_Normal,
+                S_Active,
+                S_Pressed,
+                S_Disabled
+            };
+            explicit AbstractWidget(const std::string& name, const Position& position, const Size& size,
+                                    std::type_index type_id, Object* parent = nullptr);
+            explicit AbstractWidget(const std::string& name, std::type_index type_id, Object* parent = nullptr);
+            virtual ~AbstractWidget() = default;
 
-            void rename(const std::string& name);
             void move(const Position& position);
             void move(uint32_t x, uint32_t y);
             void resize(const Size& size);
@@ -435,9 +482,10 @@ namespace Tiny {
             void setVisible(bool visible);
             void setFocus(bool focus);
             void setSizePolicy(SizePolicy policy);
+            void setStyle(uint8_t status, const Renderer::Style& style);
+
             void draw();
 
-            [[nodiscard]] const std::string& name() const;
             [[nodiscard]] const Position& position() const;
             [[nodiscard]] const Size& size() const;
             [[nodiscard]] const Size& minimumSize() const;
@@ -446,7 +494,11 @@ namespace Tiny {
             [[nodiscard]] bool visible() const;
             [[nodiscard]] bool focus() const;
             [[nodiscard]] SizePolicy sizePolicy() const;
+            [[nodiscard]] Renderer::Style style(uint8_t status) const;
         protected:
+            virtual void onEvent(const AbstractEvent &event);
+            virtual void onObjectNameChanged();
+            virtual void onParentChanged();
             virtual void renderEvent(Renderer& renderer) = 0;
             virtual void resizeEvent(uint32_t width, uint32_t height) = 0;
             virtual void moveEvent(uint32_t x, uint32_t y) = 0;
@@ -455,14 +507,18 @@ namespace Tiny {
             virtual void focusEvent(bool focus) = 0;
             virtual void enableEvent(bool enable) = 0;
             virtual void clickedEvent() = 0;
-            virtual void execEvent(const AbstractEvent& event);
+            virtual void execEvent(const UserInputEvent& event);
+
+            /// p.s: The following interface is only for use by subclasses that inherit this class.
                     void callDrawEvent();
+                    void resizeWithoutCalledEvent(uint32_t width, uint32_t height);
+            const Renderer::Style& currentStyle() const;
 
         private:
-            std::string _name;
             Position _pos;
             Size _size, _min_size, _max_size;
-            std::bitset<32> _status_flag{};
+            std::array<Renderer::Style, 4> _styles;
+            std::bitset<16> _status_flag{};
         };
 
 
@@ -519,11 +575,37 @@ namespace Tiny {
 
         class Label : public AbstractWidget {
         public:
-            explicit Label(const std::string& name, const Position& position);
-            virtual ~Label() = default;
+            explicit Label(const std::string& name, const Position& position, Object* parent = nullptr);
+            explicit Label(const std::string& name, const Position& position, const Size& size, Object* parent = nullptr);
+            ~Label() override = default;
 
             void setText(const std::string& text);
+            const std::string& text() const;
+            void setAutoSizeEnabled(bool enabled);
+            bool autoSizeEnabled() const;
+            void setAlignment(Alignment alignment);
+            Alignment alignment() const;
 
+        protected:
+            void onEvent(const AbstractEvent &event) override;
+            void onObjectNameChanged() override;
+            void onParentChanged() override;
+            void renderEvent(Renderer &renderer) override;
+            void resizeEvent(uint32_t width, uint32_t height) override;
+            void moveEvent(uint32_t x, uint32_t y) override;
+            void keyEvent(KeyEvent keyboard) override;
+            void mouseEvent(MouseEvent mouse) override;
+            void focusEvent(bool focus) override;
+            void enableEvent(bool enable) override;
+            void clickedEvent() override;
+
+        private:
+            void calcAutoSize();
+            void calcDisplaySize();
+            std::string _text{"Label"}, _dis_text{};
+            Position _text_pos{};
+            size_t _text_size{};
+            std::bitset<16> _status_flag{};
         };
     }
 }

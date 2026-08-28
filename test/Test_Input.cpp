@@ -92,7 +92,8 @@ void input_text() {
     ter::setReverseColor(false);
     ter::moveCursor(0, 0);
     while (true) {
-        auto text = ter::readLineW();
+        auto text = ter::readLine();
+        ter::printLine(text);
         if (text.empty()) break;
     }
     ter::leaveRawMode();

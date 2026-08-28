@@ -33,10 +33,6 @@ addModule(ping  MY_MODULE
         ping/main.cpp
 )
 
-addModule(SimpleTUI MY_MODULE
-        SimpleTUI/main.cpp
-)
-
 #########################################################################################
 
 foreach (MODULE IN ITEMS ${MY_MODULE})
