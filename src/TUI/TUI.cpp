@@ -27,7 +27,9 @@
 #include <algorithm>
 
 #ifdef TINY_CPP_MY_OS_WINDOWS
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <windows.h>
 #include <csignal>
 #include "win/wcwidth.h"
@@ -39,12 +41,6 @@
 #include <unistd.h>
 #endif
 
-namespace {
-    Tiny::TUI::Position calcEndOfPosition(const Tiny::TUI::Position& position, const Tiny::TUI::Size& size) {
-        return { position.row + size.height - 1, position.column + size.width - 1 };
-    }
-}
-
 namespace Misc {
     template <typename T>
     static T min(T a, T b) {
@@ -55,9 +51,16 @@ namespace Misc {
     static T max(T a, T b) {
         return a > b ? a : b;
     }
+
+    template <typename T>
+    static T clamp(T value, T min, T max) {
+        return value < min ? min : (value > max ? max : value);
+    }
 }
 
 namespace Tiny {
+    static TUI::Application* globalApp{};
+
     TUI::Char::Char(const char *data) : _data(Code::splitFront(data)), _length(Code::calcStrDisplayWidth(_data)) {}
 
     TUI::Char::Char(const std::string &data)
@@ -575,13 +578,28 @@ namespace Tiny {
         _event_map.clear();
     }
 
-        TUI::Object::Object(const std::string &name, std::type_index type_id, Object *parent)
-            : _name(name), _type_index(type_id), _parent(parent) {
+    TUI::Object::Object(const std::string &name, std::type_index type_id, Object *parent)
+            : _name(name), _type_index(type_id), _parent_index(typeid(void)), _parent(parent) {
         if (parent != nullptr) {
             parent->_children.push_back(this);
             return;
         }
         _parent = nullptr;
+        if (globalApp && !_parent) {
+            globalApp->_objects.push_back(this);
+        }
+    }
+
+    TUI::Object::Object(const std::string &name, std::type_index type_id, std::type_index parent_type_id, Object *parent)
+            : _name(name), _type_index(type_id), _parent_index(parent_type_id), _parent(parent) {
+        if (parent != nullptr) {
+            parent->_children.push_back(this);
+            return;
+        }
+        _parent = nullptr;
+        if (globalApp && !_parent) {
+            globalApp->_objects.push_back(this);
+        }
     }
 
     void TUI::Object::renameObject(const std::string &name) {
@@ -594,18 +612,20 @@ namespace Tiny {
     }
 
     void TUI::Object::setParent(Object *parent) {
-        /// Banned Application class to bind parent.
-        if (_type_index.hash_code() == typeid(Application).hash_code()) return;
-        if (parent != nullptr) {
-            if (_parent) {
-                auto p = std::find(_parent->_children.begin(), _parent->_children.end(), this);
-                if (p != _parent->_children.end()) {
-                    _parent->_children.erase(p);
-                }
+        if (_parent) {
+            auto p = std::find(_parent->_children.begin(), _parent->_children.end(), this);
+            if (p != _parent->_children.end()) {
+                _parent->_children.erase(p);
             }
-            parent->_children.push_back(this);
-            _parent = parent;
         }
+        auto ptr = std::find(globalApp->_objects.begin(), globalApp->_objects.end(), this);
+        if (parent != nullptr) {
+            parent->_children.push_back(this);
+            if (ptr != globalApp->_objects.end()) globalApp->_objects.erase(ptr);
+        } else if (ptr == globalApp->_objects.end()) {
+            globalApp->_objects.push_back(this);
+        }
+        _parent = parent;
     }
 
     TUI::Object * TUI::Object::parent() const {
@@ -614,6 +634,10 @@ namespace Tiny {
 
     size_t TUI::Object::hash() const {
         return _type_index.hash_code();
+    }
+
+    size_t TUI::Object::phash() const {
+        return _parent_index.hash_code();
     }
 
     const char * TUI::Object::className() const {
@@ -642,11 +666,26 @@ namespace Tiny {
         return _children;
     }
 
-    TUI::Application::Application(const std::string name) : Object(name, typeid(Application)) {
+    TUI::Application::Application() {
         Renderer::self();
+        if (!globalApp) globalApp = this;
+        EventBus::self().subscribe<Application>([this](const AbstractEvent& event) {
+            for (auto& obj : _objects) {
+                obj->onEvent(event);
+            }
+        });
+        EventBus::self().subscribe<Renderer>([this](const AbstractEvent& event) {
+            if (event.hash() != typeid(ResizeTermEvent).hash_code()) return;
+            if (_refresh.load()) Renderer::self().fillScreen();
+            auto sz = dynamic_cast<const ResizeTermEvent&>(event).newSize();
+            for (auto& obj : _objects) {
+                obj->onResizedTermSize(sz);
+            }
+        });
     }
 
     int TUI::Application::run() {
+        EventBus::self().publish<Application>(new AbstractEvent(typeid(Application)));
         while (_running.load()) {
             auto input = Terminal::getInput();
             if (input.type != InputEvent::None)
@@ -654,7 +693,7 @@ namespace Tiny {
             if (_quit.load() && input.type == InputEvent::Keyboard && input.input.keyboard.key == KEY_CTRL_C) {
                 _running.store(false);
             }
-            //std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
             EventBus::self().pollEvents();
             Renderer::self().present();
         }
@@ -673,16 +712,20 @@ namespace Tiny {
         return _quit.load();
     }
 
-    void TUI::Application::onEvent(const AbstractEvent &event) {}
-    void TUI::Application::onObjectNameChanged() {}
-    void TUI::Application::onParentChanged() {}
+    void TUI::Application::setRefreshEnabled(bool enabled) {
+        _refresh.store(enabled);
+    }
+
+    bool TUI::Application::isRefreshEnabled() const {
+        return _refresh.load();
+    }
 
     TUI::AbstractWidget::AbstractWidget(const std::string &name, const Position &position, const Size &size,
                                         std::type_index type_id, Object* parent)
-            : Object(name, type_id, parent), _pos(position), _size(size),
+            : Object(name, type_id, typeid(AbstractWidget), parent), _pos(position), _size(size),
               _min_size(0, 0), _max_size(INT_MAX, INT_MAX) {
-        _styles[S_Normal].intensity = 1;
-        _styles[S_Active].intensity = 2;
+        _styles[S_Normal].intensity = 2;
+        _styles[S_Active].intensity = 1;
         _styles[S_Disabled].intensity = 0;
         _status_flag.set(F_Enabled, true);
         _status_flag.set(F_Visible, true);
@@ -691,11 +734,12 @@ namespace Tiny {
     TUI::AbstractWidget::AbstractWidget(const std::string &name, std::type_index type_id, Object *parent)
             : Object(name, type_id, parent), _pos(0, 0), _size(0, 0),
               _min_size(0, 0), _max_size(INT_MAX, INT_MAX) {
-        _styles[S_Normal].intensity = 1;
-        _styles[S_Active].intensity = 2;
+        _styles[S_Normal].intensity = 2;
+        _styles[S_Active].intensity = 1;
         _styles[S_Disabled].intensity = 0;
         _status_flag.set(F_Enabled, true);
         _status_flag.set(F_Visible, true);
+        _status_flag.set(F_SizePolicy, true);
     }
 
     void TUI::AbstractWidget::move(const Position &position) {
@@ -724,35 +768,57 @@ namespace Tiny {
     }
 
     void TUI::AbstractWidget::resize(uint32_t w, uint32_t h) {
-        Size new_size{}, size{w, h};
-        new_size.height = Misc::max(h, _min_size.height);
-        new_size.width = Misc::max(w, _min_size.width);
-        if (new_size == size) {
-            new_size.height = Misc::min(h, _max_size.height);
-            new_size.width = Misc::min(w, _max_size.width);
-            _size = (new_size == size) ? size : new_size;
-        } else {
-            _size = new_size;
-        }
+        _size.width = Misc::clamp(w, _min_size.width, _max_size.width);
+        _size.height = Misc::clamp(h, _min_size.height, _max_size.height);
         resizeEvent(_size.width, _size.height);
     }
 
     void TUI::AbstractWidget::setMinimumSize(const Size &size) {
-        _min_size = size;
+        _min_size.width = Misc::min(size.width, _max_size.width);
+        _min_size.height = Misc::min(size.height, _max_size.height);
+        Size new_size{};
+        new_size.width = Misc::max(_size.width, _min_size.width);
+        new_size.height = Misc::max(_size.height, _min_size.height);
+        if (new_size != _size) {
+            _size = new_size;
+            resizeEvent(_size.width, _size.height);
+        }
     }
 
     void TUI::AbstractWidget::setMinimumSize(uint32_t w, uint32_t h) {
-        _min_size.width = w;
-        _min_size.height = h;
+        _min_size.width = Misc::min(w, _max_size.width);
+        _min_size.height = Misc::min(h, _max_size.height);
+        Size new_size{};
+        new_size.width = Misc::max(_size.width, _min_size.width);
+        new_size.height = Misc::max(_size.height, _min_size.height);
+        if (new_size != _size) {
+            _size = new_size;
+            resizeEvent(_size.width, _size.height);
+        }
     }
 
     void TUI::AbstractWidget::setMaximumSize(const Size &size) {
-        _max_size = size;
+        _max_size.width = Misc::max(size.width, _min_size.width);
+        _max_size.height = Misc::max(size.height, _min_size.height);
+        Size new_size{};
+        new_size.width = Misc::min(_size.width, _max_size.width);
+        new_size.height = Misc::min(_size.height, _max_size.height);
+        if (new_size != _size) {
+            _size = new_size;
+            resizeEvent(_size.width, _size.height);
+        }
     }
 
     void TUI::AbstractWidget::setMaximumSize(uint32_t w, uint32_t h) {
-        _max_size.width = w;
-        _max_size.height = h;
+        _max_size.width = Misc::max(w, _min_size.width);
+        _max_size.height = Misc::max(h, _min_size.height);
+        Size new_size{};
+        new_size.width = Misc::min(_size.width, _max_size.width);
+        new_size.height = Misc::min(_size.height, _max_size.height);
+        if (new_size != _size) {
+            _size = new_size;
+            resizeEvent(_size.width, _size.height);
+        }
     }
 
     void TUI::AbstractWidget::setEnabled(bool enabled) {
@@ -837,7 +903,13 @@ namespace Tiny {
         return _styles[status];
     }
 
-    void TUI::AbstractWidget::onEvent(const AbstractEvent &event) {}
+    void TUI::AbstractWidget::onEvent(const AbstractEvent &event) {
+        if (visible()) renderEvent(Renderer::self());
+    }
+
+    void TUI::AbstractWidget::onResizedTermSize(const Size &size) {
+        if (visible()) renderEvent(Renderer::self());
+    }
     void TUI::AbstractWidget::onObjectNameChanged() {}
     void TUI::AbstractWidget::onParentChanged() {}
 
@@ -1019,17 +1091,33 @@ namespace Tiny {
 
     }
 
+    TUI::TestWidget::TestWidget(const std::string &name, const Position &position, const Size &size, Object *parent)
+            : AbstractWidget(name, position, size, typeid(TUI::TestWidget), parent) {}
+
+    void TUI::TestWidget::onEvent(const AbstractEvent &event) {
+        AbstractWidget::onEvent(event);
+    }
+
+    void TUI::TestWidget::onResizedTermSize(const Size &size) {
+        AbstractWidget::onResizedTermSize(size);
+    }
+
+    void TUI::TestWidget::renderEvent(Renderer &renderer) {
+        Position end_pos = { position().row + size().height - 1, position().column + size().width - 1 };
+        renderer.fillRect(position(), end_pos, '*');
+    }
+
     TUI::Label::Label(const std::string &name, const Position &position, Object* parent)
-            : AbstractWidget(name, position, {}, typeid(TUI::Label), parent) {
+            : AbstractWidget(name, position, {}, typeid(TUI::Label), parent), _text(name) {
         setMinimumSize(8, 1);
         _status_flag.set(10, true);
         calcAutoSize();
     }
 
     TUI::Label::Label(const std::string &name, const Position &position, const Size &size, Object* parent)
-            : AbstractWidget(name, position, size, typeid(TUI::Label), parent) {
+            : AbstractWidget(name, position, size, typeid(TUI::Label), parent), _text(name) {
         setMinimumSize(8, 1);
-        if (size.width < 8 || size.height < 1) resize(8, 1);
+        if (size.width < 8 || size.height < 1) resizeWithoutCalledEvent(8, 1);
         calcDisplaySize();
     }
 
@@ -1060,6 +1148,7 @@ namespace Tiny {
     void TUI::Label::setAlignment(Alignment alignment) {
         for (uint8_t i = 0; i < 9; ++i) _status_flag.reset(i);
         _status_flag.set(static_cast<uint8_t>(alignment), true);
+        if (!autoSizeEnabled()) calcDisplaySize();
     }
 
     TUI::Alignment TUI::Label::alignment() const {
@@ -1073,6 +1162,11 @@ namespace Tiny {
         AbstractWidget::onEvent(event);
     }
 
+    void TUI::Label::onResizedTermSize(const Size &size) {
+        if (autoSizeEnabled()) calcAutoSize(); else calcDisplaySize();
+        AbstractWidget::onResizedTermSize(size);
+    }
+
     void TUI::Label::onObjectNameChanged() {
         AbstractWidget::onObjectNameChanged();
     }
@@ -1082,6 +1176,12 @@ namespace Tiny {
     }
 
     void TUI::Label::renderEvent(Renderer &renderer) {
+        if (autoSizeEnabled()) {
+            Renderer::self().setSSF(_text_pos, _dis_text.c_str(), currentStyle());
+            return;
+        }
+        Position end_pos = position().calcEndPos(size());
+        Renderer::self().fillRect(position(), end_pos, ' ', currentStyle());
         Renderer::self().setSSF(_text_pos, _dis_text.c_str(), currentStyle());
     }
 
@@ -1119,7 +1219,7 @@ namespace Tiny {
     void TUI::Label::calcAutoSize() {
         resizeWithoutCalledEvent(_text_size, 1);
         _text_pos = position();
-        const auto END_POS = calcEndOfPosition(position(), size());
+        const auto END_POS = position().calcEndPos(size());
         auto scr = Terminal::screenSize() - Size(1, 1);
         const auto R = END_POS.column >= scr.width;
         if (R) {
@@ -1130,14 +1230,70 @@ namespace Tiny {
     }
 
     void TUI::Label::calcDisplaySize() {
-        const Size& SIZE = size();
-        const auto END_POS = calcEndOfPosition(position(), SIZE);
-        const auto R = END_POS.compare(Terminal::screenSize());
-        if (R > 0) {
-            /// TODO:
-            return;
+        const auto END_POS = position().calcEndPos(size());
+        const auto SCR = Terminal::screenSize() - Size(1, 1);
+        size_t dis_len{};
+        auto dis_chars = Code::splitUTF8(_text.c_str(), &dis_len);
+        int64_t con_len = static_cast<int32_t>(size().width) - static_cast<int32_t>(dis_len);
+
+        if (END_POS.column < SCR.width) {
+            if (con_len > 0) {
+                _dis_text = _text;
+            } else {
+                _dis_text.clear();
+                dis_len += con_len;
+                for (size_t i = 0; i < dis_len; ++i) {
+                    _dis_text += dis_chars[i];
+                }
+            }
+        } else {
+            _dis_text.clear();
+            dis_len -= END_POS.column - SCR.width;
+            for (size_t i = 0; i < dis_len; ++i) {
+                _dis_text += dis_chars[i];
+            }
         }
-        
+
+
+        switch (alignment()) {
+            case Alignment::LeftTop:
+                _text_pos = position();
+                break;
+            case Alignment::CenterTop:
+                _text_pos.row = position().row;
+                _text_pos.column = position().column + (size().width / 2 - dis_len / 2);
+                break;
+            case Alignment::RightTop:
+                _text_pos.row = position().row;
+                _text_pos.column = position().column + (size().width - dis_len);
+                break;
+            case Alignment::Left:
+                _text_pos.row = position().row + (size().height / 2) - (size().height % 2 == 0);
+                _text_pos.column = position().column;
+                break;
+            case Alignment::Center:
+                _text_pos.row = position().row + (size().height / 2) - (size().height % 2 == 0);
+                _text_pos.column = position().column + (size().width / 2 - dis_len / 2);
+                break;
+            case Alignment::Right:
+                _text_pos.row = position().row + (size().height / 2) - (size().height % 2 == 0);
+                _text_pos.column = position().column + (size().width - dis_len);
+                break;
+            case Alignment::LeftBottom:
+                _text_pos.row = END_POS.row;
+                _text_pos.column = position().column;
+                break;
+            case Alignment::CenterBottom:
+                _text_pos.row = END_POS.row;
+                _text_pos.column = position().column + (size().width / 2 - dis_len / 2);
+                break;
+            case Alignment::RightBottom:
+                _text_pos.row = END_POS.row;
+                _text_pos.column = position().column + (size().width - dis_len);
+                break;
+        }
+
+
     }
 }
 

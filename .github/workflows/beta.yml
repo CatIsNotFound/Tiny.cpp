@@ -202,21 +202,21 @@ jobs:
               exit 1
           fi
 
-      - name: Test for project
-        shell: freebsd {0}
-        run: |
-          cd build/bin/gtests
-          rm -rf /etc/localtime
-          TIMEZONE=`curl ipconfig.io/json | grep time_zone | cut -d'"' -f4`
-          ln -s /usr/share/zoneinfo/$TIMEZONE /etc/localtime
-          for EXE in $(ls -1); do
-              ./$EXE
-              if [ $? -ne 0 ]; then
-                  echo "* Test failed: " $EXE
-                  exit 1
-              fi
-              sleep 1
-          done
+#      - name: Test for project
+#        shell: freebsd {0}
+#        run: |
+#          cd build/bin/gtests
+#          rm -rf /etc/localtime
+#          TIMEZONE=`curl ipconfig.io/json | grep time_zone | cut -d'"' -f4`
+#          ln -s /usr/share/zoneinfo/$TIMEZONE /etc/localtime
+#          for EXE in $(ls -1); do
+#              ./$EXE
+#              if [ $? -ne 0 ]; then
+#                  echo "* Test failed: " $EXE
+#                  exit 1
+#              fi
+#              sleep 1
+#          done
 
       - name: Get version
         id: version

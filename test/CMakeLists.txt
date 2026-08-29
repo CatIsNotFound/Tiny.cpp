@@ -59,10 +59,6 @@ addModule(TestHostResolver MY_MODULE_WITHOUT_GTEST
         Test_HostResolver.cpp
 )
 
-addModule(TestEventBus MY_MODULE_WITHOUT_GTEST
-        Test_EventBus.cpp
-)
-
 addModule(TestTUI MY_MODULE_WITHOUT_GTEST
         Test_TUI.cpp
 )

@@ -128,6 +128,9 @@ namespace Tiny {
             Position() : row(0), column(0) {}
             Position(uint32_t row, uint32_t column) : row(row), column(column) {}
             Position(const Size& size) : row(size.height), column(size.width) {}
+            Position calcEndPos(const Size& size) const {
+                return { row + size.height - 1, column + size.width - 1 };
+            }
             bool operator==(const Position& other) const { return (row == other.row && column == other.column); }
             bool operator!=(const Position& other) const { return (row != other.row || column == other.column); }
             int8_t compare(const Position& other) const {

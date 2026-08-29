@@ -57,8 +57,6 @@ set(SOURCE_FILES
         src/Net/Socket.cpp
         src/Net/Socket.hpp
         src/Net/SocketAdv.hpp
-        src/Events/EventBus.cpp
-        src/Events/EventBus.hpp
 )
 
 if (WIN32)

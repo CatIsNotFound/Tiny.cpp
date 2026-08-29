@@ -95,7 +95,7 @@ void set_colorful_by_path(const OS::Path& item) {
 
 size_t calcTextSize(const std::string& text) {
     size_t sz = 0;
-    auto utf8_list = splitUTF8(text.c_str());
+    auto utf8_list = Code::splitUTF8(text.c_str());
     for (auto& item : utf8_list) {
         int add = 0;
         switch (item.size()) {

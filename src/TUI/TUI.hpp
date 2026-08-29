@@ -378,8 +378,10 @@ namespace Tiny {
         }
 
         class Object {
+            friend class Application;
         public:
-            explicit Object(const std::string& name, std::type_index hash, Object* parent = nullptr);
+            explicit Object(const std::string& name, std::type_index type_id, Object* parent = nullptr);
+            explicit Object(const std::string& name, std::type_index type_id, std::type_index parent_type_id, Object* parent = nullptr);
             virtual ~Object() = default;
 
             void renameObject(const std::string& name);
@@ -387,6 +389,7 @@ namespace Tiny {
             void setParent(Object* parent);
             Object* parent() const;
             size_t hash() const;
+            size_t phash() const;
             const char* className() const;
             bool isChild(Object* child) const;
             Object* findChild(const std::string& name) const;
@@ -394,35 +397,35 @@ namespace Tiny {
             [[nodiscard]] const std::vector<Object*>& children() const;
         protected:
             virtual void onEvent(const AbstractEvent& event) = 0;
+            virtual void onResizedTermSize(const Size& size) = 0;
             virtual void onObjectNameChanged() = 0;
             virtual void onParentChanged() = 0;
         private:
             std::string _name;
-            std::type_index _type_index;
+            std::type_index _type_index, _parent_index;
             Object* _parent;
             std::vector<Object*> _children;
         };
 
-        class Application : public Object {
+        class Application {
+            friend class Object;
         public:
-            explicit Application(const std::string name);
+            explicit Application();
             int run();
             void exit();
             void setEnabledExitByKey(bool enabled);
             bool isEnabledExitByKey() const;
+            void setRefreshEnabled(bool enabled);
+            bool isRefreshEnabled() const;
             virtual ~Application() = default;
 
-        protected:
-            virtual void onEvent(const AbstractEvent& event);
-            virtual void onObjectNameChanged();
-            virtual void onParentChanged();
-
         private:
+            std::vector<Object*> _objects;
             std::atomic<bool> _quit{true};
             std::atomic<bool> _running{true};
+            std::atomic<bool> _refresh{true};
+            InputEvent _input{};
         };
-
-
 
         enum class Alignment : uint8_t {
             LeftTop,
@@ -450,6 +453,7 @@ namespace Tiny {
         };
 
         class AbstractWidget : public Object {
+            friend class Application;
             enum Flag : uint8_t {
                 F_Enabled,
                 F_Visible,
@@ -497,6 +501,7 @@ namespace Tiny {
             [[nodiscard]] Renderer::Style style(uint8_t status) const;
         protected:
             virtual void onEvent(const AbstractEvent &event);
+            virtual void onResizedTermSize(const Size &size);
             virtual void onObjectNameChanged();
             virtual void onParentChanged();
             virtual void renderEvent(Renderer& renderer) = 0;
@@ -573,6 +578,26 @@ namespace Tiny {
             std::bitset<8> _status_flag{};
         };
 
+        class TestWidget : public AbstractWidget {
+        public:
+            explicit TestWidget(const std::string& name, const Position& position, const Size& size, Object* parent = nullptr);
+            ~TestWidget() override = default;
+
+        protected:
+            void onEvent(const AbstractEvent &event) override;
+            void onResizedTermSize(const Size &size) override;
+            void onObjectNameChanged() override {}
+            void onParentChanged() override {}
+            void renderEvent(Renderer &renderer) override;
+            void resizeEvent(uint32_t width, uint32_t height) override {}
+            void moveEvent(uint32_t x, uint32_t y) override {}
+            void keyEvent(KeyEvent keyboard) override {}
+            void mouseEvent(MouseEvent mouse) override {}
+            void focusEvent(bool focus) override {}
+            void enableEvent(bool enable) override {}
+            void clickedEvent() override {}
+        };
+
         class Label : public AbstractWidget {
         public:
             explicit Label(const std::string& name, const Position& position, Object* parent = nullptr);
@@ -588,6 +613,7 @@ namespace Tiny {
 
         protected:
             void onEvent(const AbstractEvent &event) override;
+            void onResizedTermSize(const Size &size) override;
             void onObjectNameChanged() override;
             void onParentChanged() override;
             void renderEvent(Renderer &renderer) override;
@@ -602,7 +628,7 @@ namespace Tiny {
         private:
             void calcAutoSize();
             void calcDisplaySize();
-            std::string _text{"Label"}, _dis_text{};
+            std::string _text{}, _dis_text{};
             Position _text_pos{};
             size_t _text_size{};
             std::bitset<16> _status_flag{};
