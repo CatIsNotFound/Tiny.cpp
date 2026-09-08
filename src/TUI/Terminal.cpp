@@ -1673,7 +1673,7 @@ namespace Tiny {
             if (sscanf(_temp_buffers.c_str(), "\x1b[%d;%dR", &a, &b) == 2) {
                 size_t del_cnt = 4 + std::to_string(a).size() + std::to_string(b).size();
                 _temp_buffers.erase(_temp_buffers.begin(), _temp_buffers.begin() + del_cnt);
-                
+
                 return true;
             }
             if (_temp_buffers.size() == 1 || _temp_buffers[1] != '[') {
@@ -1682,6 +1682,14 @@ namespace Tiny {
                 return true;
             }
             // Parsing mouse
+            // For Old X10
+            if (_temp_buffers[2] == 'M') {
+                buffer += _temp_buffers;
+                _temp_buffers.clear();
+                return true;
+            }
+
+            // For SGR
             if (_temp_buffers[2] == '<') {
                 size_t dis = 1;
                 while (true) {
@@ -1916,20 +1924,37 @@ namespace Tiny {
         }
 #endif
         uint32_t ev_type, row, col;
-        bool is_big_M = (buf[buf.size() - 1] == 'M');
-        if (sscanf(buf.c_str(), "\x1b[<%d;%d;%d", &ev_type, &col, &row) != 3) {
-            mouse.button = SP_MOUSE_UNKNOWN;
-        } else { 
-            if (is_big_M) {
-                mouse.is_pressed = (ev_type != 35) && (ev_type != 64) && (ev_type != 65);
+        bool is_invalid = false;
+        // X10 Mode
+        if (buf.size() > 2 && buf[2] == 'M') {
+            ev_type = buf[3] - 32;
+            row = buf[4] - 32;
+            col = buf[5] - 32;
+            mouse.is_pressed = (ev_type != 3);
+        } else {
+            // SGR Mode
+            bool is_big_M = (buf[buf.size() - 1] == 'M');
+            if (sscanf(buf.c_str(), "\x1b[<%d;%d;%d", &ev_type, &col, &row) != 3) {
+                mouse.button = SP_MOUSE_UNKNOWN;
+                is_invalid = true;
             } else {
-                mouse.is_pressed = false;
+                if (is_big_M) {
+                    mouse.is_pressed = (ev_type != 35) && (ev_type != 64) && (ev_type != 65);
+                } else {
+                    mouse.is_pressed = false;
+                }
             }
-            
-            mouse.position.row = row - 1;
-            mouse.position.column = col - 1;
+        }
 
-            switch (ev_type) {
+        if (is_invalid) {
+            ok = false;
+            return mouse;
+        }
+
+        mouse.position.row = row - 1;
+        mouse.position.column = col - 1;
+
+        switch (ev_type) {
             case 0:
                 mouse.button = SP_MOUSE_LEFT_BUTTON;
                 break;
@@ -1954,19 +1979,12 @@ namespace Tiny {
             case 65:
                 mouse.button = SP_MOUSE_WHEEL_DOWN;
                 break;
-            }
-            if (!mouse.is_pressed && 
-                 mouse.button >= SP_MOUSE_LEFT_BUTTON && mouse.button <= SP_MOUSE_RIGHT_BUTTON) {
-                mouse.button = SP_MOUSE_RELEASE;
-            }
         }
-        
-        if (mouse.button != SP_MOUSE_UNKNOWN) {
-            ok = true;
-            return mouse;
+        if (!mouse.is_pressed && mouse.button >= SP_MOUSE_LEFT_BUTTON && mouse.button <= SP_MOUSE_RIGHT_BUTTON) {
+            mouse.button = SP_MOUSE_RELEASE;
         }
 
-        ok = false;
+        ok = true;
         return mouse;
     }
 #endif
