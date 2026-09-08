@@ -1665,6 +1665,7 @@ namespace Tiny {
     bool TUI::Terminal::nextBuffers(std::string& buffer) {
         if (_temp_buffers.empty()) return false;
         buffer.clear();
+        const size_t BUF_SIZE = _temp_buffers.size();
         // If the first char is `ESC`, start parsing.
         if (_temp_buffers[0] == '\x1b') {
             // If getting the current cursor position, discard it.
@@ -1697,12 +1698,12 @@ namespace Tiny {
                 _temp_buffers.erase(_temp_buffers.begin(), _temp_buffers.begin() + 3);
                 return true;
             }
-            if (_temp_buffers[3] == '~') {
+            if (BUF_SIZE > 3 && _temp_buffers[3] == '~') {
                 buffer += _temp_buffers.substr(0, 4);
                 _temp_buffers.erase(_temp_buffers.begin(), _temp_buffers.begin() + 4);
                 return true;
             }
-            if (_temp_buffers[4] == '~') {
+            if (BUF_SIZE > 4 && _temp_buffers[4] == '~') {
                 buffer += _temp_buffers.substr(0, 5);
                 _temp_buffers.erase(_temp_buffers.begin(), _temp_buffers.begin() + 5);
                 return true;

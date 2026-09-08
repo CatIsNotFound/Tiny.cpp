@@ -1254,7 +1254,6 @@ namespace Tiny {
             }
         }
 
-
         switch (alignment()) {
             case Alignment::LeftTop:
                 _text_pos = position();

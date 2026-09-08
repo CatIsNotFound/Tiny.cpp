@@ -16,13 +16,13 @@ int main(int argc, char *argv[]) {
     Label label_8("l8", {10, 20}, {8, 3});
     Label label_9("l9", {10, 30}, {8, 3});
     label_1.setFocus(true);
-    label_2.setFocus(true);
+    // label_2.setFocus(true);
     label_3.setFocus(true);
-    label_4.setFocus(true);
+    // label_4.setFocus(true);
     label_5.setFocus(true);
-    label_6.setFocus(true);
+    // label_6.setFocus(true);
     label_7.setFocus(true);
-    label_8.setFocus(true);
+    // label_8.setFocus(true);
     label_9.setFocus(true);
     label_1.setAlignment(Alignment::LeftTop);
     label_2.setAlignment(Alignment::CenterTop);
@@ -33,7 +33,6 @@ int main(int argc, char *argv[]) {
     label_7.setAlignment(Alignment::LeftBottom);
     label_8.setAlignment(Alignment::CenterBottom);
     label_9.setAlignment(Alignment::RightBottom);
-
     return app.run();
 }
 
