@@ -63,6 +63,10 @@ addModule(TestTUI MY_MODULE_WITHOUT_GTEST
         Test_TUI.cpp
 )
 
+addModule(TestCommand MY_MODULE_WITHOUT_GTEST
+        Test_Command.cpp
+)
+
 
 foreach (MODULE IN ITEMS ${MY_MODULE})
     set_target_properties(${MODULE} PROPERTIES

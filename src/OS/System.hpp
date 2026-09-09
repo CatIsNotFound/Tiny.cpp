@@ -115,6 +115,8 @@ namespace Tiny {
         void lastSystemError(std::string& info, int* err_code = nullptr);
         bool isAdmin();
 
+        int exec(const std::string& command, size_t timeout_ms = 0, std::string* output = nullptr, std::string* error = nullptr);
+
         class FileSystem {
         public:
             static bool chDir(const Path& path);

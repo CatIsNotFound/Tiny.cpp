@@ -1,0 +1,9 @@
+#!/bin/sh
+
+trap "echo" TERM
+trap "echo" INT
+while true; do 
+sleep 1
+echo "OK"
+wrong cmd
+done

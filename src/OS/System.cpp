@@ -43,6 +43,7 @@
 #include <sys/stat.h>
 #include <sys/utsname.h>
 #include <sys/statvfs.h>
+#include <sys/wait.h>
 #include <pwd.h>
 #include <cstring>
 #ifdef __APPLE__
@@ -136,6 +137,345 @@ struct CPU_Stat {
 };
 #endif
 #endif
+
+static int64_t getTicks() {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+    SYSTEMTIME sys{};
+    GetSystemTime(&sys);
+    FILETIME ft{};
+    GetSystemTimeAsFileTime(&ft);
+
+    LARGE_INTEGER ll{};
+    ll.LowPart = ft.dwLowDateTime;
+    ll.HighPart = ft.dwHighDateTime;
+    const int64_t EPOCH_DIFF = 116444736000000000;
+    return (ll.QuadPart - EPOCH_DIFF) / 10000;
+#elif defined(TINY_CPP_MY_OS_UNIX)
+    struct timespec tv{};
+    clock_gettime(CLOCK_REALTIME, &tv);
+    return tv.tv_sec * 1000LL + tv.tv_nsec / 1000000;
+#endif
+}
+
+static bool isSpace(char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+}
+
+static std::vector<char*> makeArgv(const std::string& cmd) {
+    std::vector<char*> argv;
+    std::string token;
+    bool in_single_quote = false;
+    bool in_double_quote = false;
+    
+    for (char ch : cmd) {
+        if (ch == '\'' && !in_double_quote) {
+            in_single_quote = !in_single_quote;
+        } else if (ch == '"' && !in_single_quote) {
+            in_double_quote = !in_double_quote;
+        } else if (isSpace(ch) && !in_single_quote && !in_double_quote) {
+            if (!token.empty()) {
+                argv.push_back(strdup(token.c_str()));
+                token.clear();
+            }
+        } else {
+            token.push_back(ch);
+        }
+    }
+    
+    if (!token.empty()) {
+        argv.push_back(strdup(token.c_str()));
+    }
+    
+    argv.push_back(nullptr);
+    return argv;
+}
+
+static int execImpl(const std::string& cmd, std::string* output, 
+                    std::string* error, size_t timeout_ms) {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+    auto exec_cmd = string2Wide(cmd);
+    HANDLE pipes_out[2]{}, pipes_err[2];
+
+    SECURITY_ATTRIBUTES sa{};
+    sa.nLength = sizeof(SECURITY_ATTRIBUTES);
+    sa.bInheritHandle = true;
+    sa.lpSecurityDescriptor = nullptr;
+
+    if (output) {
+        if (!CreatePipe(&pipes_out[0], &pipes_out[1], &sa, 4096)) return -1;
+        SetHandleInformation(pipes_out[0], HANDLE_FLAG_INHERIT, 0);
+    }
+
+    if (error) {
+        if (!CreatePipe(&pipes_err[0], &pipes_err[1], &sa, 4096)) {
+            if (output) {
+                CloseHandle(pipes_out[0]);
+                CloseHandle(pipes_out[1]);
+            }
+            return -1;
+        }
+        SetHandleInformation(pipes_err[0], HANDLE_FLAG_INHERIT, 0);
+    }
+
+    HANDLE jobs = CreateJobObjectW(nullptr, nullptr);
+    if (!jobs) {
+        if (output) {
+            CloseHandle(pipes_out[0]);
+            CloseHandle(pipes_out[1]);
+        }
+        if (error) {
+            CloseHandle(pipes_err[0]);
+            CloseHandle(pipes_err[1]);
+        }
+        return -1;
+    }
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION jeli{};
+    jeli.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    SetInformationJobObject(jobs, JobObjectExtendedLimitInformation, &jeli, sizeof(jeli));
+
+    STARTUPINFOW startup{};
+    startup.cb = sizeof(startup);
+    startup.hStdOutput = output ? pipes_out[1] : GetStdHandle(STD_OUTPUT_HANDLE);
+    startup.hStdError = error ? pipes_err[1] : GetStdHandle(STD_ERROR_HANDLE);
+    startup.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+    startup.dwFlags |= STARTF_USESTDHANDLES;
+
+    PROCESS_INFORMATION proc_info{};
+
+    auto ok = CreateProcessW(
+        nullptr,
+        &exec_cmd[0],
+        nullptr,
+        nullptr,
+        true,
+        CREATE_NEW_PROCESS_GROUP | CREATE_SUSPENDED,
+        nullptr,
+        nullptr,
+        &startup,
+        &proc_info
+    );
+
+    if (!ok) {
+        if (output) {
+            CloseHandle(pipes_out[0]);
+            CloseHandle(pipes_out[1]);
+        }
+        if (error) {
+            CloseHandle(pipes_err[0]);
+            CloseHandle(pipes_err[1]);
+        }
+        CloseHandle(jobs);
+        return -2;      /// No such Programme file or not the executable file.
+    }
+
+    AssignProcessToJobObject(jobs, proc_info.hProcess);
+    ResumeThread(proc_info.hThread);
+    CloseHandle(proc_info.hThread);
+
+    if (output) CloseHandle(pipes_out[1]);
+    if (error)  CloseHandle(pipes_err[1]);
+
+    bool running_out = (output != nullptr), running_err = (error != nullptr);
+    auto start = getTicks();
+    bool timed_out = false;
+    char buf[1024];
+    DWORD read_bytes = 0;
+
+    while (running_out || running_err) {
+        DWORD sig_ret{};
+        if (running_out) {
+            sig_ret = WaitForSingleObject(pipes_out[0], 100);
+            if (sig_ret == WAIT_OBJECT_0) {
+                if (ReadFile(pipes_out[0], buf, 1024, &read_bytes, nullptr)
+                        && read_bytes > 0) {
+                    output->append(buf, read_bytes);
+                } else {
+                    running_out = false;
+                }
+            }
+        }
+
+        if (running_err) {
+            sig_ret = WaitForSingleObject(pipes_err[0], 100);
+            if (sig_ret == WAIT_OBJECT_0) {
+                if (ReadFile(pipes_err[0], buf, 1024, &read_bytes, nullptr)
+                        && read_bytes > 0) {
+                    error->append(buf, read_bytes);
+                } else {
+                    running_err = false;
+                }
+            }
+        }
+
+        auto now = getTicks();
+        if (timeout_ms > 0 && now - start >= timeout_ms) {
+            timed_out = true;
+            break;
+        }
+    }
+
+    if (!output && !error) {
+        DWORD ret = WaitForSingleObject(proc_info.hProcess, timeout_ms > 0 ? INFINITE : timeout_ms);
+        if (ret == WAIT_TIMEOUT) {
+            timed_out = true;
+        }
+    }
+
+    bool is_terminated = false;
+    if (timed_out) {
+        TerminateJobObject(jobs, 127);
+        is_terminated = true;
+    }
+
+    if (output) {
+        while (ReadFile(pipes_out[0], buf, 1024, &read_bytes, nullptr)
+                && read_bytes > 0) {
+            output->append(buf, read_bytes);
+        }
+    }
+
+    if (error) {
+        while (ReadFile(pipes_err[0], buf, 1024, &read_bytes, nullptr)
+                && read_bytes > 0) {
+            error->append(buf, read_bytes);
+        }
+    }
+
+    WaitForSingleObject(proc_info.hProcess, INFINITE);
+    DWORD exit_code = 0;
+    GetExitCodeProcess(proc_info.hProcess, &exit_code);
+
+    CloseHandle(proc_info.hProcess);
+    CloseHandle(jobs);
+
+    if (output) CloseHandle(pipes_out[0]);
+    if (error)  CloseHandle(pipes_err[0]);
+
+    return is_terminated ? 127 : static_cast<int>(exit_code);
+
+#else
+    auto start = getTicks();
+    int pipes_out[2]{-1, -1};
+    int pipes_err[2]{-1, -1};
+    if (output && pipe2(pipes_out, O_CLOEXEC) == -1) return -1;
+    if (error && pipe2(pipes_err, O_CLOEXEC) == -1) {
+        if (output) {
+            close(pipes_out[0]);
+            close(pipes_out[1]);
+        }
+        return -1;
+    }
+    bool is_timeout = false;
+    pid_t pid = fork();
+    if (pid < 0) {
+        if (output) {
+            close(pipes_out[0]);
+            close(pipes_out[1]);
+        }
+        if (error) {
+            close(pipes_err[0]);
+            close(pipes_err[1]);
+        }
+        return -1;
+    } else if (pid == 0) {
+        if (output) {
+            dup2(pipes_out[1], STDOUT_FILENO);
+            close(pipes_out[0]);
+            close(pipes_out[1]);
+        }
+        if (error) {
+            dup2(pipes_err[1], STDERR_FILENO);
+            close(pipes_err[0]);
+            close(pipes_err[1]);
+        }
+        auto argv = makeArgv(cmd);
+        setpgid(0, 0);
+        execvp(argv[0], argv.data());
+        setpgid(0, 0);
+        for (auto& arg : argv) {
+            free(arg);
+        }
+        _exit(127);
+    } else {
+        if (output) close(pipes_out[1]);
+        if (error)  close(pipes_err[1]);
+
+        bool running_output = (output != nullptr), running_error  = (error != nullptr);
+        while (running_output || running_error) {
+            fd_set read_fds;
+            FD_ZERO(&read_fds);
+            if (running_output) FD_SET(pipes_out[0], &read_fds);
+            if (running_error)  FD_SET(pipes_err[0], &read_fds);
+
+            int fd_max = pipes_out[0] > pipes_err[0] ? pipes_out[0] : pipes_err[0];
+            
+            timeval time_out{0, 1000000};
+            select(fd_max + 1, &read_fds, nullptr, nullptr, timeout_ms > 0 ? &time_out : nullptr);
+        
+            ssize_t read_bytes{};
+            char bytes[1024];
+            if (running_output && FD_ISSET(pipes_out[0], &read_fds)) {
+                read_bytes = read(pipes_out[0], bytes, sizeof(bytes));
+                if (read_bytes > 0) {
+                    output->append(bytes, read_bytes);
+                } else {
+                    running_output = false;
+                }
+            }
+            if (running_error && FD_ISSET(pipes_err[0], &read_fds)) {
+                read_bytes = read(pipes_err[0], bytes, sizeof(bytes));
+                if (read_bytes > 0) {
+                    error->append(bytes, read_bytes);
+                } else {
+                    running_error = false;
+                }
+            }
+            auto now = getTicks();
+            if (timeout_ms > 0 && now - start >= timeout_ms) {
+                is_timeout = true;
+                break;
+            }
+        }
+
+        if (output) close(pipes_out[0]);
+        if (error)  close(pipes_err[0]);
+
+        if (!output && !error) {
+            do {
+                auto now = getTicks();
+                if (timeout_ms > 0 && now - start >= timeout_ms) {
+                    is_timeout = true;
+                    break;
+                }
+                usleep(10000);
+            } while (waitpid(pid, nullptr, WNOHANG) == 0);
+        }
+        
+        int status{};
+        if (is_timeout) {
+            killpg(pid, SIGTERM);
+            bool is_terminated = false;
+            start = getTicks();
+            do {
+                auto now = getTicks();
+                if (now - start >= 5000) {
+                    killpg(pid, SIGKILL);
+                    break;
+                }
+                usleep(10000);
+                is_terminated = (waitpid(pid, &status, WNOHANG) != 0);
+            } while (!is_terminated);
+        } else {
+            waitpid(pid, &status, 0);
+        }
+        if (WIFEXITED(status)) {
+            return WEXITSTATUS(status);
+        } else {
+            return 127;
+        }
+    }
+#endif
+}
 
 namespace Tiny {
     const char *OS::getCPUArchName(CPU_Arch cpu_arch) {
@@ -703,6 +1043,14 @@ namespace Tiny {
 #else
         return geteuid() == 0;
 #endif
+    }
+
+
+    int OS::exec(const std::string &command, size_t timeout_ms, std::string* output, std::string* error) {
+        if (output) output->clear();
+        if (error) error->clear();
+        if (command.empty()) return -1;
+        return execImpl(command, output, error, timeout_ms);
     }
 
     bool OS::FileSystem::chDir(const Path &path) {
