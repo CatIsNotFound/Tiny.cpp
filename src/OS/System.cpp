@@ -40,6 +40,7 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <sys/stat.h>
 #include <sys/utsname.h>
 #include <sys/statvfs.h>
@@ -90,6 +91,26 @@ namespace {
 #endif
 
 #ifdef TINY_CPP_MY_OS_UNIX
+int pipe_2(int pipefd[2], int flags) {
+#ifdef __linux__
+    return pipe2(pipefd, flags);
+#else
+    if (pipe(pipefd) == -1) {
+        return -1;
+    }
+
+    if (flags & O_CLOEXEC) {
+        fcntl(pipefd[0], F_SETFD, FD_CLOEXEC);
+        fcntl(pipefd[1], F_SETFD, FD_CLOEXEC);
+    }
+    if (flags & O_NONBLOCK) {
+        fcntl(pipefd[0], F_SETFL, O_NONBLOCK);
+        fcntl(pipefd[1], F_SETFL, O_NONBLOCK);
+    }
+    return 0;
+#endif
+}
+
 #ifdef __APPLE__
 struct TickStat {
     uint64_t total, idle;
@@ -357,8 +378,8 @@ static int execImpl(const std::string& cmd, std::string* output,
     auto start = getTicks();
     int pipes_out[2]{-1, -1};
     int pipes_err[2]{-1, -1};
-    if (output && pipe2(pipes_out, O_CLOEXEC) == -1) return -1;
-    if (error && pipe2(pipes_err, O_CLOEXEC) == -1) {
+    if (output && pipe_2(pipes_out, O_CLOEXEC) == -1) return -1;
+    if (error && pipe_2(pipes_err, O_CLOEXEC) == -1) {
         if (output) {
             close(pipes_out[0]);
             close(pipes_out[1]);

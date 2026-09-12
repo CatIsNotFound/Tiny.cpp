@@ -1177,12 +1177,12 @@ namespace Tiny {
 
     void TUI::Label::renderEvent(Renderer &renderer) {
         if (autoSizeEnabled()) {
-            Renderer::self().setSSF(_text_pos, _dis_text.c_str(), currentStyle());
+            renderer.setSSF(_text_pos, _dis_text.c_str(), currentStyle());
             return;
         }
         Position end_pos = position().calcEndPos(size());
-        Renderer::self().fillRect(position(), end_pos, ' ', currentStyle());
-        Renderer::self().setSSF(_text_pos, _dis_text.c_str(), currentStyle());
+        renderer.fillRect(position(), end_pos, ' ', currentStyle());
+        renderer.setSSF(_text_pos, _dis_text.c_str(), currentStyle());
     }
 
     void TUI::Label::resizeEvent(uint32_t w, uint32_t h) {
@@ -1291,9 +1291,9 @@ namespace Tiny {
                 _text_pos.column = position().column + (size().width - dis_len);
                 break;
         }
-
-
     }
+
+
 }
 
 /*************************************************************************************
