@@ -109,6 +109,8 @@ You can download the latest precompiled release directly from [Github Release](h
 
 Directly copy any directory's corresponding module from the `src` directory to your own project. Each module contains a header file (`*.hpp`) and a source file (`*.cpp`).
 
+Refer to the [Import Guide](docs/en/ImportGuide.md) to import the `Tiny.cpp` project.
+
 ### Import via CMake
 
 If using CMake as your primary project management tool, it is recommended to import the `Tiny` project directly via CMake.

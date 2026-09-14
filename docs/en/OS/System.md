@@ -289,6 +289,34 @@ bool isAdmin();
   - On Windows, checks whether the current user is a member of the Administrators group
   - On Unix/Linux, checks whether the effective user ID is 0 (root)
 
+### 4.13 exec
+
+```cpp
+int exec(const std::string& command, size_t timeout_ms = 0,
+         std::string* output = nullptr, std::string* error = nullptr);
+```
+- **Function**: Execute an external command and wait for it to finish, with timeout control and output capture support
+- **Parameters**:
+  - `command` - Command line string to execute. On Windows it is passed directly to `CreateProcess`; on Unix/Linux it is split into an argument array on whitespace (arguments containing spaces can be wrapped in single or double quotes) and executed via `execvp`, which searches for the executable in `PATH`
+  - `timeout_ms` - Timeout in milliseconds. Defaults to `0`, which means wait indefinitely until the command finishes. When the command times out:
+    - Windows: the entire process tree is terminated via a Job Object, with exit code 127
+    - Unix/Linux: `SIGTERM` is sent to the process group first; if it is still alive after 5 seconds, `SIGKILL` is sent
+  - `output` - Optional output parameter. When non-`nullptr`, receives the command's standard output (stdout); when `nullptr`, the child process inherits the parent's standard output
+  - `error` - Optional output parameter. When non-`nullptr`, receives the command's standard error (stderr); when `nullptr`, the child process inherits the parent's standard error
+- **Return Value**: The exit code of the command process. Special values:
+
+  | Return Value | Meaning |
+  |--------------|---------|
+  | `0 - 255` | Normal exit code of the command process |
+  | `-1` | Internal error (e.g., pipe creation failure, `fork` failure, or empty `command` string) |
+  | `-2` | Windows only: the process could not be started (program does not exist or is not an executable file) |
+  | `127` | The command was terminated due to timeout; on Unix/Linux this also covers failure to execute the command (`execvp` failure) or abnormal termination by a signal |
+
+- **Notes**:
+  - The strings pointed to by `output` and `error` are cleared before the call
+  - This function does not go through a system shell (no `cmd.exe` on Windows, no `/bin/sh` on Unix/Linux), so shell syntax such as pipes, redirections, and wildcards is not supported
+  - The function blocks the current thread until the command finishes or times out
+
 ---
 
 ## 5. FileSystem Class
@@ -621,6 +649,31 @@ int main() {
         std::cout << std::endl;
     }
     
+    return 0;
+}
+```
+
+### 6.5 Execute External Command Example
+
+```cpp
+#include "OS/System.hpp"
+#include <iostream>
+
+int main() {
+    std::string output, error;
+
+    // Capture stdout and stderr of the command, with a 5 second timeout
+    int code = Tiny::OS::exec("git --version", 5000, &output, &error);
+    std::cout << "Exit code: " << code << std::endl;
+    std::cout << "Stdout: " << output << std::endl;
+    if (!error.empty()) {
+        std::cout << "Stderr: " << error << std::endl;
+    }
+
+    // Without capturing output: the child's stdout/stderr go directly to the current terminal
+    // timeout_ms keeps the default value 0, meaning wait until the command finishes
+    Tiny::OS::exec("git status");
+
     return 0;
 }
 ```

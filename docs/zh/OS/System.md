@@ -289,6 +289,34 @@ bool isAdmin();
   - Windows 平台检查当前用户是否属于管理员组
   - Unix/Linux 平台检查有效用户 ID 是否为 0（root）
 
+### 4.13 exec
+
+```cpp
+int exec(const std::string& command, size_t timeout_ms = 0,
+         std::string* output = nullptr, std::string* error = nullptr);
+```
+- **功能**: 执行外部命令并等待其结束，支持超时控制与输出捕获
+- **参数**:
+  - `command` - 要执行的命令行字符串。Windows 下直接交由 `CreateProcess` 解析；Unix/Linux 下按空白符拆分为参数数组（支持使用单引号、双引号包裹含空格的参数），并通过 `execvp` 在 `PATH` 中查找可执行文件
+  - `timeout_ms` - 超时时间（毫秒），默认 `0` 表示一直等待直到命令结束。命令超时后：
+    - Windows：通过 Job Object 终止整个进程树，退出码为 127
+    - Unix/Linux：先向进程组发送 `SIGTERM`，若 5 秒后仍未退出则发送 `SIGKILL`
+  - `output` - 可选输出参数，非 `nullptr` 时接收命令的标准输出（stdout）；为 `nullptr` 时子进程继承父进程的标准输出
+  - `error` - 可选输出参数，非 `nullptr` 时接收命令的标准错误（stderr）；为 `nullptr` 时子进程继承父进程的标准错误
+- **返回值**: 命令进程的退出码，特殊取值如下：
+
+  | 返回值 | 含义 |
+  |--------|------|
+  | `0 - 255` | 命令进程的正常退出码 |
+  | `-1` | 内部错误（如创建管道失败、`fork` 失败，或 `command` 为空字符串） |
+  | `-2` | 仅 Windows：无法启动进程（程序不存在或不是可执行文件） |
+  | `127` | 命令因超时被终止；Unix/Linux 下还包括命令无法执行（`execvp` 失败）或进程被信号异常终止 |
+
+- **注意事项**:
+  - 调用时会先清空 `output` 和 `error` 所指向的字符串
+  - 该函数不经过系统 Shell（Windows 不经过 `cmd.exe`，Unix/Linux 不经过 `/bin/sh`），因此不支持管道、重定向、通配符等 Shell 语法
+  - 函数会阻塞当前线程，直到命令结束或超时
+
 ---
 
 ## 6. FileSystem 类
@@ -621,6 +649,31 @@ int main() {
         std::cout << std::endl;
     }
     
+    return 0;
+}
+```
+
+### 6.5 执行外部命令示例
+
+```cpp
+#include "OS/System.hpp"
+#include <iostream>
+
+int main() {
+    std::string output, error;
+
+    // 捕获命令的标准输出和标准错误，超时时间 5 秒
+    int code = Tiny::OS::exec("git --version", 5000, &output, &error);
+    std::cout << "退出码: " << code << std::endl;
+    std::cout << "标准输出: " << output << std::endl;
+    if (!error.empty()) {
+        std::cout << "标准错误: " << error << std::endl;
+    }
+
+    // 不捕获输出：子进程的 stdout/stderr 直接输出到当前终端
+    // timeout_ms 为默认值 0，表示一直等待命令结束
+    Tiny::OS::exec("git status");
+
     return 0;
 }
 ```
