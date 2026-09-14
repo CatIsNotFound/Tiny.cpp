@@ -8,8 +8,7 @@ int main() {
 #ifdef TINY_CPP_MY_OS_WINDOWS
     TUI::Terminal::print() << "Running: " << TUI::TStyle::fg(TUI::Color::Blue) << R"(.\assets\keep_cmd)"
                            << TUI::TStyle::reset() << "\n";
-    // int ret = OS::exec(R"(.\assets\keep_cmd.bat)", 3000, &s, &o);
-    int ret = OS::exec(R"(notepad.exe)", 3000, &s, &o);
+    int ret = OS::exec(R"(.\assets\keep_cmd.bat)", 3000, &s, &o);
 #else
     TUI::Terminal::print() << "Running: " << "./assets/keep_bash" << "\n";
     OS::exec("chmod u+x ./assets/keep_bash");

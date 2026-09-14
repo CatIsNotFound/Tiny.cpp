@@ -302,31 +302,21 @@ static int execImpl(const std::string& cmd, std::string* output,
     char buf[1024];
     DWORD read_bytes = 0;
 
-    while (running_out || running_err) {
-        DWORD sig_ret{};
-        if (running_out) {
-            sig_ret = WaitForSingleObject(pipes_out[0], 100);
-            if (sig_ret == WAIT_OBJECT_0) {
-                if (ReadFile(pipes_out[0], buf, 1024, &read_bytes, nullptr)
-                        && read_bytes > 0) {
-                    output->append(buf, read_bytes);
-                } else {
-                    running_out = false;
-                }
-            }
+    static auto drain = [](HANDLE h, std::string* dst) {
+        if (!dst) return;
+        DWORD avail = 0;
+        char buf[1024];
+        while (PeekNamedPipe(h, nullptr, 0, nullptr, &avail, nullptr)) {
+            if (avail == 0) break;
+            DWORD rb = 0;
+            if (!ReadFile(h, buf, sizeof(buf), &rb, nullptr) || rb == 0) break;
+            dst->append(buf, rb);
         }
+    };
 
-        if (running_err) {
-            sig_ret = WaitForSingleObject(pipes_err[0], 100);
-            if (sig_ret == WAIT_OBJECT_0) {
-                if (ReadFile(pipes_err[0], buf, 1024, &read_bytes, nullptr)
-                        && read_bytes > 0) {
-                    error->append(buf, read_bytes);
-                } else {
-                    running_err = false;
-                }
-            }
-        }
+    while (running_out || running_err) {
+        if (running_out) drain(pipes_out[0], output);
+        if (running_err) drain(pipes_err[0], error);
 
         auto now = getTicks();
         if (timeout_ms > 0 && now - start >= timeout_ms) {
@@ -336,7 +326,7 @@ static int execImpl(const std::string& cmd, std::string* output,
     }
 
     if (!output && !error) {
-        DWORD ret = WaitForSingleObject(proc_info.hProcess, timeout_ms > 0 ? INFINITE : timeout_ms);
+        DWORD ret = WaitForSingleObject(proc_info.hProcess, timeout_ms > 0 ? timeout_ms : INFINITE);
         if (ret == WAIT_TIMEOUT) {
             timed_out = true;
         }
