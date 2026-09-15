@@ -446,10 +446,10 @@ namespace Tiny {
         };
 
         enum class SizePolicy : uint8_t {
-            Ignored,
             Fixed,
             Maximized,
-            Minimized
+            Minimized,
+            Ignored
         };
 
         class AbstractWidget : public Object {
@@ -458,16 +458,19 @@ namespace Tiny {
                 F_Enabled,
                 F_Visible,
                 F_Focus,
+                F_Checkable,
+                F_Checked,
                 F_MousePressedDown,
-                F_Style = 4,
-                F_SizePolicy = 9
+                F_MouseTracing,
+                F_Style,
+                F_SizePolicy = 12
             };
         public:
             enum StyleStatus : uint8_t {
-                S_Normal,
+                S_Disabled,
                 S_Active,
-                S_Pressed,
-                S_Disabled
+                S_Checked,
+                S_Normal
             };
             explicit AbstractWidget(const std::string& name, const Position& position, const Size& size,
                                     std::type_index type_id, Object* parent = nullptr);
@@ -483,11 +486,15 @@ namespace Tiny {
             void setMaximumSize(const Size& size);
             void setMaximumSize(uint32_t w, uint32_t h);
             void setEnabled(bool enabled);
+            void setCheckable(bool checkable);
+            void setChecked(bool checked);
             void setVisible(bool visible);
             void setFocus(bool focus);
             void setSizePolicy(SizePolicy policy);
+            void setMouseTracingEnabled(bool enabled);
             void setStyle(uint8_t status, const Renderer::Style& style);
 
+            API_DEPRECATED("The function will be removed since ver.0.3.0!")
             void draw();
 
             [[nodiscard]] const Position& position() const;
@@ -495,9 +502,12 @@ namespace Tiny {
             [[nodiscard]] const Size& minimumSize() const;
             [[nodiscard]] const Size& maximumSize() const;
             [[nodiscard]] bool enabled() const;
+            [[nodiscard]] bool checkable() const;
+            [[nodiscard]] bool checked() const;
             [[nodiscard]] bool visible() const;
             [[nodiscard]] bool focus() const;
             [[nodiscard]] SizePolicy sizePolicy() const;
+            [[nodiscard]] bool mouseTracingEnabled() const;
             [[nodiscard]] Renderer::Style style(uint8_t status) const;
         protected:
             virtual void onEvent(const AbstractEvent &event);
@@ -512,7 +522,6 @@ namespace Tiny {
             virtual void focusEvent(bool focus) = 0;
             virtual void enableEvent(bool enable) = 0;
             virtual void clickedEvent() = 0;
-            virtual void execEvent(const UserInputEvent& event);
 
             /// p.s: The following interface is only for use by subclasses that inherit this class.
                     void callDrawEvent();
@@ -520,6 +529,8 @@ namespace Tiny {
             const Renderer::Style& currentStyle() const;
 
         private:
+            void initStatus();
+            void resetStyleStatus();
             Position _pos;
             Size _size, _min_size, _max_size;
             std::array<Renderer::Style, 4> _styles;
@@ -578,24 +589,22 @@ namespace Tiny {
             std::bitset<8> _status_flag{};
         };
 
-        class TestWidget : public AbstractWidget {
+        class CurBlock : public AbstractWidget {
         public:
-            explicit TestWidget(const std::string& name, const Position& position, const Size& size, Object* parent = nullptr);
-            ~TestWidget() override = default;
+            explicit CurBlock(const std::string& name, Object* parent = nullptr);
+            virtual ~CurBlock() = default;
 
         protected:
             void onEvent(const AbstractEvent &event) override;
             void onResizedTermSize(const Size &size) override;
-            void onObjectNameChanged() override {}
-            void onParentChanged() override {}
             void renderEvent(Renderer &renderer) override;
-            void resizeEvent(uint32_t width, uint32_t height) override {}
-            void moveEvent(uint32_t x, uint32_t y) override {}
-            void keyEvent(KeyEvent keyboard) override {}
-            void mouseEvent(MouseEvent mouse) override {}
-            void focusEvent(bool focus) override {}
-            void enableEvent(bool enable) override {}
-            void clickedEvent() override {}
+            void resizeEvent(uint32_t width, uint32_t height) override;
+            void moveEvent(uint32_t x, uint32_t y) override;
+            void keyEvent(KeyEvent keyboard) override;
+            void mouseEvent(MouseEvent mouse) override;
+            void focusEvent(bool focus) override;
+            void enableEvent(bool enable) override;
+            void clickedEvent() override;
         };
 
         class Label : public AbstractWidget {
@@ -612,10 +621,7 @@ namespace Tiny {
             Alignment alignment() const;
 
         protected:
-            void onEvent(const AbstractEvent &event) override;
             void onResizedTermSize(const Size &size) override;
-            void onObjectNameChanged() override;
-            void onParentChanged() override;
             void renderEvent(Renderer &renderer) override;
             void resizeEvent(uint32_t width, uint32_t height) override;
             void moveEvent(uint32_t x, uint32_t y) override;
@@ -632,6 +638,72 @@ namespace Tiny {
             Position _text_pos{};
             size_t _text_size{};
             std::bitset<16> _status_flag{};
+        };
+
+        class Button : public Label {
+        public:
+            Button(const std::string& name, const Position& position, Object* parent = nullptr);
+            Button(const std::string& name, const Position& position, const Size& size, Object* parent = nullptr);
+            ~Button() override = default;
+
+            void setClickedEvent(const std::function<void()>& event);
+            void unsetClickedEvent();
+
+        protected:
+            void moveEvent(uint32_t x, uint32_t y) override;
+            void clickedEvent() override;
+        private:
+            std::function<void()> _clicked_event{};
+        };
+
+        class LineEdit : public AbstractWidget {
+        public:
+            enum class EchoMode : uint8_t { NoEcho, Normal, Password };
+            explicit LineEdit(const std::string& name, const Position& position, uint32_t width, Object* parent = nullptr);
+            ~LineEdit() override = default;
+
+            void setText(const std::string& text);
+            void setText(const char* text);
+            void appendText(const char* text);
+            void appendText(const std::string& text);
+            void clear();
+            void setMinimumLength(uint16_t size);
+            void setMaximumLength(uint16_t size);
+            void setPlaceHolderText(const std::string& text);
+            void setPlaceHolderText(const char* text);
+
+            void setEchoMode(EchoMode mode);
+            void setEchoPassChar(const Char& ch);
+            void setTextAlignment(TextAlignment alignment);
+
+            const std::string& text() const;
+            uint16_t minimumLength() const;
+            uint16_t maximumLength() const;
+            EchoMode echoMode() const;
+            const Char& echoPassChar() const;
+            TextAlignment textAlignment() const;
+        protected:
+            void onResizedTermSize(const Size &size) override;
+            void renderEvent(Renderer &renderer) override;
+            void resizeEvent(uint32_t width, uint32_t height) override;
+            void moveEvent(uint32_t x, uint32_t y) override;
+            void keyEvent(KeyEvent keyboard) override;
+            void mouseEvent(MouseEvent mouse) override;
+            void focusEvent(bool focus) override;
+            void enableEvent(bool enable) override;
+            void clickedEvent() override;
+            virtual void textChangedEvent();
+            virtual void echoModeChangedEvent();
+
+        private:
+            void calcDisplaySize(); 
+            void calcDisplayText();
+            std::string _text{}, _placeholder{}, _dis_text{};
+            Char _echo_pass{"*"};
+            Position _text_pos{};
+            EchoMode _echo_mode{EchoMode::Normal};
+            TextAlignment _text_alignment{TextAlignment::Left};
+            uint16_t _max_length{UINT16_MAX}, _min_length{};
         };
     }
 }

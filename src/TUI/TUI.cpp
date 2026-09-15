@@ -132,12 +132,14 @@ namespace Tiny {
         std::lock_guard<std::mutex> lock(_buffer_mutex);
         if (pos.row >= _front_buffer.size() || pos.column >= _front_buffer[0].size()) return;
         _front_buffer[pos.row][pos.column].style = style;
+        _front_buffer[pos.row][pos.column].is_dirty = false;
     }
 
     void TUI::Renderer::setStyle(uint32_t x, uint32_t y, Style style) {
         std::lock_guard<std::mutex> lock(_buffer_mutex);
         if (y >= _front_buffer.size() || x >= _front_buffer[0].size()) return;
         _front_buffer[y][x].style = style;
+        _front_buffer[y][x].is_dirty = false;
     }
 
     void TUI::Renderer::fillScreen(const Style &style) {
@@ -724,22 +726,13 @@ namespace Tiny {
                                         std::type_index type_id, Object* parent)
             : Object(name, type_id, typeid(AbstractWidget), parent), _pos(position), _size(size),
               _min_size(0, 0), _max_size(INT_MAX, INT_MAX) {
-        _styles[S_Normal].intensity = 2;
-        _styles[S_Active].intensity = 1;
-        _styles[S_Disabled].intensity = 0;
-        _status_flag.set(F_Enabled, true);
-        _status_flag.set(F_Visible, true);
+        initStatus();
     }
 
     TUI::AbstractWidget::AbstractWidget(const std::string &name, std::type_index type_id, Object *parent)
             : Object(name, type_id, parent), _pos(0, 0), _size(0, 0),
               _min_size(0, 0), _max_size(INT_MAX, INT_MAX) {
-        _styles[S_Normal].intensity = 2;
-        _styles[S_Active].intensity = 1;
-        _styles[S_Disabled].intensity = 0;
-        _status_flag.set(F_Enabled, true);
-        _status_flag.set(F_Visible, true);
-        _status_flag.set(F_SizePolicy, true);
+        initStatus();
     }
 
     void TUI::AbstractWidget::move(const Position &position) {
@@ -823,15 +816,31 @@ namespace Tiny {
 
     void TUI::AbstractWidget::setEnabled(bool enabled) {
         _status_flag.set(F_Enabled, enabled);
+        resetStyleStatus();
+        _status_flag.reset(F_Focus);
         _status_flag.set(F_Style + S_Disabled, !enabled);
+        if (enabled) _status_flag.set(F_Style + S_Normal, true);
+        enableEvent(enabled);
+    }
+
+    void TUI::AbstractWidget::setCheckable(bool checkable) {
+        _status_flag.set(F_Checkable, checkable);
+    }
+
+    void TUI::AbstractWidget::setChecked(bool checked) {
+        if (_status_flag.test(F_Checkable)) _status_flag.set(F_Checked, checked);
     }
 
     void TUI::AbstractWidget::setVisible(bool visible) {
         _status_flag.set(F_Visible, visible);
+        renderEvent(Renderer::self());
     }
 
     void TUI::AbstractWidget::setFocus(bool focus) {
+        if (_status_flag.test(F_Focus) == focus) return;
         _status_flag.set(F_Focus, focus);
+        resetStyleStatus();
+        _status_flag.set(F_Style + S_Normal, !focus);
         _status_flag.set(F_Style + S_Active, focus);
     }
 
@@ -852,6 +861,10 @@ namespace Tiny {
                 _status_flag.set(F_SizePolicy + 2, true);
                 break;
         }
+    }
+
+    void TUI::AbstractWidget::setMouseTracingEnabled(bool enabled) {
+        _status_flag.set(F_MouseTracing, enabled);
     }
 
     void TUI::AbstractWidget::setStyle(uint8_t status, const Renderer::Style &style) {
@@ -883,6 +896,14 @@ namespace Tiny {
         return _status_flag.test(F_Enabled);
     }
 
+    bool TUI::AbstractWidget::checkable() const {
+        return _status_flag.test(F_Checkable);
+    }
+
+    bool TUI::AbstractWidget::checked() const {
+        return _status_flag.test(F_Checked);
+    }
+
     bool TUI::AbstractWidget::visible() const {
         return _status_flag.test(F_Visible);
     }
@@ -898,13 +919,40 @@ namespace Tiny {
         return SizePolicy::Ignored;
     }
 
+    bool TUI::AbstractWidget::mouseTracingEnabled() const {
+        return _status_flag.test(F_MouseTracing);
+    }
+
     TUI::Renderer::Style TUI::AbstractWidget::style(uint8_t status) const {
         if (status >= _styles.size()) return {};
         return _styles[status];
     }
 
     void TUI::AbstractWidget::onEvent(const AbstractEvent &event) {
-        if (visible()) renderEvent(Renderer::self());
+        renderEvent(Renderer::self());
+        if (!enabled() || !visible()) return;
+        if (event.hash() == typeid(UserInputEvent).hash_code()) {
+            const InputEvent& in_event = dynamic_cast<const UserInputEvent&>(event).inputEvent();
+            auto& input = in_event.input;
+            switch (in_event.type) {
+                case InputEvent::K:
+                    keyEvent(input.keyboard);
+                    if (focus() && input.keyboard.is_pressed && KEY_CONFIRM(input.keyboard.key)) {
+                        clickedEvent();
+                    }
+                    break;
+                case InputEvent::M:
+                    if (!mouseTracingEnabled()) break;
+                    setFocus(isPointInRect(input.mouse.position, position(), size()));
+                    if (input.mouse.is_pressed && input.mouse.button == MOUSE_LEFT_BUTTON) {
+                        mouseEvent(input.mouse);
+                        if (focus()) clickedEvent();
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
     }
 
     void TUI::AbstractWidget::onResizedTermSize(const Size &size) {
@@ -912,21 +960,6 @@ namespace Tiny {
     }
     void TUI::AbstractWidget::onObjectNameChanged() {}
     void TUI::AbstractWidget::onParentChanged() {}
-
-    void TUI::AbstractWidget::execEvent(const UserInputEvent& event) {
-        auto ev = event.inputEvent();
-        if (ev.type == InputEvent::Keyboard) {
-            keyEvent(ev.input.keyboard);
-            if (ev.input.keyboard.is_pressed) clickedEvent();
-        }
-        else if (ev.type == InputEvent::Mouse) {
-            mouseEvent(ev.input.mouse);
-            if (ev.input.mouse.button == SP_MOUSE_LEFT_BUTTON) {
-                _status_flag.set(F_Style + S_Pressed, ev.input.mouse.is_pressed);
-                if (ev.input.mouse.is_pressed) clickedEvent();
-            }
-        }
-    }
 
     void TUI::AbstractWidget::callDrawEvent() {
         if (_status_flag.test(1)) renderEvent(Renderer::self());
@@ -938,10 +971,30 @@ namespace Tiny {
     }
 
     const TUI::Renderer::Style & TUI::AbstractWidget::currentStyle() const {
-        for (uint8_t i = 0; i < _styles.size(); i++) {
+        for (int i = 0; i < _styles.size(); i++) {
             if (_status_flag.test(F_Style + i)) return _styles[i];
         }
         return _styles[0];
+    }
+
+    void TUI::AbstractWidget::initStatus() {
+        _styles[S_Normal].intensity = 2;
+        _styles[S_Active].intensity = 1;
+        _styles[S_Active].bg_color = Color::Blue;
+        _styles[S_Disabled].intensity = 1;
+        _styles[S_Disabled].property |= Renderer::Style::Reverse;
+        _styles[S_Checked].intensity = 3;
+        _styles[S_Checked].property |= Renderer::Style::Bolder;
+        _status_flag.set(F_Enabled, true);
+        _status_flag.set(F_Visible, true);
+        _status_flag.set(F_SizePolicy, true);
+        _status_flag.set(F_Style + S_Normal, true);
+    }
+
+    void TUI::AbstractWidget::resetStyleStatus() {
+        for (int i = 0; i < _styles.size(); ++i) {
+            _status_flag.reset(F_Style + i);
+        }
     }
 
     TUI::AbstractLayout::AbstractLayout(const std::string &name) : _name(name) {
@@ -1088,34 +1141,57 @@ namespace Tiny {
     }
 
     void TUI::AbstractLayout::calcSize() {
-
+        /// TODO: How to calculate size?
     }
 
-    TUI::TestWidget::TestWidget(const std::string &name, const Position &position, const Size &size, Object *parent)
-            : AbstractWidget(name, position, size, typeid(TUI::TestWidget), parent) {}
-
-    void TUI::TestWidget::onEvent(const AbstractEvent &event) {
-        AbstractWidget::onEvent(event);
+    TUI::CurBlock::CurBlock(const std::string &name, Object *parent)
+            : AbstractWidget(name, {}, {}, typeid(CurBlock), parent) {
+        setMinimumSize(1, 1);
+        setMaximumSize(1, 1);
+        setMouseTracingEnabled(true);
+        auto st = style(S_Normal);
+        st.fg_color = Color::Magenta;
+        st.bg_color = Color::Yellow;
+        st.intensity = 3;
+        setStyle(S_Normal, st);
     }
 
-    void TUI::TestWidget::onResizedTermSize(const Size &size) {
+    void TUI::CurBlock::onEvent(const AbstractEvent &event) {
+        if (event.hash() != typeid(UserInputEvent).hash_code()) return;
+        const auto& ev = dynamic_cast<const UserInputEvent&>(event).inputEvent();
+        if (ev.type != InputEvent::M) return;
+        mouseEvent(ev.input.mouse);
+        renderEvent(Renderer::self());
+    }
+
+    void TUI::CurBlock::onResizedTermSize(const Size &size) {
         AbstractWidget::onResizedTermSize(size);
     }
 
-    void TUI::TestWidget::renderEvent(Renderer &renderer) {
-        Position end_pos = { position().row + size().height - 1, position().column + size().width - 1 };
-        renderer.fillRect(position(), end_pos, '*');
+    void TUI::CurBlock::renderEvent(Renderer &renderer) {
+        renderer.setStyle(position(), style(S_Normal));
     }
+    void TUI::CurBlock::resizeEvent(uint32_t width, uint32_t height) {}
+    void TUI::CurBlock::moveEvent(uint32_t x, uint32_t y) {}
+    void TUI::CurBlock::keyEvent(KeyEvent keyboard) {}
+    void TUI::CurBlock::mouseEvent(MouseEvent mouse) {
+        if (mouse.position == position()) return;
+        Renderer::self().setStyle(position(), {});
+        move(mouse.position);
+    }
+    void TUI::CurBlock::focusEvent(bool focus) {}
+    void TUI::CurBlock::enableEvent(bool enable) {}
+    void TUI::CurBlock::clickedEvent() {}
 
-    TUI::Label::Label(const std::string &name, const Position &position, Object* parent)
-            : AbstractWidget(name, position, {}, typeid(TUI::Label), parent), _text(name) {
+    TUI::Label::Label(const std::string &text, const Position &position, Object* parent)
+            : AbstractWidget(text, position, {}, typeid(TUI::Label), parent), _text(text) {
         setMinimumSize(8, 1);
         _status_flag.set(10, true);
         calcAutoSize();
     }
 
-    TUI::Label::Label(const std::string &name, const Position &position, const Size &size, Object* parent)
-            : AbstractWidget(name, position, size, typeid(TUI::Label), parent), _text(name) {
+    TUI::Label::Label(const std::string &text, const Position &position, const Size &size, Object* parent)
+            : AbstractWidget(text, position, size, typeid(TUI::Label), parent), _text(text) {
         setMinimumSize(8, 1);
         if (size.width < 8 || size.height < 1) resizeWithoutCalledEvent(8, 1);
         calcDisplaySize();
@@ -1158,21 +1234,9 @@ namespace Tiny {
         return Alignment::LeftTop;
     }
 
-    void TUI::Label::onEvent(const AbstractEvent &event) {
-        AbstractWidget::onEvent(event);
-    }
-
     void TUI::Label::onResizedTermSize(const Size &size) {
         if (autoSizeEnabled()) calcAutoSize(); else calcDisplaySize();
         AbstractWidget::onResizedTermSize(size);
-    }
-
-    void TUI::Label::onObjectNameChanged() {
-        AbstractWidget::onObjectNameChanged();
-    }
-
-    void TUI::Label::onParentChanged() {
-        AbstractWidget::onParentChanged();
     }
 
     void TUI::Label::renderEvent(Renderer &renderer) {
@@ -1182,7 +1246,7 @@ namespace Tiny {
         }
         Position end_pos = position().calcEndPos(size());
         renderer.fillRect(position(), end_pos, ' ', currentStyle());
-        renderer.setSSF(_text_pos, _dis_text.c_str(), currentStyle());
+        if (visible()) renderer.setSSF(_text_pos, _dis_text.c_str(), currentStyle());
     }
 
     void TUI::Label::resizeEvent(uint32_t w, uint32_t h) {
@@ -1200,21 +1264,13 @@ namespace Tiny {
             calcDisplaySize();
         }
     }
-
-    void TUI::Label::keyEvent(KeyEvent) {
-    }
-
-    void TUI::Label::mouseEvent(MouseEvent) {
-    }
-
-    void TUI::Label::focusEvent(bool) {
-    }
-
+    void TUI::Label::keyEvent(KeyEvent) {}
+    void TUI::Label::mouseEvent(MouseEvent) {}
+    void TUI::Label::focusEvent(bool) {}
     void TUI::Label::enableEvent(bool) {
+        renderEvent(Renderer::self());
     }
-
-    void TUI::Label::clickedEvent() {
-    }
+    void TUI::Label::clickedEvent() {}
 
     void TUI::Label::calcAutoSize() {
         resizeWithoutCalledEvent(_text_size, 1);
@@ -1293,7 +1349,149 @@ namespace Tiny {
         }
     }
 
+    TUI::Button::Button(const std::string &name, const Position &position, Object *parent)
+            : Label(name, position, parent) {
+        setMouseTracingEnabled(true);
+    }
 
+    TUI::Button::Button(const std::string &name, const Position &position, const Size &size, Object *parent)
+            : Label(name, position, size, parent) {
+        setMouseTracingEnabled(true);
+    }
+
+    void TUI::Button::setClickedEvent(const std::function<void()> &event) {
+        _clicked_event = event;
+    }
+
+    void TUI::Button::unsetClickedEvent() {
+        _clicked_event = {};
+    }
+
+    void TUI::Button::moveEvent(uint32_t x, uint32_t y) {
+        Label::moveEvent(x, y);
+        setFocus(isPointInRect({x, y}, position(), size()));
+    }
+
+    void TUI::Button::clickedEvent() {
+        if (_clicked_event) _clicked_event();
+    }
+
+    TUI::LineEdit::LineEdit(const std::string &name, const Position &position, uint32_t width, Object *parent)
+            : AbstractWidget(name, position, {width, 1}, typeid(LineEdit), parent) {
+        setMinimumSize(8, 1);
+        setMaximumSize(INT_MAX, 1);
+    }
+
+    void TUI::LineEdit::setText(const std::string &text) {
+        _text = text;
+        calcDisplayText();
+    }
+
+    void TUI::LineEdit::setText(const char *text) {
+        _text = text;
+        calcDisplayText();
+    }
+
+    void TUI::LineEdit::appendText(const char *text) {
+        _text += text;
+        calcDisplayText();
+    }
+
+    void TUI::LineEdit::appendText(const std::string &text) {
+        _text += text;
+        calcDisplayText();
+    }
+
+    void TUI::LineEdit::clear() {
+        _text.clear();
+        calcDisplayText();
+    }
+
+    void TUI::LineEdit::setMinimumLength(uint16_t size) {
+        _min_length = size;
+    }
+
+    void TUI::LineEdit::setMaximumLength(uint16_t size) {
+        _max_length = size;
+    }
+
+    void TUI::LineEdit::setPlaceHolderText(const std::string &text) {
+        _placeholder = text;
+    }
+
+    void TUI::LineEdit::setPlaceHolderText(const char *text) {
+        _placeholder = text;
+    }
+
+    void TUI::LineEdit::setEchoMode(EchoMode mode) {
+        _echo_mode = mode;
+    }
+
+    void TUI::LineEdit::setEchoPassChar(const Char& ch) {
+        _echo_pass = ch;
+    }
+
+    void TUI::LineEdit::setTextAlignment(TextAlignment alignment) {
+        _text_alignment = alignment;
+    }
+
+    const std::string & TUI::LineEdit::text() const {
+        return _text;
+    }
+
+    uint16_t TUI::LineEdit::minimumLength() const {
+        return _min_length;
+    }
+
+    uint16_t TUI::LineEdit::maximumLength() const {
+        return _max_length;
+    }
+
+    TUI::LineEdit::EchoMode TUI::LineEdit::echoMode() const {
+        return _echo_mode;
+    }
+
+    const TUI::Char & TUI::LineEdit::echoPassChar() const {
+        return _echo_pass;
+    }
+
+    TUI::TextAlignment TUI::LineEdit::textAlignment() const {
+        return _text_alignment;
+    }
+
+    void TUI::LineEdit::onResizedTermSize(const Size &size) {
+        AbstractWidget::onResizedTermSize(size);
+    }
+
+    void TUI::LineEdit::renderEvent(Renderer &renderer) {
+        Position end_pos = position().calcEndPos(size());
+        renderer.fillRect(position(), end_pos, ' ', currentStyle());
+        if (visible()) renderer.setSSF(_text_pos, _dis_text.c_str(), currentStyle());
+    }
+
+    void TUI::LineEdit::resizeEvent(uint32_t width, uint32_t) {
+        AbstractWidget::resizeWithoutCalledEvent(width, 1);
+        calcDisplaySize();
+        calcDisplayText();
+    }
+    void TUI::LineEdit::moveEvent(uint32_t x, uint32_t y) {}
+    void TUI::LineEdit::keyEvent(KeyEvent keyboard) {}
+    void TUI::LineEdit::mouseEvent(MouseEvent mouse) {}
+    void TUI::LineEdit::focusEvent(bool focus) {}
+    void TUI::LineEdit::enableEvent(bool enable) {}
+    void TUI::LineEdit::clickedEvent() {}
+
+    void TUI::LineEdit::textChangedEvent() {
+    }
+
+    void TUI::LineEdit::echoModeChangedEvent() {
+    }
+
+    void TUI::LineEdit::calcDisplaySize() {
+    }
+
+    void TUI::LineEdit::calcDisplayText() {
+    }
 }
 
 /*************************************************************************************

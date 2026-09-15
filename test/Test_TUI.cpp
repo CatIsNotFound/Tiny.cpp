@@ -5,34 +5,34 @@ using namespace TUI;
 
 
 int main(int argc, char *argv[]) {
+    OS::exec("cmd.exe /c chcp 65001");
     Application app;
-    Label label_1("l1", {2, 10}, {8, 3});
-    Label label_2("l2", {2, 20}, {8, 3});
-    Label label_3("l3", {2, 30}, {8, 3});
-    Label label_4("l4", {6, 10}, {8, 3});
-    Label label_5("l5", {6, 20}, {8, 3});
-    Label label_6("l6", {6, 30}, {8, 3});
-    Label label_7("l7", {10, 10}, {8, 3});
-    Label label_8("l8", {10, 20}, {8, 3});
-    Label label_9("l9", {10, 30}, {8, 3});
-    label_1.setFocus(true);
-    // label_2.setFocus(true);
-    label_3.setFocus(true);
-    // label_4.setFocus(true);
-    label_5.setFocus(true);
-    // label_6.setFocus(true);
-    label_7.setFocus(true);
-    // label_8.setFocus(true);
-    label_9.setFocus(true);
-    label_1.setAlignment(Alignment::LeftTop);
-    label_2.setAlignment(Alignment::CenterTop);
-    label_3.setAlignment(Alignment::RightTop);
-    label_4.setAlignment(Alignment::Left);
-    label_5.setAlignment(Alignment::Center);
-    label_6.setAlignment(Alignment::Right);
-    label_7.setAlignment(Alignment::LeftBottom);
-    label_8.setAlignment(Alignment::CenterBottom);
-    label_9.setAlignment(Alignment::RightBottom);
+    std::vector<std::unique_ptr<Button>> btn;
+    btn.reserve(10);
+
+    for (int i = 0; i < 9; ++i) {
+        btn.emplace_back(new Button("Btn " + std::to_string(i + 1),
+            {static_cast<uint32_t>(5 * (i / 3) + 2), static_cast<uint32_t>(11 * (i % 3) + 2) },
+            {9, 3}));
+        btn.back()->setAlignment(static_cast<Alignment>(i));
+        btn.back()->setEnabled(i % 2);
+    }
+
+    Label label("label", {}, {40, 1});
+    Label mouse_label("LM", {1, 0});
+    mouse_label.setText("TR");
+    label.setText("Please click one of the buttons!");
+    CurBlock cur_block("cursor");
+    auto start = DT::currentTimestamps();
+    auto clicked = [&label, &btn, &start] {
+        label.setText(DT::formatTime("Clicke\\d at HH:mm:ss.SSS", DT::currentTimestamps() - start));
+        for (auto& bt : btn) {
+            bt->setEnabled(!bt->enabled());
+        }
+    };
+    for (auto& bt : btn) {
+        bt->setClickedEvent(clicked);
+    }
     return app.run();
 }
 

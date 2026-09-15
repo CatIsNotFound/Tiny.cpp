@@ -832,7 +832,6 @@ namespace Tiny {
         memory.free_swap = mem_info_ex.ullAvailPageFile;
 #elif defined(TINY_CPP_MY_OS_UNIX)
 #ifdef __APPLE__
-        // TODO:
         vm_size_t page_size = 0;
         host_page_size(mach_host_self(), &page_size);
         memory.total_ram = page_size * sysconf(_SC_PHYS_PAGES);

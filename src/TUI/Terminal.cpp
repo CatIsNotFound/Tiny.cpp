@@ -338,14 +338,17 @@ namespace Tiny {
         }
     }
 
-    bool TUI::isPointInRect(const Position &point, Position &start_pos, Position &end_pos) {
+    bool TUI::isPointInRect(const Position &point, const Position &start_pos, const Position &end_pos) {
+        Position st{start_pos}, ed{end_pos};
         if (start_pos.compare(end_pos) == -1) {
-            auto t = start_pos;
-            start_pos = end_pos;
-            end_pos = t;
+            st.swap(ed);
         }
-        return (point.row >= start_pos.row && point.row <= end_pos.row) && 
-               (point.column >= start_pos.column && point.column <= end_pos.column);
+        return (point.row >= st.row && point.row <= ed.row) &&
+               (point.column >= st.column && point.column <= ed.column);
+    }
+
+    bool TUI::isPointInRect(const Position &point, const Position &start_pos, const Size &size) {
+        return isPointInRect(point, start_pos, start_pos.calcEndPos(size));
     }
 
 #ifdef TINY_CPP_MY_OS_UNIX
@@ -1928,8 +1931,8 @@ namespace Tiny {
         // X10 Mode
         if (buf.size() > 2 && buf[2] == 'M') {
             ev_type = buf[3] - 32;
-            row = buf[4] - 32;
-            col = buf[5] - 32;
+            col = buf[4] - 32;
+            row = buf[5] - 32;
             mouse.is_pressed = (ev_type != 3);
         } else {
             // SGR Mode

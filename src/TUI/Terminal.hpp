@@ -140,6 +140,13 @@ namespace Tiny {
                 }
                 return -1;
             }
+            void swap(Position& other) noexcept {
+                auto temp = other;
+                other.row = row;
+                other.column = column;
+                row = temp.row;
+                column = temp.column;
+            }
 
             Position& operator+(const Position& other) {
                 row += other.row;
@@ -246,6 +253,8 @@ namespace Tiny {
 
         constexpr bool KEY_BACKSPACE(uint8_t key) { return key == KEY_BK || key == KEY_DEL; }
         constexpr bool KEY_ENTER(uint8_t key)     { return key == KEY_CR || key == KEY_LF; }
+        constexpr bool KEY_CONFIRM(uint8_t key)   { return key == KEY_SPACE || key == KEY_CR || key == KEY_LF; }
+        constexpr bool KEY_CANCEL(uint8_t key)    { return key == KEY_BK || key == KEY_DEL || key == KEY_ESC; }
 
         enum SP_Keys : uint8_t {
             SP_KEY_UNKNOWN,
@@ -284,18 +293,27 @@ namespace Tiny {
 
         enum SP_Mouse : uint8_t {
             SP_MOUSE_UNKNOWN,
+            MOUSE_UNKNOWN = 0,
             SP_MOUSE_LEFT_BUTTON,
+            MOUSE_LEFT_BUTTON = 1,
             SP_MOUSE_MIDDLE_BUTTON,
+            MOUSE_MIDDLE_BUTTON = 2,
             SP_MOUSE_RIGHT_BUTTON,
+            MOUSE_RIGHT_BUTTON = 3,
             SP_MOUSE_WHEEL_UP,
+            MOUSE_WHEEL_UP = 4,
             SP_MOUSE_WHEEL_DOWN,
+            MOUSE_WHEEL_DOWN = 5,
             SP_MOUSE_MOVED,
-            SP_MOUSE_RELEASE
+            MOUSE_MOVED = 6,
+            SP_MOUSE_RELEASE,
+            MOUSE_RELEASE = 7
         };
 
         const char* getKeyName(const uint8_t &KEY, const SP_Keys &SP);
         const char* getMouseName(const SP_Mouse &SP);
-        bool   isPointInRect(const Position& point, Position& start_pos, Position& end_pos);
+        bool   isPointInRect(const Position& point, const Position &start_pos, const Position &end_pos);
+        bool   isPointInRect(const Position& point, const Position& start_pos, const Size& size);
 
         struct InputEvent {
             enum Type : uint8_t {
