@@ -74,7 +74,9 @@ namespace Tiny {
         size_t calcStrDisplayWidth(const std::string& str);
         std::string splitFront(const char* data);
         std::vector<std::string> splitUTF8(const char* data, size_t *display_size = nullptr);
+        size_t calcDisplaySize(const std::string& str);
         std::string subUTF8(const char* data, size_t display_count, size_t offset = 0);
+        size_t lastCharCount(const std::string& buf);
     }
 
     namespace TUI {

@@ -141,6 +141,25 @@ namespace Tiny {
         return result;
     }
 
+    size_t Code::calcDisplaySize(const std::string &str) {
+        size_t display_size = 0;
+        auto data = str.data();
+        while (*data) {
+            uint8_t ch = *data;
+            if ((ch & 0xE0) == 0xc0) {
+                data += 2;
+            } else if ((ch & 0xF0) == 0xE0) {
+                data += 3;
+            } else if ((ch & 0xF8) == 0xF0) {
+                data += 4;
+            } else {
+                data++;
+            }
+            display_size += calcStrDisplayWidth(str);
+        }
+        return display_size;
+    }
+
     std::string Code::subUTF8(const char* data, size_t display_count, size_t offset) {
         if (!data || display_count == 0) return {};
         std::string result;
@@ -174,6 +193,36 @@ namespace Tiny {
             }
         }
         return result;
+    }
+
+    size_t Code::lastCharCount(const std::string &buf) {
+        if (buf.empty()) return 0;
+        auto esc_pos = buf.rfind('\x1b');
+        static auto is_csi = [](char c) -> bool {
+            const auto& U = static_cast<uint8_t>(c);
+            return U >= 0x40 && U <= 0x7e;
+        };
+        if (esc_pos != std::string::npos) {
+            size_t dis = buf.size() - esc_pos;
+            if (dis >= 3 && buf[esc_pos + 1] == '[') {
+                size_t i = 3;   // find end of csi char.
+                size_t t = 0;
+                do {
+                    t = esc_pos + i;
+                    if (is_csi(buf[t])) break;
+                } while (++i < dis && t < buf.size());
+                if (esc_pos + i == buf.size() - 1) return i;
+            }
+        }
+        size_t cnt = 0;
+        for (size_t i = buf.size() - 1; ; --i) {
+            cnt++;
+            if ((static_cast<uint8_t>(buf[i]) & 0xc0) != 0x80) {
+                break;
+            }
+            if (i == 0) break;
+        }
+        return cnt;
     }
 }
 
@@ -1659,7 +1708,7 @@ namespace Tiny {
         std::string buf(preread_cnt, '\0');
         ssize_t read_cnt = 0;
         
-        read_cnt = read(fd, &buf[0], preread_cnt);
+        read_cnt = ::read(fd, &buf[0], preread_cnt);
         _temp_buffers.insert(_temp_buffers.end(), buf.begin(), buf.begin() + read_cnt);
         
         return true;
@@ -1741,7 +1790,7 @@ namespace Tiny {
         internal.tv_usec = (delay % 1000) * 1000;
         auto ret = select(fd + 1, &sets, nullptr, nullptr, &internal);
         if (ret == -1) return -1;
-        return read(fd, buffer, size);
+        return ::read(fd, buffer, size);
     }
 
     ssize_t TUI::Terminal::writeAfterDelay(int fd, void* buffer, size_t size, size_t delay) {

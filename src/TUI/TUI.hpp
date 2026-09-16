@@ -683,6 +683,7 @@ namespace Tiny {
             const Char& echoPassChar() const;
             TextAlignment textAlignment() const;
         protected:
+            void onEvent(const AbstractEvent &event) override;
             void onResizedTermSize(const Size &size) override;
             void renderEvent(Renderer &renderer) override;
             void resizeEvent(uint32_t width, uint32_t height) override;
@@ -692,6 +693,8 @@ namespace Tiny {
             void focusEvent(bool focus) override;
             void enableEvent(bool enable) override;
             void clickedEvent() override;
+            virtual void editTextEvent();
+            virtual void endEditEvent();
             virtual void textChangedEvent();
             virtual void echoModeChangedEvent();
 
@@ -703,7 +706,7 @@ namespace Tiny {
             Position _text_pos{};
             EchoMode _echo_mode{EchoMode::Normal};
             TextAlignment _text_alignment{TextAlignment::Left};
-            uint16_t _max_length{UINT16_MAX}, _min_length{};
+            uint16_t _max_length{UINT16_MAX}, _min_length{}, _dis_text_length{};
         };
     }
 }

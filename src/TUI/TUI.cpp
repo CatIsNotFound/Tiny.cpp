@@ -38,6 +38,7 @@
 #include <clocale>
 #include <cwchar>
 #include <climits>
+#include <cstring>
 #include <unistd.h>
 #endif
 
@@ -59,6 +60,161 @@ namespace Misc {
 }
 
 namespace Tiny {
+    static void editText(std::string* destination, TUI::Position start_pos, uint8_t size) {
+        if (!destination) return;
+        std::string result;
+        if (destination) result.assign(destination->begin(), destination->end());
+        TUI::Terminal::moveCursor(start_pos);
+        while (size--) TUI::Terminal::print(' ');
+        TUI::Terminal::moveCursor(start_pos);
+        TUI::Terminal::print(*destination);
+        TUI::Terminal::moveCursor(start_pos);
+        std::vector<std::string> text_buffer;
+        size_t read_bytes = 0, dis_sum = 0;
+        size_t cur_pos = 0, cur_text_pos = 0;
+        do {
+            std::string temp;
+#ifdef TINY_CPP_MY_OS_WINDOWS
+            HANDLE input_handle = GetStdHandle(STD_INPUT_HANDLE);
+            INPUT_RECORD input_record;
+            DWORD r_bytes{};
+            bool is_read{};
+            while (!is_read) {
+                ReadConsoleInputW(input_handle, &input_record, 1, &r_bytes);
+                if (input_record.EventType != KEY_EVENT) {
+                    if (is_read) break;
+                    continue;
+                }
+                if (!input_record.Event.KeyEvent.bKeyDown) continue;
+                auto& asc_ch = input_record.Event.KeyEvent.uChar.AsciiChar;
+                if (asc_ch == '\n' || asc_ch == '\r') {
+                    temp = "\n";
+                    break;
+                }
+                auto v_keycode = input_record.Event.KeyEvent.wVirtualKeyCode;
+                bool is_v_key = false;
+                switch (v_keycode) {
+                    case VK_HOME:
+                        is_v_key = true;
+                        temp += "\x1b[H";
+                        break;
+                    case VK_END:
+                        is_v_key = true;
+                        temp += "\x1b[F";
+                        break;
+                    case VK_LEFT:
+                        is_v_key = true;
+                        temp += "\x1b[D";
+                        break;
+                    case VK_RIGHT:
+                        is_v_key = true;
+                        temp += "\x1b[C";
+                        break;
+                    default:
+                        break;
+                }
+                if (is_v_key) break;
+                is_read = true;
+                wchar_t wc[2] = {input_record.Event.KeyEvent.uChar.UnicodeChar, 0};
+                temp.append(Code::wide2String(wc));
+            }
+#else
+            char t[64]{};
+            read_bytes = ::read(STDIN_FILENO, t, 64);
+            temp.assign(t, read_bytes);
+#endif
+            read_bytes = temp.length();
+            if (read_bytes < 0) break;
+            if (TUI::KEY_ENTER(temp[0])) {
+                break;
+            } else if (TUI::KEY_BACKSPACE(temp[0])) {
+                if (!result.empty()) {
+                    size_t ori_length = result.size();
+                    size_t del_length = Code::lastCharCount(result.substr(0, cur_text_pos));
+                    char t[8]{};
+                    size_t d = 0, s = cur_text_pos - del_length;
+                    do {
+                        t[d] = result[s + d];
+                    } while (++d < del_length);
+                    auto dis_len = wcwidth(*Code::string2Wide(t).c_str());
+                    dis_sum -= dis_len;
+                    if (cur_text_pos >= ori_length) {
+                        result = result.substr(0, ori_length - del_length);
+                    } else {
+                        result = result.substr(0, cur_text_pos - del_length) + result.substr(cur_text_pos);
+                    }
+                    cur_text_pos -= del_length;
+                    size_t ret = cur_pos - dis_len;
+                    cur_pos = (cur_pos < ret) ? cur_pos : ret;
+                    TUI::Terminal::moveCursor(start_pos);
+                    auto cover = std::string(ori_length, ' ');
+                    TUI::Terminal::print(cover);
+                    TUI::Terminal::moveCursor(start_pos);
+                    TUI::Terminal::print(result);
+                    TUI::Terminal::moveCursor({start_pos.row, start_pos.column + static_cast<uint32_t>(cur_pos)});
+                }
+            } else if (temp[0] != '\x1b') {
+                bool insert_mode = (cur_text_pos < result.size());
+                if (!insert_mode) {
+                    result += temp;
+                    TUI::Terminal::print(temp);
+                } else {
+                    result.insert(cur_text_pos, temp);
+                    auto insert_data = result.substr(cur_text_pos);
+                    // write(STDOUT_FILENO, insert_data.data(), insert_data.size());
+                    TUI::Terminal::print(insert_data);
+                }
+                cur_text_pos += read_bytes;
+                if (read_bytes > 1) {
+                    size_t dis_size{};
+                    Code::splitUTF8(temp.data(), &dis_size);
+                    cur_pos += dis_size;
+                    dis_sum += dis_size;
+                } else {
+                    cur_pos += 1;
+                    dis_sum += 1;
+                }
+                if (insert_mode) {
+                    TUI::Terminal::moveCursor({start_pos.row, start_pos.column + static_cast<uint32_t>(cur_pos)});
+                }
+            } else if (strcmp(temp.data(), "\x1b[D") == 0) {  // Press Left key
+                if (cur_text_pos == 0) continue;
+                size_t mov_length = Code::lastCharCount(result.substr(0, cur_text_pos));
+                char t[8]{};
+                size_t d = 0, s = cur_text_pos - mov_length;
+                do {
+                    t[d] = result[s + d];
+                } while (++d < mov_length);
+                auto dis_len = wcwidth(*Code::string2Wide(t).c_str());
+                cur_text_pos -= mov_length;
+                cur_pos -= dis_len;
+                TUI::Terminal::moveLeftCursor(dis_len);
+            } else if (strcmp(temp.data(), "\x1b[C") == 0) {  // Press Right key
+                if (cur_text_pos == result.size()) continue;
+                size_t mov_length = Code::splitFront(result.substr(cur_text_pos).c_str()).size();
+                char t[8]{};
+                size_t d = 0;
+                do {
+                    t[d] = result[cur_text_pos + d];
+                } while (++d < mov_length);
+                auto dis_len = wcwidth(*Code::string2Wide(t).c_str());
+                cur_text_pos += mov_length;
+                cur_pos += dis_len;
+                TUI::Terminal::moveRightCursor(dis_len);
+            } else if (strcmp(temp.data(), "\x1b[H") == 0) {  // Press Home key
+                cur_text_pos = 0;
+                cur_pos = 0;
+                TUI::Terminal::moveCursor(start_pos);
+            } else if (strcmp(temp.data(), "\x1b[F") == 0) {  // Press End key
+                cur_text_pos = result.size();
+                cur_pos = dis_sum;
+                TUI::Terminal::moveCursor({start_pos.row, start_pos.column + static_cast<uint32_t>(cur_pos)});
+            }
+        } while (read_bytes > 0);
+
+        if (destination) destination->assign(result.begin(), result.end());
+    }
+
     static TUI::Application* globalApp{};
 
     TUI::Char::Char(const char *data) : _data(Code::splitFront(data)), _length(Code::calcStrDisplayWidth(_data)) {}
@@ -1380,6 +1536,7 @@ namespace Tiny {
             : AbstractWidget(name, position, {width, 1}, typeid(LineEdit), parent) {
         setMinimumSize(8, 1);
         setMaximumSize(INT_MAX, 1);
+        setMouseTracingEnabled(true);
     }
 
     void TUI::LineEdit::setText(const std::string &text) {
@@ -1413,26 +1570,32 @@ namespace Tiny {
 
     void TUI::LineEdit::setMaximumLength(uint16_t size) {
         _max_length = size;
+        calcDisplayText();
     }
 
     void TUI::LineEdit::setPlaceHolderText(const std::string &text) {
         _placeholder = text;
+        calcDisplayText();
     }
 
     void TUI::LineEdit::setPlaceHolderText(const char *text) {
         _placeholder = text;
+        calcDisplayText();
     }
 
     void TUI::LineEdit::setEchoMode(EchoMode mode) {
         _echo_mode = mode;
+        calcDisplayText();
     }
 
     void TUI::LineEdit::setEchoPassChar(const Char& ch) {
         _echo_pass = ch;
+        calcDisplayText();
     }
 
     void TUI::LineEdit::setTextAlignment(TextAlignment alignment) {
         _text_alignment = alignment;
+        calcDisplayText();
     }
 
     const std::string & TUI::LineEdit::text() const {
@@ -1459,6 +1622,31 @@ namespace Tiny {
         return _text_alignment;
     }
 
+    void TUI::LineEdit::onEvent(const AbstractEvent &event) {
+        if (!enabled()) return;
+        if (event.hash() == typeid(UserInputEvent).hash_code()) {
+            const InputEvent& in_event = dynamic_cast<const UserInputEvent&>(event).inputEvent();
+            auto& input = in_event.input;
+            switch (in_event.type) {
+                case InputEvent::K:
+                    if (focus() && input.keyboard.is_pressed && KEY_CONFIRM(input.keyboard.key)) {
+                        editTextEvent();
+                    }
+                    break;
+                case InputEvent::M:
+                    if (!mouseTracingEnabled()) break;
+                    setFocus(isPointInRect(input.mouse.position, position(), size()));
+                    if (input.mouse.is_pressed && input.mouse.button == MOUSE_LEFT_BUTTON) {
+                        if (focus()) editTextEvent();
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+        renderEvent(Renderer::self());
+    }
+
     void TUI::LineEdit::onResizedTermSize(const Size &size) {
         AbstractWidget::onResizedTermSize(size);
     }
@@ -1471,7 +1659,6 @@ namespace Tiny {
 
     void TUI::LineEdit::resizeEvent(uint32_t width, uint32_t) {
         AbstractWidget::resizeWithoutCalledEvent(width, 1);
-        calcDisplaySize();
         calcDisplayText();
     }
     void TUI::LineEdit::moveEvent(uint32_t x, uint32_t y) {}
@@ -1481,16 +1668,59 @@ namespace Tiny {
     void TUI::LineEdit::enableEvent(bool enable) {}
     void TUI::LineEdit::clickedEvent() {}
 
-    void TUI::LineEdit::textChangedEvent() {
+    void TUI::LineEdit::editTextEvent() {
+        Terminal::moveCursor(position());
+        Terminal::setCursorVisible(true);
+        editText(&_text, position(), size().width);
+        size_t new_len = Code::calcDisplaySize(_text);
+        if (new_len > _max_length) {
+            _text = Code::subUTF8(_text.data(), _max_length);
+        }
+        Terminal::setCursorVisible(false);
+        Terminal::clearScreen();
+        calcDisplayText();
     }
 
-    void TUI::LineEdit::echoModeChangedEvent() {
+    void TUI::LineEdit::endEditEvent() {
+        Terminal::setCursorVisible(false);
     }
 
-    void TUI::LineEdit::calcDisplaySize() {
-    }
-
+    void TUI::LineEdit::textChangedEvent() {}
+    void TUI::LineEdit::echoModeChangedEvent() {}
+    void TUI::LineEdit::calcDisplaySize() {}
     void TUI::LineEdit::calcDisplayText() {
+        if (_echo_mode == EchoMode::NoEcho) {
+            _dis_text.clear();
+            return;
+        }
+        if (_text.empty() ) {
+            _dis_text = Code::subUTF8(_placeholder.data(), size().width);
+            _dis_text_length = size().width;
+        } else {
+            _dis_text_length = Misc::min(static_cast<size_t>(size().width), Code::calcDisplaySize(_text));
+            if (_echo_mode == EchoMode::Normal) {
+                _dis_text = Code::subUTF8(_text.data(), _dis_text_length);
+            } else {
+                std::string buf;
+                buf.reserve(_dis_text_length);
+                for (uint16_t i = 0; i < _dis_text_length; ++i) {
+                    buf += _echo_pass.data();
+                }
+                _dis_text = Code::subUTF8(buf.data(), _dis_text_length);
+            }
+        }
+        _text_pos = position();
+        Position end_pos = position().calcEndPos(size());
+        switch (_text_alignment) {
+            case TextAlignment::Left:
+                break;
+            case TextAlignment::Center:
+                _text_pos.column += size().width / 2 - _dis_text.length() / 2;
+                break;
+            case TextAlignment::Right:
+                _text_pos.column += size().width - _dis_text.length();
+                break;
+        }
     }
 }
 
