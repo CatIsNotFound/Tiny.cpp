@@ -110,6 +110,13 @@ namespace Tiny {
                         is_v_key = true;
                         temp += "\x1b[C";
                         break;
+                    case VK_UP:
+                    case VK_DOWN:
+                    case VK_CONTROL:
+                    case VK_SHIFT:
+                    case VK_MENU:
+                        continue;
+                        break;
                     default:
                         break;
                 }
@@ -1515,7 +1522,7 @@ namespace Tiny {
         setMouseTracingEnabled(true);
     }
 
-    void TUI::Button::setClickedEvent(const std::function<void()> &event) {
+    void TUI::Button::setClickedEvent(const std::function<void(Button&)> &event) {
         _clicked_event = event;
     }
 
@@ -1529,7 +1536,7 @@ namespace Tiny {
     }
 
     void TUI::Button::clickedEvent() {
-        if (_clicked_event) _clicked_event();
+        if (_clicked_event) _clicked_event(*this);
     }
 
     TUI::LineEdit::LineEdit(const std::string &name, const Position &position, uint32_t width, Object *parent)

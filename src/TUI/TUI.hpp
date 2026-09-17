@@ -646,14 +646,14 @@ namespace Tiny {
             Button(const std::string& name, const Position& position, const Size& size, Object* parent = nullptr);
             ~Button() override = default;
 
-            void setClickedEvent(const std::function<void()>& event);
+            void setClickedEvent(const std::function<void(Button&)>& event);
             void unsetClickedEvent();
 
         protected:
             void moveEvent(uint32_t x, uint32_t y) override;
             void clickedEvent() override;
         private:
-            std::function<void()> _clicked_event{};
+            std::function<void(Button&)> _clicked_event{};
         };
 
         class LineEdit : public AbstractWidget {

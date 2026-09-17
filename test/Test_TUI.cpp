@@ -18,38 +18,38 @@ int main(int argc, char *argv[]) {
     alignment.setText("[  Alignment: Left  ]");
     LineEdit line_edit("line_edit", {1, 0}, 40);
     line_edit.setPlaceHolderText("Click here to edit...");
-    button.setClickedEvent([&line_edit] {
+    button.setClickedEvent([&line_edit](Button& button) {
         line_edit.clear();
     });
-    echo.setClickedEvent([&line_edit, &echo] {
+    echo.setClickedEvent([&line_edit](Button& button) {
         static uint8_t c = 1;
         c = (c + 1) % 3;
         line_edit.setEchoMode(static_cast<LineEdit::EchoMode>(c));
         switch (c) {
             case 0:
-                echo.setText("[  Echo: None  ]");
+                button.setText("[  Echo: None  ]");
                 break;
             case 1:
-                echo.setText("[ Echo: Normal ]");
+                button.setText("[ Echo: Normal ]");
                 break;
             case 2:
-                echo.setText("[Echo: Password]");
+                button.setText("[Echo: Password]");
                 break;
         }
     });
-    alignment.setClickedEvent([&line_edit, &alignment] {
+    alignment.setClickedEvent([&line_edit](Button& button) {
         static uint8_t c = 0;
         c = (c + 1) % 3;
         line_edit.setTextAlignment(static_cast<TextAlignment>(c));
         switch (c) {
         case 0:
-            alignment.setText("[  Alignment: Left   ]");
+            button.setText("[  Alignment: Left   ]");
             break;
         case 1:
-            alignment.setText("[  Alignment: Center ]");
+            button.setText("[  Alignment: Center ]");
             break;
         case 2:
-            alignment.setText("[  Alignment: Right  ]");
+            button.setText("[  Alignment: Right  ]");
             break;
         }
     });
