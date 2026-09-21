@@ -659,8 +659,8 @@ namespace Tiny {
             Button(const std::string& name, const Position& position, const Size& size, Object* parent = nullptr);
             ~Button() override = default;
 
-            void setClickedEvent(const std::function<void(Button&)>& event);
-            void unsetClickedEvent();
+            void setEvent(const std::function<void(Button&)>& event);
+            void unsetEvent();
 
         protected:
             void moveEvent(uint32_t x, uint32_t y) override;
@@ -721,13 +721,14 @@ namespace Tiny {
             uint16_t _max_length{UINT16_MAX}, _min_length{}, _dis_text_length{};
         };
 
+        enum class Orientation : uint8_t { Horizontal, H = 0, Vertical, V = 1 };
+
         class Slider : public AbstractWidget {
         public:
-            enum class Orientation : uint8_t { Horizontal, H = 0, Vertical, V = 1 };
             explicit Slider(const std::string& name, const Position& position, uint8_t width, Object* parent = nullptr);
             ~Slider() override = default;
 
-            void setMode(Orientation mode);
+            void setOrientation(Orientation mode);
             void setWidth(uint8_t width);
             void setMinimumValue(int value);
             void setMaximumValue(int value);
@@ -736,7 +737,11 @@ namespace Tiny {
             void setSingleStep(int value);
             void setPageStep(int value);
             void setInvertedEnabled(bool enable);
+            void setEvent(const std::function<void(int)>& event);
+            void unsetEvent();
 
+            Orientation orientation() const;
+            uint8_t width() const;
             int  minimumValue() const;
             int  maximumValue() const;
             int  value() const;
@@ -759,10 +764,47 @@ namespace Tiny {
             virtual void rangeChangedEvent();
 
         private:
-            void calcDisplaySize();
-            void calcSlider();
+            std::function<void(int)> _my_event{};
             int _min_value{}, _max_value{100}, _value{}, _single_step{1}, _page_step{10};
             uint32_t _slider_pos{};
+            Orientation _orientation{};
+            bool _inverted{};
+            uint8_t _width;
+        };
+
+        class ProgressBar : public AbstractWidget {
+        public:
+            explicit ProgressBar(const std::string& name, const Position& position, uint32_t width,
+                                 Object* parent = nullptr);
+            ~ProgressBar() override = default;
+
+            void setOrientation(Orientation mode);
+            void setWidth(uint8_t width);
+            void setValue(int value);
+            void appendValue(int value);
+            void setInvertedEnabled(bool enable);
+
+            Orientation orientation() const;
+            uint8_t width() const;
+            int value() const;
+            bool invertedEnabled() const;
+
+        protected:
+            void onEvent(const AbstractEvent &event) override;
+            void onResizedTermSize(const Size &size) override;
+            void renderEvent(Renderer &renderer) override;
+            void resizeEvent(uint32_t width, uint32_t height) override;
+            void moveEvent(uint32_t x, uint32_t y) override;
+            void keyEvent(KeyEvent keyboard) override;
+            void mouseEvent(MouseEvent mouse) override;
+            void focusEvent(bool focus) override;
+            void enableEvent(bool enable) override;
+            void clickedEvent() override;
+            virtual void valueChangedEvent();
+
+        private:
+            int _value{};
+            uint32_t _prg_pos{};
             Orientation _orientation{};
             bool _inverted{};
             uint8_t _width;

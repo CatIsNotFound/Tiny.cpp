@@ -1595,11 +1595,11 @@ namespace Tiny {
         setMouseTracingEnabled(true);
     }
 
-    void TUI::Button::setClickedEvent(const std::function<void(Button&)> &event) {
+    void TUI::Button::setEvent(const std::function<void(Button&)> &event) {
         _clicked_event = event;
     }
 
-    void TUI::Button::unsetClickedEvent() {
+    void TUI::Button::unsetEvent() {
         _clicked_event = {};
     }
 
@@ -1805,7 +1805,7 @@ namespace Tiny {
         setMaximumSize(width, 1);
     }
 
-    void TUI::Slider::setMode(Orientation mode) {
+    void TUI::Slider::setOrientation(Orientation mode) {
         _orientation = mode;
         setWidth(_width);
     }
@@ -1823,14 +1823,12 @@ namespace Tiny {
         _min_value = Misc::min(value, _max_value);
         _value = Misc::max(_value, _min_value);
         rangeChangedEvent();
-        calcDisplaySize();
     }
 
     void TUI::Slider::setMaximumValue(int value) {
         _max_value = Misc::max(value, _min_value);
         _value = Misc::min(_value, _max_value);
         rangeChangedEvent();
-        calcDisplaySize();
     }
 
     void TUI::Slider::setValue(int value) {
@@ -1853,7 +1851,23 @@ namespace Tiny {
 
     void TUI::Slider::setInvertedEnabled(bool enable) {
         _inverted = true;
-        calcDisplaySize();
+        renderEvent(Renderer::self());
+    }
+
+    void TUI::Slider::setEvent(const std::function<void(int)> &event) {
+        _my_event = event;
+    }
+
+    void TUI::Slider::unsetEvent() {
+        _my_event = nullptr;
+    }
+
+    TUI::Orientation TUI::Slider::orientation() const {
+        return _orientation;
+    }
+
+    uint8_t TUI::Slider::width() const {
+        return _width;
     }
 
     int TUI::Slider::minimumValue() const {
@@ -1889,7 +1903,6 @@ namespace Tiny {
     }
 
     void TUI::Slider::renderEvent(Renderer &renderer) {
-
         bool has_slider = false;
         if (_orientation == Orientation::H) {
             for (uint32_t i = 0; i < _width; ++i) {
@@ -1954,13 +1967,13 @@ namespace Tiny {
         }
         if (mouse.is_pressed) {
             auto cmp = mouse.position.compare(slider_pos);
-            if (cmp > 0) {
+            if ((!_inverted && cmp > 0) || (_inverted && cmp < 0)) {
                 if (mouse.button == MOUSE_RIGHT_BUTTON) {
                     setValue(_value - _single_step);
                 } else {
                     setValue(_value - _page_step);
                 }
-            } else if (cmp < 0) {
+            } else if ((!_inverted && cmp < 0) || (_inverted && cmp > 0)) {
                 if (mouse.button == MOUSE_RIGHT_BUTTON) {
                     setValue(_value + _single_step);
                 } else {
@@ -1983,10 +1996,100 @@ namespace Tiny {
         auto V = static_cast<float>(range_sum - _value) / static_cast<float>(range_sum);
         if (!_inverted) V = 1.f - V;
         _slider_pos = static_cast<uint32_t>(static_cast<float>(_width) * V);
+        if (_my_event) _my_event(_value);
+        renderEvent(Renderer::self());
     }
     void TUI::Slider::rangeChangedEvent() {}
-    void TUI::Slider::calcDisplaySize() {}
-    void TUI::Slider::calcSlider() {}
+
+    TUI::ProgressBar::ProgressBar(const std::string &name, const Position &position, uint32_t width, Object *parent)
+            : AbstractWidget(name, position, Size(), typeid(ProgressBar), parent), _width(width) {
+        setMinMaxSize(width, 1);
+    }
+
+    void TUI::ProgressBar::setOrientation(Orientation mode) {
+        _orientation = mode;
+        setWidth(_width);
+    }
+
+    void TUI::ProgressBar::setWidth(uint8_t width) {
+        _width = width;
+        if (_orientation == Orientation::H) {
+            setMinMaxSize(width + 1, 1);
+        } else {
+            setMinMaxSize(1, width + 1);
+        }
+    }
+
+    void TUI::ProgressBar::setValue(int value) {
+        _value = Misc::clamp(value, 0, 100);
+        valueChangedEvent();
+    }
+
+    void TUI::ProgressBar::appendValue(int value) {
+        _value = Misc::clamp(_value + value, 0, 100);
+        valueChangedEvent();
+    }
+
+    void TUI::ProgressBar::setInvertedEnabled(bool enable) {
+        _inverted = enable;
+        renderEvent(Renderer::self());
+    }
+
+    TUI::Orientation TUI::ProgressBar::orientation() const {
+        return _orientation;
+    }
+
+    uint8_t TUI::ProgressBar::width() const {
+        return _width;
+    }
+
+    int TUI::ProgressBar::value() const {
+        return _value;
+    }
+
+    bool TUI::ProgressBar::invertedEnabled() const {
+        return _inverted;
+    }
+
+    void TUI::ProgressBar::onEvent(const AbstractEvent &event) {
+        AbstractWidget::onEvent(event);
+    }
+
+    void TUI::ProgressBar::onResizedTermSize(const Size &size) {
+        AbstractWidget::onResizedTermSize(size);
+    }
+
+    void TUI::ProgressBar::renderEvent(Renderer &renderer) {
+        auto prg_style = currentStyle();
+        prg_style.property ^= Renderer::Style::Reverse;
+        for (uint32_t i = 0; i < _width; ++i) {
+            Position pos;
+            if (_orientation == Orientation::H) {
+                pos = Position(position().row, position().column + i);
+            } else {
+                pos = Position(position().row + i, position().column);
+            }
+            if (i > _prg_pos) {
+                renderer.set(pos, " ", _inverted ? prg_style : currentStyle());
+            } else {
+                renderer.set(pos, " ", _inverted ? currentStyle() : prg_style);
+            }
+        }
+    }
+
+    void TUI::ProgressBar::resizeEvent(uint32_t, uint32_t) {}
+    void TUI::ProgressBar::moveEvent(uint32_t, uint32_t) {}
+    void TUI::ProgressBar::keyEvent(KeyEvent) {}
+    void TUI::ProgressBar::mouseEvent(MouseEvent) {}
+    void TUI::ProgressBar::focusEvent(bool) {}
+    void TUI::ProgressBar::enableEvent(bool) {}
+    void TUI::ProgressBar::clickedEvent() {}
+    void TUI::ProgressBar::valueChangedEvent() {
+        auto V = static_cast<float>(_value) / 100.f;
+        if (_inverted) V = 1.f - V;
+        _prg_pos = static_cast<uint32_t>(static_cast<float>(_width) * V);
+        renderEvent(Renderer::self());
+    }
 }
 
 /*************************************************************************************
