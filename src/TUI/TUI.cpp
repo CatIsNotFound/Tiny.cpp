@@ -491,6 +491,7 @@ namespace Tiny {
             return _front_buffer[position.row][position.column].data;
         Terminal::leaveRawMode();
         Terminal::setMouseEnabled(false);
+        Terminal::setCursorVisible(true);
         throw std::runtime_error("Tiny::TUI::Renderer::charAt(): The specified position is out of range!");
     }
 
@@ -499,6 +500,7 @@ namespace Tiny {
             return _front_buffer[position.row][position.column].style;
         Terminal::leaveRawMode();
         Terminal::setMouseEnabled(false);
+        Terminal::setCursorVisible(true);
         throw std::runtime_error("Tiny::TUI::Renderer::styleAt(): The specified position is out of range!");
     }
 
@@ -835,6 +837,24 @@ namespace Tiny {
         Renderer::self();
         if (!globalApp) globalApp = this;
         EventBus::self().subscribe<Application>([this](const AbstractEvent& event) {
+            if (typeid(UserInputEvent).hash_code() == event.hash()) {
+                const auto& user_input = dynamic_cast<const UserInputEvent&>(event).inputEvent();
+                if (user_input.type == InputEvent::Key) {
+                    if (user_input.input.keyboard.is_pressed && user_input.input.keyboard.key == KEY_TAB) {
+                        _z_order = (_z_order + 1) % _objects.size();
+                        if (_objects[_z_order]->phash() == typeid(AbstractWidget).hash_code()) {
+                            const auto& W = dynamic_cast<AbstractWidget*>(_objects[_z_order]);
+                            W->setFocus(true);
+                            if (_last_widget) _last_widget->setFocus(false);
+                            _last_widget = W;
+                        }
+                    }
+                } else {
+                    if (_last_widget) _last_widget->setFocus(false);
+                    _last_widget = nullptr;
+                    _z_order = 0;
+                }
+            }
             for (auto& obj : _objects) {
                 obj->onEvent(event);
             }
@@ -862,11 +882,12 @@ namespace Tiny {
             EventBus::self().pollEvents();
             Renderer::self().present();
         }
-        return 0;
+        return _exit.load();
     }
 
-    void TUI::Application::exit() {
+    void TUI::Application::exit(int8_t exit_code) {
         _running.store(false);
+        _exit.store(exit_code);
     }
 
     void TUI::Application::setEnabledExitByKey(bool enabled) {
@@ -885,6 +906,31 @@ namespace Tiny {
         return _refresh.load();
     }
 
+    void TUI::Application::setZOrder(const Object *object, uint32_t z_order) {
+        auto iter = std::find(_objects.begin(), _objects.end(), object);
+        if (iter != _objects.end() && z_order < _objects.size()) {
+            std::swap(*iter, _objects[z_order]);
+        }
+    }
+
+    void TUI::Application::setZOrder(uint32_t dst_order, uint32_t src_order) {
+        if (dst_order >= _objects.size() || src_order >= _objects.size()) return;
+        std::swap(_objects[dst_order], _objects[src_order]);
+    }
+
+    uint32_t TUI::Application::zOrder() const {
+        return _z_order;
+    }
+
+    const TUI::Object * TUI::Application::zOrderOf(uint32_t dst_order) const {
+        if (dst_order >= _objects.size()) return nullptr;
+        return _objects[dst_order];
+    }
+
+    uint32_t TUI::Application::count() const {
+        return _objects.size();
+    }
+
     TUI::AbstractWidget::AbstractWidget(const std::string &name, const Position &position, const Size &size,
                                         std::type_index type_id, Object* parent)
             : Object(name, type_id, typeid(AbstractWidget), parent), _pos(position), _size(size),
@@ -893,7 +939,7 @@ namespace Tiny {
     }
 
     TUI::AbstractWidget::AbstractWidget(const std::string &name, std::type_index type_id, Object *parent)
-            : Object(name, type_id, parent), _pos(0, 0), _size(0, 0),
+            : Object(name, type_id, typeid(AbstractWidget), parent), _pos(0, 0), _size(0, 0),
               _min_size(0, 0), _max_size(INT_MAX, INT_MAX) {
         initStatus();
     }
@@ -984,14 +1030,6 @@ namespace Tiny {
         _status_flag.set(F_Style + S_Disabled, !enabled);
         if (enabled) _status_flag.set(F_Style + S_Normal, true);
         enableEvent(enabled);
-    }
-
-    void TUI::AbstractWidget::setCheckable(bool checkable) {
-        _status_flag.set(F_Checkable, checkable);
-    }
-
-    void TUI::AbstractWidget::setChecked(bool checked) {
-        if (_status_flag.test(F_Checkable)) _status_flag.set(F_Checked, checked);
     }
 
     void TUI::AbstractWidget::setVisible(bool visible) {
@@ -1092,8 +1130,9 @@ namespace Tiny {
     }
 
     void TUI::AbstractWidget::onEvent(const AbstractEvent &event) {
+        if (!visible()) return;
         renderEvent(Renderer::self());
-        if (!enabled() || !visible()) return;
+        if (!enabled()) return;
         if (event.hash() == typeid(UserInputEvent).hash_code()) {
             const InputEvent& in_event = dynamic_cast<const UserInputEvent&>(event).inputEvent();
             auto& input = in_event.input;
@@ -1107,8 +1146,8 @@ namespace Tiny {
                 case InputEvent::M:
                     if (!mouseTracingEnabled()) break;
                     setFocus(isPointInRect(input.mouse.position, position(), size()));
+                    mouseEvent(input.mouse);
                     if (input.mouse.is_pressed && input.mouse.button == MOUSE_LEFT_BUTTON) {
-                        mouseEvent(input.mouse);
                         if (focus()) clickedEvent();
                     }
                     break;
@@ -1132,6 +1171,15 @@ namespace Tiny {
         _size.width = width;
         _size.height = height;
     }
+
+    void TUI::AbstractWidget::setCheckable(bool checkable) {
+        _status_flag.set(F_Checkable, checkable);
+    }
+
+    void TUI::AbstractWidget::setChecked(bool checked) {
+        if (_status_flag.test(F_Checkable)) _status_flag.set(F_Checked, checked);
+    }
+
 
     const TUI::Renderer::Style & TUI::AbstractWidget::currentStyle() const {
         for (int i = 0; i < _styles.size(); i++) {
@@ -1160,12 +1208,9 @@ namespace Tiny {
         }
     }
 
-    TUI::AbstractLayout::AbstractLayout(const std::string &name) : _name(name) {
+    TUI::AbstractLayout::AbstractLayout(const std::string& name, std::type_index type_id, Object* parent)
+            : Object(name, type_id, typeid(AbstractLayout), parent) {
         _status_flag.set(0, true);
-    }
-
-    void TUI::AbstractLayout::rename(const std::string &name) {
-        _name = name;
     }
 
     void TUI::AbstractLayout::move(const Position &position) {
@@ -1200,8 +1245,8 @@ namespace Tiny {
 
     bool TUI::AbstractLayout::appendWidget(AbstractWidget *widget) {
         if (std::find(_widgets_list.begin(), _widgets_list.end(), widget) == _widgets_list.end()) {
+            widget->setParent(this);
             _widgets_list.push_back(widget);
-            calcSize();
             return true;
         }
         return false;
@@ -1210,8 +1255,8 @@ namespace Tiny {
     bool TUI::AbstractLayout::insertWidget(uint64_t index, AbstractWidget *widget) {
         if (std::find(_widgets_list.begin(), _widgets_list.end(), widget) == _widgets_list.end()) {
             if (index >= _widgets_list.size()) return false;
+            widget->setParent(this);
             _widgets_list.insert(_widgets_list.begin() + index, widget);
-            calcSize();
             return true;
         }
         return false;
@@ -1220,16 +1265,28 @@ namespace Tiny {
     bool TUI::AbstractLayout::removeWidget(AbstractWidget *widget) {
         auto iter = std::find(_widgets_list.begin(), _widgets_list.end(), widget);
         if (iter == _widgets_list.end()) return false;
+        widget->setParent(nullptr);
         _widgets_list.erase(iter);
-        calcSize();
         return true;
     }
 
     bool TUI::AbstractLayout::removeWidget(uint64_t index) {
         if (index >= _widgets_list.size()) return false;
-        auto iter = _widgets_list[index];
+        auto rm_widget = _widgets_list[index];
+        rm_widget->setParent(nullptr);
         _widgets_list.erase(_widgets_list.begin() + index);
-        calcSize();
+        return true;
+    }
+
+    bool TUI::AbstractLayout::replaceWidget(uint64_t index, AbstractWidget *new_widget) {
+        if (index >= _widgets_list.size() || !new_widget) return false;
+        _widgets_list[index] = new_widget;
+        return true;
+    }
+
+    bool TUI::AbstractLayout::replaceWidget(WidgetIter pos, AbstractWidget *new_widget) {
+        if (pos == _widgets_list.end() || !new_widget) return false;
+        *pos = new_widget;
         return true;
     }
 
@@ -1248,11 +1305,10 @@ namespace Tiny {
     }
 
     void TUI::AbstractLayout::clear() {
+        std::for_each(_widgets_list.begin(), _widgets_list.end(), [](AbstractWidget *widget) {
+            widget->setParent(nullptr);
+        });
         _widgets_list.clear();
-    }
-
-    const std::string & TUI::AbstractLayout::name() const {
-        return _name;
     }
 
     const TUI::Position & TUI::AbstractLayout::position() const {
@@ -1303,10 +1359,6 @@ namespace Tiny {
         return SIZE_MAX;
     }
 
-    void TUI::AbstractLayout::calcSize() {
-        /// TODO: How to calculate size?
-    }
-
     TUI::CurBlock::CurBlock(const std::string &name, Object *parent)
             : AbstractWidget(name, {}, {}, typeid(CurBlock), parent) {
         setMinimumSize(1, 1);
@@ -1334,16 +1386,16 @@ namespace Tiny {
     void TUI::CurBlock::renderEvent(Renderer &renderer) {
         renderer.setStyle(position(), style(S_Normal));
     }
-    void TUI::CurBlock::resizeEvent(uint32_t width, uint32_t height) {}
-    void TUI::CurBlock::moveEvent(uint32_t x, uint32_t y) {}
-    void TUI::CurBlock::keyEvent(KeyEvent keyboard) {}
+    void TUI::CurBlock::resizeEvent(uint32_t, uint32_t) {}
+    void TUI::CurBlock::moveEvent(uint32_t, uint32_t) {}
+    void TUI::CurBlock::keyEvent(KeyEvent) {}
     void TUI::CurBlock::mouseEvent(MouseEvent mouse) {
         if (mouse.position == position()) return;
         Renderer::self().setStyle(position(), {});
         move(mouse.position);
     }
-    void TUI::CurBlock::focusEvent(bool focus) {}
-    void TUI::CurBlock::enableEvent(bool enable) {}
+    void TUI::CurBlock::focusEvent(bool) {}
+    void TUI::CurBlock::enableEvent(bool) {}
     void TUI::CurBlock::clickedEvent() {}
 
     TUI::Label::Label(const std::string &text, const Position &position, Object* parent)
@@ -1688,10 +1740,6 @@ namespace Tiny {
         calcDisplayText();
     }
 
-    void TUI::LineEdit::endEditEvent() {
-        Terminal::setCursorVisible(false);
-    }
-
     void TUI::LineEdit::textChangedEvent() {}
     void TUI::LineEdit::echoModeChangedEvent() {}
     void TUI::LineEdit::calcDisplaySize() {}
@@ -1729,6 +1777,197 @@ namespace Tiny {
                 break;
         }
     }
+
+    TUI::Slider::Slider(const std::string &name, const Position &position, uint8_t width, Object *parent)
+            : AbstractWidget(name, position, Size(width, 1), typeid(Slider), parent), _width(width) {
+        setMinimumSize(width, 1);
+        setMaximumSize(width, 1);
+    }
+
+    void TUI::Slider::setMode(Orientation mode) {
+        _orientation = mode;
+        setWidth(_width);
+    }
+
+    void TUI::Slider::setWidth(uint8_t width) {
+        _width = width;
+        if (_orientation == Orientation::H) {
+            setMinimumSize(width, 1);
+            setMaximumSize(width, 1);
+        } else {
+            setMinimumSize(2, width);
+            setMaximumSize(2, width);
+        }
+    }
+
+    void TUI::Slider::setMinimumValue(int value) {
+        _min_value = Misc::min(value, _max_value);
+        _value = Misc::max(_value, _min_value);
+        rangeChangedEvent();
+        calcDisplaySize();
+    }
+
+    void TUI::Slider::setMaximumValue(int value) {
+        _max_value = Misc::max(value, _min_value);
+        _value = Misc::min(_value, _max_value);
+        rangeChangedEvent();
+        calcDisplaySize();
+    }
+
+    void TUI::Slider::setValue(int value) {
+        _value = Misc::clamp(value, _min_value, _max_value);
+        valueChangedEvent();
+    }
+
+    void TUI::Slider::appendValue(int value) {
+        _value = Misc::clamp(_value + value, _min_value, _max_value);
+        valueChangedEvent();
+    }
+
+    void TUI::Slider::setSingleStep(int value) {
+        _single_step = value;
+    }
+
+    void TUI::Slider::setPageStep(int value) {
+        _page_step = value;
+    }
+
+    void TUI::Slider::setInvertedEnabled(bool enable) {
+        _inverted = true;
+        calcDisplaySize();
+    }
+
+    int TUI::Slider::minimumValue() const {
+        return _min_value;
+    }
+
+    int TUI::Slider::maximumValue() const {
+        return _max_value;
+    }
+
+    int TUI::Slider::value() const {
+        return _value;
+    }
+
+    int TUI::Slider::singleStep() const {
+        return _single_step;
+    }
+
+    int TUI::Slider::pageStep() const {
+        return _page_step;
+    }
+
+    bool TUI::Slider::invertedEnabled() const {
+        return _inverted;
+    }
+
+    void TUI::Slider::onEvent(const AbstractEvent &event) {
+        AbstractWidget::onEvent(event);
+    }
+
+    void TUI::Slider::onResizedTermSize(const Size &size) {
+        AbstractWidget::onResizedTermSize(size);
+    }
+
+    void TUI::Slider::renderEvent(Renderer &renderer) {
+
+        bool has_slider = false;
+        if (_orientation == Orientation::H) {
+            for (uint32_t i = 0; i < _width; ++i) {
+                auto pos = Position(position().row, position().column + i + has_slider);
+                if (i == _slider_pos) {
+                    renderer.set(pos, "■", currentStyle());
+                    has_slider = true;
+                    pos.column++;
+                }
+                renderer.set(pos, "—", currentStyle());
+            }
+            if (!has_slider) renderer.set(Position(position().row, position().column + _width), "■", currentStyle());
+        } else {
+            for (uint32_t i = 0; i < _width; ++i) {
+                auto pos = Position(position().row + i + has_slider, position().column);
+                if (i == _slider_pos) {
+                    renderer.set(pos, "■", currentStyle());
+                    has_slider = true;
+                    pos.row++;
+                }
+                renderer.set(pos, "|", currentStyle());
+            }
+            if (!has_slider) renderer.set(Position(position().row + _width, position().column), "■", currentStyle());
+        }
+    }
+    void TUI::Slider::resizeEvent(uint32_t, uint32_t) {}
+    void TUI::Slider::moveEvent(uint32_t, uint32_t) {}
+    void TUI::Slider::keyEvent(KeyEvent keyboard) {
+        auto K = keyboard.sp_key;
+        if (focus() && keyboard.is_pressed) {
+            if (_orientation == Orientation::V) {
+                if (K == SP_KEY_UP) {
+                    setValue(_value - _single_step);
+                } else if (K == SP_KEY_DOWN) {
+                    setValue(_value + _single_step);
+                }
+            } else {
+                if (K == SP_KEY_LEFT) {
+                    setValue(_value - _single_step);
+                } else if (K == SP_KEY_RIGHT) {
+                    setValue(_value + _single_step);
+                }
+            }
+            if (K == SP_KEY_PAGE_UP) {
+                setValue(_value - _page_step);
+            } else if (K == SP_KEY_PAGE_DOWN) {
+                setValue(_value + _page_step);
+            } else if (K == SP_KEY_HOME) {
+                setValue(_min_value);
+            } else if (K == SP_KEY_END) {
+                setValue(_max_value);
+            }
+        }
+    }
+    void TUI::Slider::mouseEvent(MouseEvent mouse) {
+        if (!focus()) return;
+        auto slider_pos = position();
+        if (_orientation == Orientation::H) {
+            slider_pos.column += _slider_pos;
+        } else {
+            slider_pos.row += _slider_pos;
+        }
+        if (mouse.is_pressed) {
+            auto cmp = mouse.position.compare(slider_pos);
+            if (cmp > 0) {
+                if (mouse.button == MOUSE_RIGHT_BUTTON) {
+                    setValue(_value - _single_step);
+                } else {
+                    setValue(_value - _page_step);
+                }
+            } else if (cmp < 0) {
+                if (mouse.button == MOUSE_RIGHT_BUTTON) {
+                    setValue(_value + _single_step);
+                } else {
+                    setValue(_value + _page_step);
+                }
+            }
+        } else {
+            if (mouse.button == MOUSE_WHEEL_UP) {
+                setValue(_value - _page_step);
+            } else if (mouse.button == MOUSE_WHEEL_DOWN) {
+                setValue(_value + _page_step);
+            }
+        }
+    }
+    void TUI::Slider::focusEvent(bool) {}
+    void TUI::Slider::enableEvent(bool) {}
+    void TUI::Slider::clickedEvent() {}
+    void TUI::Slider::valueChangedEvent() {
+        auto range_sum = _max_value - _min_value;
+        auto V = static_cast<float>(range_sum - _value) / static_cast<float>(range_sum);
+        if (!_inverted) V = 1.f - V;
+        _slider_pos = static_cast<uint32_t>(static_cast<float>(_width) * V);
+    }
+    void TUI::Slider::rangeChangedEvent() {}
+    void TUI::Slider::calcDisplaySize() {}
+    void TUI::Slider::calcSlider() {}
 }
 
 /*************************************************************************************

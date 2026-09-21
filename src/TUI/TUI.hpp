@@ -35,6 +35,7 @@
 #include <future>
 #include <functional>
 #include <unordered_map>
+#include <string_view>
 #include <typeindex>
 #include <deque>
 #include <unordered_set>
@@ -407,24 +408,35 @@ namespace Tiny {
             std::vector<Object*> _children;
         };
 
+        class AbstractWidget;
         class Application {
             friend class Object;
         public:
             explicit Application();
+            virtual ~Application() = default;
+
             int run();
-            void exit();
+            void exit(int8_t exit_code = 0);
             void setEnabledExitByKey(bool enabled);
             bool isEnabledExitByKey() const;
             void setRefreshEnabled(bool enabled);
             bool isRefreshEnabled() const;
-            virtual ~Application() = default;
+
+            void setZOrder(const Object* object, uint32_t z_order);
+            void setZOrder(uint32_t dst_order, uint32_t src_order);
+            uint32_t zOrder() const;
+            const Object* zOrderOf(uint32_t dst_order) const;
+            uint32_t count() const;
 
         private:
             std::vector<Object*> _objects;
             std::atomic<bool> _quit{true};
             std::atomic<bool> _running{true};
             std::atomic<bool> _refresh{true};
+            std::atomic<int8_t> _exit{};
             InputEvent _input{};
+            uint32_t _z_order{};
+            AbstractWidget* _last_widget{};
         };
 
         enum class Alignment : uint8_t {
@@ -486,12 +498,12 @@ namespace Tiny {
             void setMaximumSize(const Size& size);
             void setMaximumSize(uint32_t w, uint32_t h);
             void setEnabled(bool enabled);
-            void setCheckable(bool checkable);
-            void setChecked(bool checked);
+
             void setVisible(bool visible);
             void setFocus(bool focus);
             void setSizePolicy(SizePolicy policy);
             void setMouseTracingEnabled(bool enabled);
+            /// p.s: Use `AbstractWidget::S_XXX` to specified status.
             void setStyle(uint8_t status, const Renderer::Style& style);
 
             API_DEPRECATED("The function will be removed since ver.0.3.0!")
@@ -526,6 +538,8 @@ namespace Tiny {
             /// p.s: The following interface is only for use by subclasses that inherit this class.
                     void callDrawEvent();
                     void resizeWithoutCalledEvent(uint32_t width, uint32_t height);
+                    void setCheckable(bool checkable);
+                    void setChecked(bool checked);
             const Renderer::Style& currentStyle() const;
 
         private:
@@ -537,16 +551,14 @@ namespace Tiny {
             std::bitset<16> _status_flag{};
         };
 
-
-        class AbstractLayout {
+        class AbstractLayout : public Object {
         public:
             using WidgetIter = std::vector<AbstractWidget*>::iterator;
             using CWidgetIter = std::vector<AbstractWidget*>::const_iterator;
 
-            AbstractLayout(const std::string& name);
+            AbstractLayout(const std::string& name, std::type_index type_id, Object* parent = nullptr);
             virtual ~AbstractLayout() = default;
 
-            void rename(const std::string& name);
             void move(const Position& position);
             void move(uint32_t x, uint32_t y);
             void resize(const Size& size);
@@ -557,11 +569,12 @@ namespace Tiny {
             bool insertWidget(uint64_t index, AbstractWidget* widget);
             bool removeWidget(AbstractWidget* widget);
             bool removeWidget(uint64_t index);
+            bool replaceWidget(uint64_t index, AbstractWidget* new_widget);
+            bool replaceWidget(WidgetIter pos, AbstractWidget* new_widget);
             bool swapWidget(uint64_t index_1, uint64_t index_2);
             bool swapWidget(AbstractWidget* widget_1, AbstractWidget* widget_2);
             void clear();
 
-            [[nodiscard]] const std::string& name() const;
             [[nodiscard]] const Position& position() const;
             [[nodiscard]] const Size& size() const;
             [[nodiscard]] bool enabled() const;
@@ -580,10 +593,7 @@ namespace Tiny {
             virtual void resizeEvent(uint32_t width, uint32_t height) = 0;
 
         private:
-            void calcSize();
-
             std::vector<AbstractWidget*> _widgets_list;
-            std::string _name;
             Position _pos{};
             Size _size{};
             std::bitset<8> _status_flag{};
@@ -693,8 +703,7 @@ namespace Tiny {
             void focusEvent(bool focus) override;
             void enableEvent(bool enable) override;
             void clickedEvent() override;
-            virtual void editTextEvent();
-            virtual void endEditEvent();
+            void editTextEvent();
             virtual void textChangedEvent();
             virtual void echoModeChangedEvent();
 
@@ -707,6 +716,53 @@ namespace Tiny {
             EchoMode _echo_mode{EchoMode::Normal};
             TextAlignment _text_alignment{TextAlignment::Left};
             uint16_t _max_length{UINT16_MAX}, _min_length{}, _dis_text_length{};
+        };
+
+        class Slider : public AbstractWidget {
+        public:
+            enum class Orientation : uint8_t { Horizontal, H = 0, Vertical, V = 1 };
+            explicit Slider(const std::string& name, const Position& position, uint8_t width, Object* parent = nullptr);
+            ~Slider() override = default;
+
+            void setMode(Orientation mode);
+            void setWidth(uint8_t width);
+            void setMinimumValue(int value);
+            void setMaximumValue(int value);
+            void setValue(int value);
+            void appendValue(int value);
+            void setSingleStep(int value);
+            void setPageStep(int value);
+            void setInvertedEnabled(bool enable);
+
+            int  minimumValue() const;
+            int  maximumValue() const;
+            int  value() const;
+            int  singleStep() const;
+            int  pageStep() const;
+            bool invertedEnabled() const;
+
+        protected:
+            void onEvent(const AbstractEvent &event) override;
+            void onResizedTermSize(const Size &size) override;
+            void renderEvent(Renderer &renderer) override;
+            void resizeEvent(uint32_t width, uint32_t height) override;
+            void moveEvent(uint32_t x, uint32_t y) override;
+            void keyEvent(KeyEvent keyboard) override;
+            void mouseEvent(MouseEvent mouse) override;
+            void focusEvent(bool focus) override;
+            void enableEvent(bool enable) override;
+            void clickedEvent() override;
+            virtual void valueChangedEvent();
+            virtual void rangeChangedEvent();
+
+        private:
+            void calcDisplaySize();
+            void calcSlider();
+            int _min_value{}, _max_value{100}, _value{}, _single_step{1}, _page_step{10};
+            uint32_t _slider_pos{};
+            Orientation _orientation{};
+            bool _inverted{};
+            uint8_t _width;
         };
     }
 }
