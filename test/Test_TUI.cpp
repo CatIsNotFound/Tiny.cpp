@@ -23,6 +23,10 @@ private:
 
 int main(int argc, char *argv[]) {
     OS::exec("cmd.exe /c chcp 65001");
+    Position p1(8, 1), p2(16, 1);
+    Size sz(1, 8);
+    bool ok = isPointInRect({12, 1}, p1, sz);
+
     Application app;
     Label label("label", {}, {40, 1});
     label.setText("Line Edit Test");
@@ -34,6 +38,7 @@ int main(int argc, char *argv[]) {
     alignment.setText("[  Alignment: Left  ]");
     LineEdit line_edit("line_edit", {1, 0}, 40);
     line_edit.setPlaceHolderText("Click here to edit...");
+    app.setZOrder(&line_edit, &button);
     button.setClickedEvent([&line_edit](Button& button) {
         line_edit.clear();
     });
@@ -72,12 +77,14 @@ int main(int argc, char *argv[]) {
     MSlider slider_v("slider_v", {8, 16}, 10);
     MSlider slider_h("slider_h", {8, 1}, 10);
     slider_v.setMode(Slider::Orientation::V);
-    slider_v.setValue(100);
-    slider_h.setValue(100);
+    slider_v.setValue(50);
+    slider_h.setValue(50);
+    slider_h.setMode(Slider::Orientation::V);
+    slider_h.setMode(Slider::Orientation::H);
     slider_v.setMouseTracingEnabled(true);
     slider_h.setMouseTracingEnabled(true);
-    Label label_h("label_h", {9, 1});
-    Label label_v("label_v", {10, 1});
+    Label label_h("label_h: 100", {9, 1});
+    Label label_v("label_v: 100", {10, 1});
     slider_h.setLabel(&label_h);
     slider_v.setLabel(&label_v);
     CurBlock cur("cur");

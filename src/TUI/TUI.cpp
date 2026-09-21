@@ -840,14 +840,18 @@ namespace Tiny {
             if (typeid(UserInputEvent).hash_code() == event.hash()) {
                 const auto& user_input = dynamic_cast<const UserInputEvent&>(event).inputEvent();
                 if (user_input.type == InputEvent::Key) {
-                    if (user_input.input.keyboard.is_pressed && user_input.input.keyboard.key == KEY_TAB) {
+                    size_t run = 0;
+                    while (user_input.input.keyboard.is_pressed && user_input.input.keyboard.key == KEY_TAB) {
                         _z_order = (_z_order + 1) % _objects.size();
                         if (_objects[_z_order]->phash() == typeid(AbstractWidget).hash_code()) {
                             const auto& W = dynamic_cast<AbstractWidget*>(_objects[_z_order]);
+                            if (!W->visible() || !W->enabled()) continue;
                             W->setFocus(true);
                             if (_last_widget) _last_widget->setFocus(false);
                             _last_widget = W;
+                            break;
                         }
+                        if (run++ >= _objects.size()) break;
                     }
                 } else {
                     if (_last_widget) _last_widget->setFocus(false);
@@ -916,6 +920,13 @@ namespace Tiny {
     void TUI::Application::setZOrder(uint32_t dst_order, uint32_t src_order) {
         if (dst_order >= _objects.size() || src_order >= _objects.size()) return;
         std::swap(_objects[dst_order], _objects[src_order]);
+    }
+
+    void TUI::Application::setZOrder(const Object *dst_object, const Object *src_object) {
+        auto iter1 = std::find(_objects.begin(), _objects.end(), dst_object);
+        auto iter2 = std::find(_objects.begin(), _objects.end(), src_object);
+        if (iter1 == _objects.end() || iter2 == _objects.end()) return;
+        std::swap(*iter1, *iter2);
     }
 
     uint32_t TUI::Application::zOrder() const {
@@ -1021,6 +1032,16 @@ namespace Tiny {
             _size = new_size;
             resizeEvent(_size.width, _size.height);
         }
+    }
+
+    void TUI::AbstractWidget::setMinMaxSize(const Size &size) {
+        _min_size = size;
+        _max_size = size;
+        _size = size;
+    }
+
+    void TUI::AbstractWidget::setMinMaxSize(uint32_t w, uint32_t h) {
+        setMinMaxSize({w, h});
     }
 
     void TUI::AbstractWidget::setEnabled(bool enabled) {
@@ -1792,11 +1813,9 @@ namespace Tiny {
     void TUI::Slider::setWidth(uint8_t width) {
         _width = width;
         if (_orientation == Orientation::H) {
-            setMinimumSize(width, 1);
-            setMaximumSize(width, 1);
+            setMinMaxSize(width + 1, 1);
         } else {
-            setMinimumSize(2, width);
-            setMaximumSize(2, width);
+            setMinMaxSize(1, width + 1);
         }
     }
 

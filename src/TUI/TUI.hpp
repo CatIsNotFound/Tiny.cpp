@@ -424,6 +424,7 @@ namespace Tiny {
 
             void setZOrder(const Object* object, uint32_t z_order);
             void setZOrder(uint32_t dst_order, uint32_t src_order);
+            void setZOrder(const Object* dst_object, const Object* src_object);
             uint32_t zOrder() const;
             const Object* zOrderOf(uint32_t dst_order) const;
             uint32_t count() const;
@@ -497,6 +498,8 @@ namespace Tiny {
             void setMinimumSize(uint32_t w, uint32_t h);
             void setMaximumSize(const Size& size);
             void setMaximumSize(uint32_t w, uint32_t h);
+            void setMinMaxSize(const Size& size);
+            void setMinMaxSize(uint32_t w, uint32_t h);
             void setEnabled(bool enabled);
 
             void setVisible(bool visible);
