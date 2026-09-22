@@ -88,6 +88,7 @@ int main(int argc, char *argv[]) {
     ProgressBar prg_bar("prg_bar", {19, 1}, 10);
     prg_bar.setValue(45);
     CurBlock cur("cur");
+    
     return app.run();
 }
 

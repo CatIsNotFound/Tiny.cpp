@@ -35,7 +35,6 @@
 #include <future>
 #include <functional>
 #include <unordered_map>
-#include <string_view>
 #include <typeindex>
 #include <deque>
 #include <unordered_set>
@@ -146,7 +145,8 @@ namespace Tiny {
 
         class Renderer {
         public:
-            using Style API_DEPRECATED("Please use 'TUI::Style' instead, it will be removed since ver.0.3.0!") = TUI::Style;
+            API_DEPRECATED("Please use 'TUI::Style' instead, it will be removed since ver.0.3.0!")
+            typedef TUI::Style Style;
             using StyleList = std::vector<Style>;
 
             struct Cell {
@@ -169,9 +169,9 @@ namespace Tiny {
                 }
             };
 
-            using Corner
+
             API_DEPRECATED("Please use 'TUI::Corner' class directly! It will be removed since ver.0.3.0!")
-            = TUI::Corner;
+            typedef TUI::Corner Corner;
 
             static Renderer& self();
             virtual ~Renderer();

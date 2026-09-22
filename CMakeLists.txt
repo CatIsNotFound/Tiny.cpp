@@ -70,6 +70,8 @@ add_library(${PROJECT_NAME} STATIC
         ${SOURCE_FILES}
 )
 
+add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
+
 # Link Windows libraries
 if(WIN32)
     target_link_libraries(${PROJECT_NAME} PRIVATE pdh advapi32 ws2_32)
