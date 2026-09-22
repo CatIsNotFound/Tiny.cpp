@@ -82,59 +82,71 @@ namespace Tiny {
             uint8_t length() const { return _length; }
         };
 
+        struct Style {
+            uint8_t property;   // Used enum `TUI::Style::Property` is better.
+            Color bg_color;
+            Color fg_color;
+            uint8_t intensity;  // 0 = None, 1 = Only Background, 2 = Only Foreground, 3 = All.
+            bool used_rgb_color{};  // If set `true`, need set `bg_rgb_color` and `fg_rgb_color` members.
+            RGBColor bg_rgb_color;
+            RGBColor fg_rgb_color;
+
+            enum Property : uint8_t {
+                Bolder            = 1,
+                Dark              = 2,
+                Italic            = 4,
+                Underline         = 8,
+                Blinking          = 16,
+                Reverse           = 32,
+                Strikethrough     = 64,
+            };
+
+            Style() : property(), bg_color(Color::Default), fg_color(Color::Default), intensity(2) {}
+
+            void reset() {
+                property = 0;
+                intensity = 2;
+                bg_color = Color::Default;
+                fg_color = Color::Default;
+            }
+
+            bool isDefault() const {
+                return property == 0 && intensity == 2 &&
+                       bg_color == Color::Default && fg_color == Color::Default &&
+                       !used_rgb_color;
+            }
+
+            bool operator==(const Style& other) const {
+                if (property != other.property) return false;
+                if (bg_color != other.bg_color) return false;
+                if (fg_color != other.fg_color) return false;
+                if (intensity != other.intensity) return false;
+                return true;
+            }
+
+            bool operator!=(const Style& other) const {
+                if (property != other.property) return true;
+                if (bg_color != other.bg_color) return true;
+                if (fg_color != other.fg_color) return true;
+                if (intensity != other.intensity) return true;
+                return false;
+            }
+        };
+
+        struct Corner {
+            Char left_top{"+"};
+            Char left{"|"};
+            Char left_bottom{"+"};
+            Char right_top{"+"};
+            Char right{"|"};
+            Char right_bottom{"+"};
+            Char top{"-"};
+            Char bottom{"-"};
+        };
+
         class Renderer {
         public:
-            struct Style {
-                uint8_t property;   // Used enum `Renderer::Style::Property` is better.
-                Color bg_color;
-                Color fg_color;
-                uint8_t intensity;  // 0 = None, 1 = Only Background, 2 = Only Foreground, 3 = All.
-                bool used_rgb_color{};  // If set `true`, need set `bg_rgb_color` and `fg_rgb_color` members.
-                RGBColor bg_rgb_color;
-                RGBColor fg_rgb_color;
-
-                enum Property : uint8_t {
-                    Bolder            = 1,
-                    Dark              = 2,
-                    Italic            = 4,
-                    Underline         = 8,
-                    Blinking          = 16,
-                    Reverse           = 32,
-                    Strikethrough     = 64,
-                };
-
-                Style() : property(), bg_color(Color::Default), fg_color(Color::Default), intensity(2) {}
-
-                void reset() {
-                    property = 0;
-                    intensity = 2;
-                    bg_color = Color::Default;
-                    fg_color = Color::Default;
-                }
-
-                bool isDefault() const {
-                    return property == 0 && intensity == 2 &&
-                           bg_color == Color::Default && fg_color == Color::Default &&
-                           !used_rgb_color;
-                }
-
-                bool operator==(const Style& other) const {
-                    if (property != other.property) return false;
-                    if (bg_color != other.bg_color) return false;
-                    if (fg_color != other.fg_color) return false;
-                    if (intensity != other.intensity) return false;
-                    return true;
-                }
-
-                bool operator!=(const Style& other) const {
-                    if (property != other.property) return true;
-                    if (bg_color != other.bg_color) return true;
-                    if (fg_color != other.fg_color) return true;
-                    if (intensity != other.intensity) return true;
-                    return false;
-                }
-            };
-            
+            using Style API_DEPRECATED("Please use 'TUI::Style' instead, it will be removed since ver.0.3.0!") = TUI::Style;
             using StyleList = std::vector<Style>;
 
             struct Cell {
@@ -157,7 +169,8 @@ namespace Tiny {
                 }
             };
 
-            struct Corner {
+            struct API_DEPRECATED("Please use \"TUI::Corner\" class directly! It will be removed since ver.0.3.0!")
+            Corner {
                 Char left_top{"+"};
                 Char left{"|"};
                 Char left_bottom{"+"};
@@ -507,7 +520,7 @@ namespace Tiny {
             void setSizePolicy(SizePolicy policy);
             void setMouseTracingEnabled(bool enabled);
             /// p.s: Use `AbstractWidget::S_XXX` to specified status.
-            void setStyle(uint8_t status, const Renderer::Style& style);
+            void setStyle(uint8_t status, const Style& style);
 
             API_DEPRECATED("The function will be removed since ver.0.3.0!")
             void draw();
@@ -523,7 +536,7 @@ namespace Tiny {
             [[nodiscard]] bool focus() const;
             [[nodiscard]] SizePolicy sizePolicy() const;
             [[nodiscard]] bool mouseTracingEnabled() const;
-            [[nodiscard]] Renderer::Style style(uint8_t status) const;
+            [[nodiscard]] Style style(uint8_t status) const;
         protected:
             virtual void onEvent(const AbstractEvent &event);
             virtual void onResizedTermSize(const Size &size);
@@ -543,14 +556,14 @@ namespace Tiny {
                     void resizeWithoutCalledEvent(uint32_t width, uint32_t height);
                     void setCheckable(bool checkable);
                     void setChecked(bool checked);
-            const Renderer::Style& currentStyle(uint8_t* status = nullptr) const;
+            const Style& currentStyle(uint8_t* status = nullptr) const;
 
         private:
             void initStatus();
             void resetStyleStatus();
             Position _pos;
             Size _size, _min_size, _max_size;
-            std::array<Renderer::Style, 4> _styles;
+            std::array<Style, 4> _styles;
             std::bitset<16> _status_flag{};
         };
 

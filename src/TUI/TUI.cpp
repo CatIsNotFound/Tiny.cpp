@@ -495,7 +495,7 @@ namespace Tiny {
         throw std::runtime_error("Tiny::TUI::Renderer::charAt(): The specified position is out of range!");
     }
 
-    const TUI::Renderer::Style& TUI::Renderer::styleAt(const Position &position) {
+    const TUI::Style& TUI::Renderer::styleAt(const Position &position) {
         if (!isOutOfRange(position.row, position.column))
             return _front_buffer[position.row][position.column].style;
         Terminal::leaveRawMode();
@@ -1090,7 +1090,7 @@ namespace Tiny {
         _status_flag.set(F_MouseTracing, enabled);
     }
 
-    void TUI::AbstractWidget::setStyle(uint8_t status, const Renderer::Style &style) {
+    void TUI::AbstractWidget::setStyle(uint8_t status, const Style &style) {
         if (status >= _styles.size()) return;
         _styles[status] = style;
     }
@@ -1146,7 +1146,7 @@ namespace Tiny {
         return _status_flag.test(F_MouseTracing);
     }
 
-    TUI::Renderer::Style TUI::AbstractWidget::style(uint8_t status) const {
+    TUI::Style TUI::AbstractWidget::style(uint8_t status) const {
         if (status >= _styles.size()) return {};
         return _styles[status];
     }
@@ -1203,7 +1203,7 @@ namespace Tiny {
     }
 
 
-    const TUI::Renderer::Style & TUI::AbstractWidget::currentStyle(uint8_t* status) const {
+    const TUI::Style & TUI::AbstractWidget::currentStyle(uint8_t* status) const {
         for (int i = 0; i < _styles.size(); i++) {
             if (_status_flag.test(F_Style + i)) {
                 if (status) *status = i;
@@ -1219,9 +1219,9 @@ namespace Tiny {
         _styles[S_Active].intensity = 1;
         _styles[S_Active].bg_color = Color::Blue;
         _styles[S_Disabled].intensity = 1;
-        _styles[S_Disabled].property |= Renderer::Style::Reverse;
+        _styles[S_Disabled].property |= Style::Reverse;
         _styles[S_Checked].intensity = 3;
-        _styles[S_Checked].property |= Renderer::Style::Bolder;
+        _styles[S_Checked].property |= Style::Bolder;
         _status_flag.set(F_Enabled, true);
         _status_flag.set(F_Visible, true);
         _status_flag.set(F_SizePolicy, true);
