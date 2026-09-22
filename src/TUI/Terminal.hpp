@@ -63,7 +63,7 @@ struct Gpm_Connect;
 #endif
 
 namespace Tiny {
-    namespace Code {
+    namespace U8Code {
 #ifdef TINY_CPP_MY_OS_WINDOWS
         std::wstring string2Wide(const std::string& str, uint32_t codepage = 65001);
         std::string wide2String(const std::wstring& str, uint32_t codepage = 65001);
@@ -75,9 +75,13 @@ namespace Tiny {
         std::string splitFront(const char* data);
         std::vector<std::string> splitUTF8(const char* data, size_t *display_size = nullptr);
         size_t calcDisplaySize(const std::string& str);
-        std::string subUTF8(const char* data, size_t display_count, size_t offset = 0);
+        std::string subUTF8(const char* data, size_t display_count, size_t offset = 0,
+                            size_t *result_display_count = nullptr);
         size_t lastCharCount(const std::string& buf);
     }
+
+    /// @warning "Please use 'Tiny::U8Code' instead, this namespace will be removed since v0.3.0!"
+    namespace Code = U8Code;
 
     namespace TUI {
         struct Size {

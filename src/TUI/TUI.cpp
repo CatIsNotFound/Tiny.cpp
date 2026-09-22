@@ -123,7 +123,7 @@ namespace Tiny {
                 if (is_v_key) break;
                 is_read = true;
                 wchar_t wc[2] = {input_record.Event.KeyEvent.uChar.UnicodeChar, 0};
-                temp.append(Code::wide2String(wc));
+                temp.append(U8Code::wide2String(wc));
             }
 #else
             char t[64]{};
@@ -137,13 +137,13 @@ namespace Tiny {
             } else if (TUI::KEY_BACKSPACE(temp[0])) {
                 if (!result.empty()) {
                     size_t ori_length = result.size();
-                    size_t del_length = Code::lastCharCount(result.substr(0, cur_text_pos));
+                    size_t del_length = U8Code::lastCharCount(result.substr(0, cur_text_pos));
                     char t[8]{};
                     size_t d = 0, s = cur_text_pos - del_length;
                     do {
                         t[d] = result[s + d];
                     } while (++d < del_length);
-                    auto dis_len = wcwidth(*Code::string2Wide(t).c_str());
+                    auto dis_len = wcwidth(*U8Code::string2Wide(t).c_str());
                     dis_sum -= dis_len;
                     if (cur_text_pos >= ori_length) {
                         result = result.substr(0, ori_length - del_length);
@@ -174,7 +174,7 @@ namespace Tiny {
                 cur_text_pos += read_bytes;
                 if (read_bytes > 1) {
                     size_t dis_size{};
-                    Code::splitUTF8(temp.data(), &dis_size);
+                    U8Code::splitUTF8(temp.data(), &dis_size);
                     cur_pos += dis_size;
                     dis_sum += dis_size;
                 } else {
@@ -186,25 +186,25 @@ namespace Tiny {
                 }
             } else if (strcmp(temp.data(), "\x1b[D") == 0) {  // Press Left key
                 if (cur_text_pos == 0) continue;
-                size_t mov_length = Code::lastCharCount(result.substr(0, cur_text_pos));
+                size_t mov_length = U8Code::lastCharCount(result.substr(0, cur_text_pos));
                 char t[8]{};
                 size_t d = 0, s = cur_text_pos - mov_length;
                 do {
                     t[d] = result[s + d];
                 } while (++d < mov_length);
-                auto dis_len = wcwidth(*Code::string2Wide(t).c_str());
+                auto dis_len = wcwidth(*U8Code::string2Wide(t).c_str());
                 cur_text_pos -= mov_length;
                 cur_pos -= dis_len;
                 TUI::Terminal::moveLeftCursor(dis_len);
             } else if (strcmp(temp.data(), "\x1b[C") == 0) {  // Press Right key
                 if (cur_text_pos == result.size()) continue;
-                size_t mov_length = Code::splitFront(result.substr(cur_text_pos).c_str()).size();
+                size_t mov_length = U8Code::splitFront(result.substr(cur_text_pos).c_str()).size();
                 char t[8]{};
                 size_t d = 0;
                 do {
                     t[d] = result[cur_text_pos + d];
                 } while (++d < mov_length);
-                auto dis_len = wcwidth(*Code::string2Wide(t).c_str());
+                auto dis_len = wcwidth(*U8Code::string2Wide(t).c_str());
                 cur_text_pos += mov_length;
                 cur_pos += dis_len;
                 TUI::Terminal::moveRightCursor(dis_len);
@@ -224,20 +224,20 @@ namespace Tiny {
 
     static TUI::Application* globalApp{};
 
-    TUI::Char::Char(const char *data) : _data(Code::splitFront(data)), _length(Code::calcStrDisplayWidth(_data)) {}
+    TUI::Char::Char(const char *data) : _data(U8Code::splitFront(data)), _length(U8Code::calcStrDisplayWidth(_data)) {}
 
     TUI::Char::Char(const std::string &data)
-        : _data(Code::splitFront(data.c_str())), _length(Code::calcStrDisplayWidth(_data)) {}
+        : _data(U8Code::splitFront(data.c_str())), _length(U8Code::calcStrDisplayWidth(_data)) {}
 
     TUI::Char & TUI::Char::operator=(const std::string &ch) {
         _data = ch;
-        _length = Code::calcStrDisplayWidth(_data);
+        _length = U8Code::calcStrDisplayWidth(_data);
         return *this;
     }
 
     TUI::Char & TUI::Char::operator=(const char *ch) {
         _data = ch;
-        _length = Code::calcStrDisplayWidth(_data);
+        _length = U8Code::calcStrDisplayWidth(_data);
         return *this;
     }
 
@@ -282,13 +282,13 @@ namespace Tiny {
     void TUI::Renderer::set(const Position &pos, const std::string &str, Style style) {
         std::lock_guard<std::mutex> lock(_buffer_mutex);
         if (pos.row >= _front_buffer.size() || pos.column >= _front_buffer[0].size()) return;
-        _front_buffer[pos.row][pos.column].set(Code::splitFront(str.c_str()).c_str(), style);
+        _front_buffer[pos.row][pos.column].set(U8Code::splitFront(str.c_str()).c_str(), style);
     }
 
     void TUI::Renderer::set(uint32_t x, uint32_t y, const std::string &str, Style style) {
         std::lock_guard<std::mutex> lock(_buffer_mutex);
         if (y >= _front_buffer.size() || x >= _front_buffer[0].size()) return;
-        _front_buffer[y][x].set(Code::splitFront(str.c_str()).c_str(), style);
+        _front_buffer[y][x].set(U8Code::splitFront(str.c_str()).c_str(), style);
     }
 
     void TUI::Renderer::setStyle(const Position &pos, Style style) {
@@ -393,7 +393,7 @@ namespace Tiny {
         for (uint32_t r = start_pos.row; r <= end_pos.row; r++) {
             for (uint32_t c = start_pos.column; c <= end_pos.column; c++) {
                 if (isOutOfRange(r, c)) break;
-                _front_buffer[r][c].set(Code::splitFront(ch.c_str()).c_str(), style);
+                _front_buffer[r][c].set(U8Code::splitFront(ch.c_str()).c_str(), style);
             }
         }
     }
@@ -566,7 +566,7 @@ namespace Tiny {
     }
 
     size_t TUI::Renderer::setChars(const Position &pos, const std::string &str, const Style &style) {
-        auto strs = Code::splitUTF8(str.c_str());
+        auto strs = U8Code::splitUTF8(str.c_str());
         auto size = Terminal::screenSize();
         Position temp = pos;
         size_t filled_cnt = 0;
@@ -576,7 +576,7 @@ namespace Tiny {
                 temp.row += 1;
             }
             set(temp, s, style);
-            size_t display_width = Code::calcStrDisplayWidth(s);
+            size_t display_width = U8Code::calcStrDisplayWidth(s);
             if (display_width > 1) {
                 std::lock_guard<std::mutex> lock(_buffer_mutex);
                 for (size_t i = 1; i < display_width; ++i) {
@@ -853,7 +853,7 @@ namespace Tiny {
                         }
                         if (run++ >= _objects.size()) break;
                     }
-                } else {
+                } else if (user_input.type == InputEvent::Mouse) {
                     if (_last_widget) _last_widget->setFocus(false);
                     _last_widget = nullptr;
                     _z_order = 0;
@@ -1441,7 +1441,7 @@ namespace Tiny {
 
     void TUI::Label::setText(const std::string &text) {
         _text = text;
-        Code::splitUTF8(_text.c_str(), &_text_size);
+        U8Code::splitUTF8(_text.c_str(), &_text_size);
         if (_status_flag.test(10)) {
             calcAutoSize();
         } else {
@@ -1520,7 +1520,7 @@ namespace Tiny {
         auto scr = Terminal::screenSize() - Size(1, 1);
         const auto R = END_POS.column >= scr.width;
         if (R) {
-            _dis_text = Code::subUTF8(_text.c_str(), _text_size - (END_POS.column - scr.width + 1));
+            _dis_text = U8Code::subUTF8(_text.c_str(), _text_size - (END_POS.column - scr.width + 1));
         } else {
             _dis_text = _text;
         }
@@ -1530,7 +1530,7 @@ namespace Tiny {
         const auto END_POS = position().calcEndPos(size());
         const auto SCR = Terminal::screenSize() - Size(1, 1);
         size_t dis_len{};
-        auto dis_chars = Code::splitUTF8(_text.c_str(), &dis_len);
+        auto dis_chars = U8Code::splitUTF8(_text.c_str(), &dis_len);
         int64_t con_len = static_cast<int32_t>(size().width) - static_cast<int32_t>(dis_len);
 
         if (END_POS.column < SCR.width) {
@@ -1759,9 +1759,9 @@ namespace Tiny {
         Terminal::moveCursor(position());
         Terminal::setCursorVisible(true);
         editText(&_text, position(), size().width);
-        size_t new_len = Code::calcDisplaySize(_text);
+        size_t new_len = U8Code::calcDisplaySize(_text);
         if (new_len > _max_length) {
-            _text = Code::subUTF8(_text.data(), _max_length);
+            _text = U8Code::subUTF8(_text.data(), _max_length);
         }
         Terminal::setCursorVisible(false);
         Terminal::clearScreen();
@@ -1777,19 +1777,19 @@ namespace Tiny {
             return;
         }
         if (_text.empty() ) {
-            _dis_text = Code::subUTF8(_placeholder.data(), size().width);
+            _dis_text = U8Code::subUTF8(_placeholder.data(), size().width);
             _dis_text_length = size().width;
         } else {
-            _dis_text_length = Misc::min(static_cast<size_t>(size().width), Code::calcDisplaySize(_text));
+            _dis_text_length = Misc::min(static_cast<size_t>(size().width), U8Code::calcDisplaySize(_text));
             if (_echo_mode == EchoMode::Normal) {
-                _dis_text = Code::subUTF8(_text.data(), _dis_text_length);
+                _dis_text = U8Code::subUTF8(_text.data(), _dis_text_length);
             } else {
                 std::string buf;
                 buf.reserve(_dis_text_length);
                 for (uint16_t i = 0; i < _dis_text_length; ++i) {
                     buf += _echo_pass.data();
                 }
-                _dis_text = Code::subUTF8(buf.data(), _dis_text_length);
+                _dis_text = U8Code::subUTF8(buf.data(), _dis_text_length);
             }
         }
         _text_pos = position();
@@ -1810,6 +1810,7 @@ namespace Tiny {
             : AbstractWidget(name, position, Size(width, 1), typeid(Slider), parent), _width(width) {
         setMinimumSize(width, 1);
         setMaximumSize(width, 1);
+        setMouseTracingEnabled(true);
     }
 
     void TUI::Slider::setOrientation(Orientation mode) {
@@ -2147,6 +2148,221 @@ namespace Tiny {
         if (_inverted) V = 1.0 - V;
         _prg_pos = static_cast<uint32_t>(static_cast<double>(_width) * V);
         renderEvent(Renderer::self());
+    }
+
+    TUI::ListView::ListView(const std::string &name, const Position &position, const Size &size, Object *parent)
+            : AbstractWidget(name, position, size, typeid(ListView), parent) {
+        setMinimumSize(8, 3);
+        setMouseTracingEnabled(true);
+    }
+
+    void TUI::ListView::appendItem(const std::string &text) {
+        _items.emplace_back(text);
+        itemChangedEvent();
+    }
+
+    void TUI::ListView::appendItems(const std::vector<std::string> &items) {
+        _items.insert(_items.end(), items.begin(), items.end());
+        itemChangedEvent();
+    }
+
+    void TUI::ListView::insertItem(int32_t index, const std::string &text) {
+        if (index < 0 || index >= _items.size()) {
+            _items.emplace_back(text);
+        } else {
+            _items.insert(_items.begin() + index, text);
+        }
+        itemChangedEvent();
+    }
+
+    void TUI::ListView::popItem() {
+        if (_items.empty()) return;
+        _items.pop_back();
+        if (_current_index >= static_cast<int32_t>(_items.size())) {
+            _current_index = static_cast<int32_t>(_items.size()) - 1;
+            indexChangedEvent();
+            calcDisplay();
+        }
+        itemChangedEvent();
+    }
+
+    void TUI::ListView::removeItems(int32_t index, int32_t count) {
+        if (index < 0 || index >= _items.size()) return;
+        if (count == 1) {
+            _items.erase(_items.begin() + index);
+            itemChangedEvent();
+            return;
+        }
+        int32_t last_index = Misc::min(index + count - 1, static_cast<int32_t>(_items.size()));
+        _items.erase(_items.begin() + index, _items.begin() + last_index);
+        if (_current_index >= static_cast<int32_t>(_items.size())) {
+            _current_index = static_cast<int32_t>(_items.size()) - 1;
+            indexChangedEvent();
+            calcDisplay();
+        }
+        itemChangedEvent();
+    }
+
+    void TUI::ListView::clear() {
+        _items.clear();
+        _current_index = -1;
+        indexChangedEvent();
+        calcDisplay();
+        itemChangedEvent();
+    }
+
+    void TUI::ListView::setCurrentIndex(int32_t index) {
+        _current_index = Misc::clamp(index, -1, static_cast<int32_t>(_items.size()) - 1);
+        indexChangedEvent();
+        calcDisplay();
+    }
+
+    void TUI::ListView::setItem(int32_t index, const std::string &new_text) {
+        if (index >= 0 && index < _items.size()) _items[index] = new_text;
+    }
+
+    void TUI::ListView::setSelectionColor(const Color &fg_color, const Color &bg_color) {
+        _fg_filled_color = fg_color;
+        _bg_filled_color = bg_color;
+    }
+
+    void TUI::ListView::setActiveColor(const Color &fg_color, const Color &bg_color) {
+        _fg_active_color = fg_color;
+        _bg_active_color = bg_color;
+    }
+
+    int32_t TUI::ListView::currentIndex() const {
+        return _current_index;
+    }
+
+    int32_t TUI::ListView::count() const {
+        return static_cast<int32_t>(_items.size());
+    }
+
+    std::string TUI::ListView::currentItem() const {
+        if (_current_index < 0) return {};
+        return _items[_current_index];
+    }
+
+    std::string TUI::ListView::itemAt(int32_t index) const {
+        if (index >= 0 && index < _items.size()) return _items[index];
+        return {};
+    }
+
+    TUI::Color TUI::ListView::bgSelectionColor() const {
+        return _bg_filled_color;
+    }
+
+    TUI::Color TUI::ListView::fgSelectionColor() const {
+        return _fg_filled_color;
+    }
+
+    TUI::Color TUI::ListView::bgActiveColor() const {
+        return _bg_active_color;
+    }
+
+    TUI::Color TUI::ListView::fgActiveColor() const {
+        return _fg_active_color;
+    }
+
+    void TUI::ListView::onEvent(const AbstractEvent &event) {
+        AbstractWidget::onEvent(event);
+    }
+
+    void TUI::ListView::onResizedTermSize(const Size &size) {
+        AbstractWidget::onResizedTermSize(size);
+    }
+
+    void TUI::ListView::renderEvent(Renderer &renderer) {
+        const auto W = size().width;
+        const auto H = size().height;
+        bool has_item = !_items.empty();
+        uint8_t status{};
+        auto my_style = currentStyle(&status);
+        if (status == S_Normal || status == S_Checked) {
+            my_style.fg_color = Color::Black;
+            my_style.bg_color = _bg_filled_color;
+        } else if (status == S_Active) {
+            my_style.fg_color = _fg_active_color;
+            my_style.bg_color = _bg_active_color;
+        } else {
+            my_style.property ^= Style::Reverse | Style::Bolder;
+        }
+
+        for (int i = 0; i < H; ++i) {
+            if (has_item) {
+                if (_start_id + i >= _items.size()) {
+                    has_item = false;
+                    renderer.setSSF({position().row + i, position().column}, "{:<{}c}",
+                        currentStyle(), W, '-');
+                    continue;
+                }
+                size_t cnt{};
+                renderer.setSSF({position().row + i, position().column}, "{:<{}s}",
+                    _start_id + i == _current_index ? my_style : currentStyle(), W,
+                    U8Code::subUTF8(_items.at(_start_id + i).data(), W, 0, &cnt));
+                auto dis = W - cnt;
+                if (dis > 0) {
+                    renderer.setSSF({position().row + i, static_cast<uint32_t>(position().column + cnt)},
+                        "{:<{}c}", _start_id + i == _current_index ? my_style : currentStyle(), dis, ' ');
+                }
+            } else {
+                renderer.setSSF({position().row + i, position().column}, "{:<{}c}",
+                    currentStyle(), W, '-');
+            }
+        }
+    }
+
+    void TUI::ListView::resizeEvent(uint32_t width, uint32_t height) {}
+    void TUI::ListView::moveEvent(uint32_t x, uint32_t y) {}
+    void TUI::ListView::keyEvent(KeyEvent keyboard) {
+        if (!focus()) return;
+        if (keyboard.is_pressed) {
+            if (keyboard.sp_key == SP_KEY_UP) {
+                _current_index = _current_index <= 0 ? _items.size() - 1 : _current_index - 1;
+            } else if (keyboard.sp_key == SP_KEY_DOWN) {
+                _current_index = _current_index >= _items.size() - 1 ? 0 : _current_index + 1;
+            } else if (keyboard.sp_key == SP_KEY_PAGE_DOWN) {
+                _current_index = Misc::min(static_cast<int32_t>(_current_index + size().height),
+                    static_cast<int32_t>(_items.size() - 1));
+            } else if (keyboard.sp_key == SP_KEY_PAGE_UP) {
+                _current_index = Misc::max(_current_index - static_cast<int32_t>(size().height), 0);
+            } else if (keyboard.sp_key == SP_KEY_HOME) {
+                _current_index = 0;
+            } else if (keyboard.sp_key == SP_KEY_END) {
+                _current_index = Misc::max(static_cast<int32_t>(_items.size()) - 1, 0);
+            }
+            indexChangedEvent();
+            calcDisplay();
+        }
+    }
+    void TUI::ListView::mouseEvent(MouseEvent mouse) {
+        if (!focus()) return;
+        if (mouse.button == MOUSE_WHEEL_UP) {
+            _current_index = Misc::max(_current_index - 1, 0);
+        } else if (mouse.button == MOUSE_WHEEL_DOWN) {
+            _current_index = Misc::min(_current_index + 1, static_cast<int32_t>(_items.size()) - 1);
+        }
+        if (mouse.is_pressed && mouse.button == MOUSE_LEFT_BUTTON) {
+            auto d = static_cast<int32_t>(mouse.position.row - position().row);
+            _current_index = Misc::clamp(_start_id + d, 0, static_cast<int32_t>(_items.size()) - 1);
+        }
+        indexChangedEvent();
+        calcDisplay();
+    }
+
+    void TUI::ListView::focusEvent(bool focus) {}
+    void TUI::ListView::enableEvent(bool enable) {}
+    void TUI::ListView::clickedEvent() {}
+    void TUI::ListView::indexChangedEvent() {}
+    void TUI::ListView::itemChangedEvent() {}
+    void TUI::ListView::calcDisplay() {
+        const auto H = static_cast<int32_t>(size().height);
+        if (_current_index > _start_id) {
+            _start_id = Misc::max(_current_index - H + 1, 0);
+        } else if (_current_index < _start_id) {
+            _start_id = Misc::max(_current_index, 0);
+        }
     }
 }
 

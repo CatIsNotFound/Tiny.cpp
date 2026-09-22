@@ -822,6 +822,53 @@ namespace Tiny {
             uint8_t _width;
             Color _fg_filled_color{Color::Default}, _bg_filled_color{Color::Blue};
         };
+
+        class ListView : public AbstractWidget {
+        public:
+            explicit ListView(const std::string& name, const Position& position, const Size& size, Object* parent = nullptr);
+            ~ListView() override = default;
+
+            void appendItem(const std::string& text);
+            void appendItems(const std::vector<std::string>& items);
+            void insertItem(int32_t index, const std::string& text);
+            void popItem();
+            void removeItems(int32_t index, int32_t count = 1);
+            void clear();
+            void setCurrentIndex(int32_t index);
+            void setItem(int32_t index, const std::string& new_text);
+            void setSelectionColor(const Color& fg_color, const Color& bg_color);
+            void setActiveColor(const Color& fg_color, const Color& bg_color);
+
+            int32_t currentIndex() const;
+            int32_t count() const;
+            std::string currentItem() const;
+            std::string itemAt(int32_t index) const;
+            Color bgSelectionColor() const;
+            Color fgSelectionColor() const;
+            Color bgActiveColor() const;
+            Color fgActiveColor() const;
+
+        protected:
+            void onEvent(const AbstractEvent &event) override;
+            void onResizedTermSize(const Size &size) override;
+            void renderEvent(Renderer &renderer) override;
+            void resizeEvent(uint32_t width, uint32_t height) override;
+            void moveEvent(uint32_t x, uint32_t y) override;
+            void keyEvent(KeyEvent keyboard) override;
+            void mouseEvent(MouseEvent mouse) override;
+            void focusEvent(bool focus) override;
+            void enableEvent(bool enable) override;
+            void clickedEvent() override;
+            virtual void indexChangedEvent();
+            virtual void itemChangedEvent();
+        private:
+            void calcDisplay();
+            std::vector<std::string> _items;
+            int32_t _current_index{-1};
+            int32_t _start_id{};
+            Color _fg_filled_color{Color::Default}, _bg_filled_color{Color::Blue},
+                  _fg_active_color{Color::Blue},    _bg_active_color{Color::Default};
+        };
     }
 }
 

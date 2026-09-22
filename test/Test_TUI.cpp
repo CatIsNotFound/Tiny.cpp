@@ -3,90 +3,61 @@
 using namespace Tiny;
 using namespace TUI;
 
-class MSlider : public Slider {
+class MyListView : public ListView {
 public:
-    MSlider(const std::string& name, const Position& position, uint8_t width, Object* parent = nullptr) :
-        Slider(name, position, width, parent) {}
-    void setLabel(Label* label) {
-        _label = label;
+    MyListView(const std::string& name, const Position& pos, const Size& size) : ListView(name, pos, size) {}
+    void setLineEdit(LineEdit* line_edit) {
+        _line_edit = line_edit;
     }
 protected:
-    void valueChangedEvent() override {
-        Slider::valueChangedEvent();
-        if (!_label) return;
-        _label->setText(Terminal::formatString("{}: {:3s}", objectName(), value()));
+    void indexChangedEvent() override {
+        ListView::indexChangedEvent();
+        if (_line_edit) _line_edit->setText(itemAt(currentIndex()));
     }
-
 private:
-    Label* _label{};
+    LineEdit* _line_edit{};
 };
 
 int main(int argc, char *argv[]) {
     if (strcmp(OS::Name, "windows") == 0) OS::exec("cmd.exe /c chcp 65001");
     Application app;
     app.setRefreshEnabled(false);
-    Label label("label", {}, {40, 1});
-    label.setText("Line Edit Test");
-    Button button("ok", {1, 41});
-    button.setText("[ OK ]");
-    Button echo("echo", {2, 0});
-    echo.setText("[ Echo: Normal ]");
-    Button alignment("align", {3, 0});
-    alignment.setText("[  Alignment: Left  ]");
-    LineEdit line_edit("line_edit", {1, 0}, 40);
-    line_edit.setPlaceHolderText("Click here to edit...");
-    app.setZOrder(&line_edit, &button);
-    button.setEvent([&line_edit](Button& button) {
+    Label title("[List view Demo]", {0, 0});
+    LineEdit line_edit("line_edit", {1, 0}, 30);
+    line_edit.setPlaceHolderText("Click one item or edit text...");
+    line_edit.setMaximumLength(20);
+    MyListView list_view("list_view", {2, 0}, {15, 6});
+    list_view.setLineEdit(&line_edit);
+    Button btn_add("add", {3, 17});
+    Button btn_insert("insert", {4, 17});
+    Button btn_rm("remove", {5, 17});
+    Button btn_clr("clear", {6, 17});
+    Button btn_update("update", {7, 17});
+    btn_add.setText("[   add   ]");
+    btn_insert.setText("[  insert ]");
+    btn_rm. setText("[  remove ]");
+    btn_clr.setText("[  clear  ]");
+    btn_update.setText("[  update ]");
+    btn_add.setEvent([&line_edit, &list_view] (const Button&) {
+        if (line_edit.text().empty()) return;
+        list_view.appendItem(line_edit.text());
         line_edit.clear();
     });
-    echo.setEvent([&line_edit](Button& button) {
-        static uint8_t c = 1;
-        c = (c + 1) % 3;
-        line_edit.setEchoMode(static_cast<LineEdit::EchoMode>(c));
-        switch (c) {
-            case 0:
-                button.setText("[  Echo: None  ]");
-                break;
-            case 1:
-                button.setText("[ Echo: Normal ]");
-                break;
-            case 2:
-                button.setText("[Echo: Password]");
-                break;
-        }
+    btn_insert.setEvent([&line_edit, &list_view] (const Button&) {
+        if (line_edit.text().empty()) return;
+        list_view.insertItem(list_view.currentIndex(), line_edit.text());
+        line_edit.clear();
     });
-    alignment.setEvent([&line_edit](Button& button) {
-        static uint8_t c = 0;
-        c = (c + 1) % 3;
-        line_edit.setTextAlignment(static_cast<TextAlignment>(c));
-        switch (c) {
-        case 0:
-            button.setText("[  Alignment: Left   ]");
-            break;
-        case 1:
-            button.setText("[  Alignment: Center ]");
-            break;
-        case 2:
-            button.setText("[  Alignment: Right  ]");
-            break;
-        }
+    btn_rm.setEvent([&list_view] (const Button&) {
+        list_view.removeItems(list_view.currentIndex());
     });
-    MSlider slider_v("slider_v", {8, 16}, 10);
-    MSlider slider_h("slider_h", {8, 1}, 10);
-    slider_v.setOrientation(Orientation::V);
-    slider_v.setValue(50);
-    slider_h.setValue(50);
-    slider_h.setOrientation(Orientation::V);
-    slider_h.setOrientation(Orientation::H);
-    slider_v.setMouseTracingEnabled(true);
-    slider_h.setMouseTracingEnabled(true);
-    slider_v.setInvertedEnabled(true);
-    Label label_h("label_h: 100", {9, 1});
-    Label label_v("label_v: 100", {10, 1});
-    slider_h.setLabel(&label_h);
-    slider_v.setLabel(&label_v);
-    ProgressBar prg_bar("prg_bar", {19, 1}, 10);
-    prg_bar.setValue(45);
+    btn_clr.setEvent([&list_view] (const Button&) {
+        list_view.clear();
+    });
+    btn_update.setEvent([&line_edit, &list_view] (const Button&) {
+        list_view.setItem(list_view.currentIndex(), line_edit.text());
+    });
+
     CurBlock cur("cur");
     
     return app.run();

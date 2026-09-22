@@ -45,7 +45,7 @@
 
 namespace Tiny {
 #if defined(TINY_CPP_MY_OS_WINDOWS)
-    std::wstring Code::string2Wide(const std::string& str, uint32_t codepage) {
+    std::wstring U8Code::string2Wide(const std::string& str, uint32_t codepage) {
         auto len = MultiByteToWideChar(codepage, 0, str.data(),
         str.size(), nullptr, 0);
         std::wstring w_str(len, 0);
@@ -54,7 +54,7 @@ namespace Tiny {
         return w_str;
     }
 
-    std::string Code::wide2String(const std::wstring& w_str, uint32_t codepage) {
+    std::string U8Code::wide2String(const std::wstring& w_str, uint32_t codepage) {
         auto len = WideCharToMultiByte(codepage, 0, w_str.data(), w_str.size(),
             nullptr, 0, nullptr, nullptr);
         std::string str(len, 0);
@@ -64,7 +64,7 @@ namespace Tiny {
     }
     
 #elif defined(TINY_CPP_MY_OS_UNIX)
-    std::wstring Code::string2Wide(const std::string& str) {
+    std::wstring U8Code::string2Wide(const std::string& str) {
         setlocale(LC_ALL, "");
         std::mbstate_t state{};
         auto data = str.data();
@@ -75,7 +75,7 @@ namespace Tiny {
         return w_str;
     }
 
-    std::string Code::wide2String(const std::wstring& w_str) {
+    std::string U8Code::wide2String(const std::wstring& w_str) {
         setlocale(LC_ALL, "");
         std::mbstate_t state{};
         auto data = w_str.data();
@@ -87,11 +87,11 @@ namespace Tiny {
     }
 #endif
 
-    size_t Code::calcStrDisplayWidth(const std::string& data) {
-        return wcwidth(*Tiny::Code::string2Wide(data).c_str());
+    size_t U8Code::calcStrDisplayWidth(const std::string& data) {
+        return wcwidth(*Tiny::U8Code::string2Wide(data).c_str());
     }
 
-    std::string Code::splitFront(const char *data) {
+    std::string U8Code::splitFront(const char *data) {
         std::string str;
         if (data == nullptr) return str; 
         uint8_t ch = *data;
@@ -113,7 +113,7 @@ namespace Tiny {
         return str;
     }
 
-    std::vector<std::string> Code::splitUTF8(const char *data, size_t *display_size) {
+    std::vector<std::string> U8Code::splitUTF8(const char *data, size_t *display_size) {
         std::vector<std::string> result;
         if (display_size) *display_size = 0;
         if (data == nullptr) return result;
@@ -141,7 +141,7 @@ namespace Tiny {
         return result;
     }
 
-    size_t Code::calcDisplaySize(const std::string &str) {
+    size_t U8Code::calcDisplaySize(const std::string &str) {
         size_t display_size = 0;
         auto data = str.data();
         while (*data) {
@@ -160,7 +160,7 @@ namespace Tiny {
         return display_size;
     }
 
-    std::string Code::subUTF8(const char* data, size_t display_count, size_t offset) {
+    std::string U8Code::subUTF8(const char* data, size_t display_count, size_t offset, size_t *result_display_count) {
         if (!data || display_count == 0) return {};
         std::string result;
         size_t now_cnt = 0, sum_offset = 0;
@@ -183,19 +183,22 @@ namespace Tiny {
             } else {
                 str += *data++;
             }
-            result.append(str);
             auto add = calcStrDisplayWidth(str);
             if (add_list) {
-                if (now_cnt + add >= display_count) break;
+                if (now_cnt + add > display_count) break;
                 now_cnt += add;
+                result.append(str);
             } else {
-                if (++sum_offset >= offset) add_list = true;
+                if (++sum_offset >= offset) {
+                    add_list = true;
+                }
             }
         }
+        if (result_display_count) *result_display_count = now_cnt;
         return result;
     }
 
-    size_t Code::lastCharCount(const std::string &buf) {
+    size_t U8Code::lastCharCount(const std::string &buf) {
         if (buf.empty()) return 0;
         auto esc_pos = buf.rfind('\x1b');
         static auto is_csi = [](char c) -> bool {
@@ -574,7 +577,7 @@ namespace Tiny {
     bool TUI::Terminal::printW(wchar_t ch) {
         wchar_t w_text[] = {ch, L'\0'};
 #ifdef TINY_CPP_MY_OS_UNIX
-        auto text = Code::wide2String(w_text);
+        auto text = U8Code::wide2String(w_text);
         write(STDOUT_FILENO, text.data(), 1);
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -602,7 +605,7 @@ namespace Tiny {
 
     bool TUI::Terminal::printW(const std::wstring &text) {
 #ifdef TINY_CPP_MY_OS_UNIX
-        auto data = Code::wide2String(text);
+        auto data = U8Code::wide2String(text);
         write(STDOUT_FILENO, data.c_str(), data.length());
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -632,7 +635,7 @@ namespace Tiny {
     bool TUI::Terminal::printLineW(const std::wstring &text) {
 #ifdef TINY_CPP_MY_OS_UNIX
         auto w_text = text + L"\r\n";
-        auto cmd = Code::wide2String(w_text);
+        auto cmd = U8Code::wide2String(w_text);
         write(STDOUT_FILENO, cmd.c_str(), cmd.length());
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -660,7 +663,7 @@ namespace Tiny {
 
     bool TUI::Terminal::printErrorW(const std::wstring &text) {
 #ifdef TINY_CPP_MY_OS_UNIX
-        auto data = Code::wide2String(text);
+        auto data = U8Code::wide2String(text);
         write(STDERR_FILENO, data.c_str(), data.length());
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_ERROR_HANDLE);
@@ -877,12 +880,12 @@ namespace Tiny {
         std::wstring out;
 #ifdef TINY_CPP_MY_OS_UNIX
         if (_is_in_raw_mode) {
-            out = Code::string2Wide(readLineOnRawEX());
+            out = U8Code::string2Wide(readLineOnRawEX());
         } else {
             char buffer[2048] = {};
             size_t read_count = readAfterDelay(STDIN_FILENO, buffer, 2048);
             if (buffer[read_count - 1] == '\n') read_count -= 1;
-            out = Code::string2Wide(buffer);
+            out = U8Code::string2Wide(buffer);
             if (out.back() == L'\n') out.pop_back();
         }
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
@@ -1395,7 +1398,7 @@ namespace Tiny {
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(use_output_term ? STD_OUTPUT_HANDLE : STD_ERROR_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return false;
-        auto w_str = Code::string2Wide(str);
+        auto w_str = U8Code::string2Wide(str);
         if (!WriteConsoleW(console, w_str.c_str(), w_str.size(), nullptr, nullptr)) return false;
         return true;
 #endif
@@ -1632,7 +1635,7 @@ namespace Tiny {
                 cur_text_pos += read_bytes;
                 if (read_bytes > 1) {
                     size_t dis_size{};
-                    Code::splitUTF8(temp, &dis_size);
+                    U8Code::splitUTF8(temp, &dis_size);
                     cur_pos += dis_size;
                     dis_sum += dis_size;
                 } else {
@@ -1656,7 +1659,7 @@ namespace Tiny {
                 moveLeftCursor(dis_len);
             } else if (strcmp(temp, "\x1b[C") == 0) {  // Press Right key
                 if (cur_text_pos == result.size()) continue;
-                size_t mov_length = Code::splitFront(result.substr(cur_text_pos).c_str()).size();
+                size_t mov_length = U8Code::splitFront(result.substr(cur_text_pos).c_str()).size();
                 char t[8]{};
                 size_t d = 0;
                 do {

@@ -224,9 +224,9 @@ namespace Tiny {
             static void handleCharRepeat(std::ostringstream&, const std::string&, int) {}
             static void handleString(std::ostringstream& ostream, const std::string& arg, int width, bool isRightAlign) {
                 if (isRightAlign) {
-                    ostream << std::right << std::setw(width) << arg;
+                    ostream << std::right << std::setw(width) << arg.data();
                 } else {
-                    ostream << std::left << std::setw(width) << arg;
+                    ostream << std::left << std::setw(width) << arg.data();
                 }
             }
             static void handleFloat(std::ostringstream&, const std::string&, int, int, bool) {}
@@ -265,6 +265,7 @@ namespace Tiny {
         while (*format) {
             if (*format == '{' && *(format + 1) == '}') {
                 appendArgs(ostream, arg);
+                if (!*(format + 2)) return;
                 formatImpl(ostream, format + 2, std::forward<Args>(args)...);
                 return;
             }
@@ -329,7 +330,7 @@ namespace Tiny {
                 }
                 if (bk == 0) {
                     std::ostringstream oss;
-                    formatImpl(oss, tokens.substr(0, dis + 1).c_str(), arg, std::forward<Args>(args)...);
+                    formatImpl(oss, tokens.substr(0, dis + 1).c_str(), arg);
                     my_str = old_str.substr(0, fpos);
                     my_str += oss.str();
                     my_str += old_str.substr(fpos + dis + 1);
