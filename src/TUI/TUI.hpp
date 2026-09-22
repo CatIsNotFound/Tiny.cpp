@@ -169,17 +169,9 @@ namespace Tiny {
                 }
             };
 
-            struct API_DEPRECATED("Please use \"TUI::Corner\" class directly! It will be removed since ver.0.3.0!")
-            Corner {
-                Char left_top{"+"};
-                Char left{"|"};
-                Char left_bottom{"+"};
-                Char right_top{"+"};
-                Char right{"|"};
-                Char right_bottom{"+"};
-                Char top{"-"};
-                Char bottom{"-"};
-            };
+            using Corner
+            API_DEPRECATED("Please use 'TUI::Corner' class directly! It will be removed since ver.0.3.0!")
+            = TUI::Corner;
 
             static Renderer& self();
             virtual ~Renderer();
