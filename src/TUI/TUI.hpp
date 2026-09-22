@@ -543,7 +543,7 @@ namespace Tiny {
                     void resizeWithoutCalledEvent(uint32_t width, uint32_t height);
                     void setCheckable(bool checkable);
                     void setChecked(bool checked);
-            const Renderer::Style& currentStyle() const;
+            const Renderer::Style& currentStyle(uint8_t* status = nullptr) const;
 
         private:
             void initStatus();
@@ -739,6 +739,7 @@ namespace Tiny {
             void setInvertedEnabled(bool enable);
             void setEvent(const std::function<void(int)>& event);
             void unsetEvent();
+            void setFilledColor(const Color& fg_color, const Color& bg_color);
 
             Orientation orientation() const;
             uint8_t width() const;
@@ -748,6 +749,8 @@ namespace Tiny {
             int  singleStep() const;
             int  pageStep() const;
             bool invertedEnabled() const;
+            Color fgFilledColor() const;
+            Color bgFilledColor() const;
 
         protected:
             void onEvent(const AbstractEvent &event) override;
@@ -770,6 +773,7 @@ namespace Tiny {
             Orientation _orientation{};
             bool _inverted{};
             uint8_t _width;
+            Color _fg_filled_color{Color::Blue}, _bg_filled_color{Color::Default};
         };
 
         class ProgressBar : public AbstractWidget {
@@ -783,11 +787,14 @@ namespace Tiny {
             void setValue(int value);
             void appendValue(int value);
             void setInvertedEnabled(bool enable);
+            void setFilledColor(const Color& fg_color, const Color& bg_color);
 
             Orientation orientation() const;
             uint8_t width() const;
             int value() const;
             bool invertedEnabled() const;
+            Color fgFilledColor() const;
+            Color bgFilledColor() const;
 
         protected:
             void onEvent(const AbstractEvent &event) override;
@@ -808,6 +815,7 @@ namespace Tiny {
             Orientation _orientation{};
             bool _inverted{};
             uint8_t _width;
+            Color _fg_filled_color{Color::Default}, _bg_filled_color{Color::Blue};
         };
     }
 }

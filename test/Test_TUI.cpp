@@ -22,12 +22,9 @@ private:
 };
 
 int main(int argc, char *argv[]) {
-    OS::exec("cmd.exe /c chcp 65001");
-    Position p1(8, 1), p2(16, 1);
-    Size sz(1, 8);
-    bool ok = isPointInRect({12, 1}, p1, sz);
-
+    if (strcmp(OS::Name, "windows") == 0) OS::exec("cmd.exe /c chcp 65001");
     Application app;
+    app.setRefreshEnabled(false);
     Label label("label", {}, {40, 1});
     label.setText("Line Edit Test");
     Button button("ok", {1, 41});
@@ -89,22 +86,8 @@ int main(int argc, char *argv[]) {
     slider_h.setLabel(&label_h);
     slider_v.setLabel(&label_v);
     ProgressBar prg_bar("prg_bar", {19, 1}, 10);
-    prg_bar.setValue(0);
-    prg_bar.setInvertedEnabled(true);
-
-    Label label_p("progress:   0%", {20, 1});
-    EV::Event ev(18, "prg", [&prg_bar, &label_p](const std::atomic<bool>&) {
-        static uint8_t D = 1;
-        prg_bar.setValue(prg_bar.value() + 1 * D);
-        if (prg_bar.value() == 0) D = 1;
-        if (prg_bar.value() == 100) D = -1;
-        label_p.setText(Terminal::formatString("progress: {:>3.2f}%  ", prg_bar.value()));
-    });
-    ev.setCondition([]{ return true; });
-    ev.setRepeatCount(0);
-    ev.setDelayMS(500);
+    prg_bar.setValue(45);
     CurBlock cur("cur");
-    ev.run();
     return app.run();
 }
 

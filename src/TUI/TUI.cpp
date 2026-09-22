@@ -877,8 +877,9 @@ namespace Tiny {
         EventBus::self().publish<Application>(new AbstractEvent(typeid(Application)));
         while (_running.load()) {
             auto input = Terminal::getInput();
-            if (input.type != InputEvent::None)
+            if (input.type != InputEvent::None || _refresh.load()) {
                 EventBus::self().publish<Application>(new UserInputEvent(input), SIZE_MAX);
+            }
             if (_quit.load() && input.type == InputEvent::Keyboard && input.input.keyboard.key == KEY_CTRL_C) {
                 _running.store(false);
             }
@@ -1202,10 +1203,14 @@ namespace Tiny {
     }
 
 
-    const TUI::Renderer::Style & TUI::AbstractWidget::currentStyle() const {
+    const TUI::Renderer::Style & TUI::AbstractWidget::currentStyle(uint8_t* status) const {
         for (int i = 0; i < _styles.size(); i++) {
-            if (_status_flag.test(F_Style + i)) return _styles[i];
+            if (_status_flag.test(F_Style + i)) {
+                if (status) *status = i;
+                return _styles[i];
+            }
         }
+        if (status) *status = 0;
         return _styles[0];
     }
 
@@ -1733,8 +1738,10 @@ namespace Tiny {
 
     void TUI::LineEdit::renderEvent(Renderer &renderer) {
         Position end_pos = position().calcEndPos(size());
-        renderer.fillRect(position(), end_pos, ' ', currentStyle());
-        if (visible()) renderer.setSSF(_text_pos, _dis_text.c_str(), currentStyle());
+        auto my_style = currentStyle();
+        my_style.intensity = 1;
+        renderer.fillRect(position(), end_pos, ' ', my_style);
+        if (visible()) renderer.setSSF(_text_pos, _dis_text.c_str(), my_style);
     }
 
     void TUI::LineEdit::resizeEvent(uint32_t width, uint32_t) {
@@ -1862,6 +1869,11 @@ namespace Tiny {
         _my_event = nullptr;
     }
 
+    void TUI::Slider::setFilledColor(const Color &fg_color, const Color &bg_color) {
+        _fg_filled_color = fg_color;
+        _bg_filled_color = bg_color;
+    }
+
     TUI::Orientation TUI::Slider::orientation() const {
         return _orientation;
     }
@@ -1894,6 +1906,14 @@ namespace Tiny {
         return _inverted;
     }
 
+    TUI::Color TUI::Slider::fgFilledColor() const {
+        return  _fg_filled_color;
+    }
+
+    TUI::Color TUI::Slider::bgFilledColor() const {
+        return  _bg_filled_color;
+    }
+
     void TUI::Slider::onEvent(const AbstractEvent &event) {
         AbstractWidget::onEvent(event);
     }
@@ -1904,28 +1924,51 @@ namespace Tiny {
 
     void TUI::Slider::renderEvent(Renderer &renderer) {
         bool has_slider = false;
+        uint8_t status{};
+        auto my_style = currentStyle(&status);
+        if (status == S_Normal) {
+            my_style.bg_color = _bg_filled_color;
+            my_style.fg_color = _fg_filled_color;
+            my_style.intensity = 2;
+        }
         if (_orientation == Orientation::H) {
             for (uint32_t i = 0; i < _width; ++i) {
                 auto pos = Position(position().row, position().column + i + has_slider);
                 if (i == _slider_pos) {
-                    renderer.set(pos, "■", currentStyle());
+                    renderer.set(pos, "█", my_style);
                     has_slider = true;
                     pos.column++;
                 }
-                renderer.set(pos, "—", currentStyle());
+                if (status == S_Normal) {
+                    if (!_inverted) {
+                        renderer.set(pos, "─", i < _slider_pos ? my_style : currentStyle());
+                    } else {
+                        renderer.set(pos, "─", i >= _slider_pos ? my_style : currentStyle());
+                    }
+                } else {
+                    renderer.set(pos, "─", currentStyle());
+                }
             }
-            if (!has_slider) renderer.set(Position(position().row, position().column + _width), "■", currentStyle());
+            if (!has_slider) renderer.set(Position(position().row, position().column + _width), "█", currentStyle());
         } else {
             for (uint32_t i = 0; i < _width; ++i) {
                 auto pos = Position(position().row + i + has_slider, position().column);
                 if (i == _slider_pos) {
-                    renderer.set(pos, "■", currentStyle());
+                    renderer.set(pos, "█", my_style);
                     has_slider = true;
                     pos.row++;
                 }
-                renderer.set(pos, "|", currentStyle());
+                if (status == S_Normal) {
+                    if (!_inverted) {
+                        renderer.set(pos, "│", i < _slider_pos ? my_style : currentStyle());
+                    } else {
+                        renderer.set(pos, "│", i >= _slider_pos ? my_style : currentStyle());
+                    }
+                } else {
+                    renderer.set(pos, "│", currentStyle());
+                }
             }
-            if (!has_slider) renderer.set(Position(position().row + _width, position().column), "■", currentStyle());
+            if (!has_slider) renderer.set(Position(position().row + _width, position().column), "█", currentStyle());
         }
     }
     void TUI::Slider::resizeEvent(uint32_t, uint32_t) {}
@@ -2035,6 +2078,11 @@ namespace Tiny {
         renderEvent(Renderer::self());
     }
 
+    void TUI::ProgressBar::setFilledColor(const Color &fg_color, const Color &bg_color) {
+        _fg_filled_color = fg_color;
+        _bg_filled_color = bg_color;
+    }
+
     TUI::Orientation TUI::ProgressBar::orientation() const {
         return _orientation;
     }
@@ -2051,6 +2099,14 @@ namespace Tiny {
         return _inverted;
     }
 
+    TUI::Color TUI::ProgressBar::fgFilledColor() const {
+        return _fg_filled_color;
+    }
+
+    TUI::Color TUI::ProgressBar::bgFilledColor() const {
+        return _bg_filled_color;
+    }
+
     void TUI::ProgressBar::onEvent(const AbstractEvent &event) {
         AbstractWidget::onEvent(event);
     }
@@ -2061,8 +2117,10 @@ namespace Tiny {
 
     void TUI::ProgressBar::renderEvent(Renderer &renderer) {
         auto prg_style = currentStyle();
-        prg_style.property ^= Renderer::Style::Reverse;
-        for (uint32_t i = 0; i < _width; ++i) {
+        prg_style.bg_color = _bg_filled_color;
+        prg_style.fg_color = _fg_filled_color;
+        prg_style.intensity = 1;
+        for (uint32_t i = 0; i < _width + 1; ++i) {
             Position pos;
             if (_orientation == Orientation::H) {
                 pos = Position(position().row, position().column + i);
@@ -2085,9 +2143,9 @@ namespace Tiny {
     void TUI::ProgressBar::enableEvent(bool) {}
     void TUI::ProgressBar::clickedEvent() {}
     void TUI::ProgressBar::valueChangedEvent() {
-        auto V = static_cast<float>(_value) / 100.f;
-        if (_inverted) V = 1.f - V;
-        _prg_pos = static_cast<uint32_t>(static_cast<float>(_width) * V);
+        auto V = static_cast<double>(_value) / 100.0;
+        if (_inverted) V = 1.0 - V;
+        _prg_pos = static_cast<uint32_t>(static_cast<double>(_width) * V);
         renderEvent(Renderer::self());
     }
 }
