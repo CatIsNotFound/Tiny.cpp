@@ -666,12 +666,17 @@ namespace Tiny {
 
             void setEvent(const std::function<void(Button&)>& event);
             void unsetEvent();
+            void setDefaultKeyEvent(const std::array<KeyEvent, 2>& key_events);
+            void setDefaultKeys(uint8_t key1, uint8_t key2 = KEY_UNKNOWN,
+                                SP_Keys sp_key1 = SP_KEY_UNKNOWN, SP_Keys sp_key2 = SP_KEY_UNKNOWN);
 
         protected:
             void moveEvent(uint32_t x, uint32_t y) override;
+            void keyEvent(KeyEvent keyboard) override;
             void clickedEvent() override;
         private:
             std::function<void(Button&)> _clicked_event{};
+            std::array<KeyEvent, 2> _key_events{};
         };
 
         class LineEdit : public AbstractWidget {
@@ -838,6 +843,7 @@ namespace Tiny {
             void setItem(int32_t index, const std::string& new_text);
             void setSelectionColor(const Color& fg_color, const Color& bg_color);
             void setActiveColor(const Color& fg_color, const Color& bg_color);
+            void swapItems(int32_t index1, int32_t index2);
 
             int32_t currentIndex() const;
             int32_t count() const;
@@ -866,8 +872,8 @@ namespace Tiny {
             std::vector<std::string> _items;
             int32_t _current_index{-1};
             int32_t _start_id{};
-            Color _fg_filled_color{Color::Default}, _bg_filled_color{Color::Blue},
-                  _fg_active_color{Color::Blue},    _bg_active_color{Color::Default};
+            Color _fg_filled_color{Color::White}, _bg_filled_color{Color::Blue},
+                  _fg_active_color{Color::Blue},    _bg_active_color{Color::White};
         };
     }
 }

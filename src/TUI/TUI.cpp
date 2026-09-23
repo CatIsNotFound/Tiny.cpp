@@ -880,7 +880,8 @@ namespace Tiny {
             if (input.type != InputEvent::None || _refresh.load()) {
                 EventBus::self().publish<Application>(new UserInputEvent(input), SIZE_MAX);
             }
-            if (_quit.load() && input.type == InputEvent::Keyboard && input.input.keyboard.key == KEY_CTRL_C) {
+            if (_quit.load() && input.type == InputEvent::Keyboard &&
+                (input.input.keyboard.key == KEY_CTRL_C || input.input.keyboard.key == KEY_ESC)) {
                 _running.store(false);
             }
 
@@ -1153,9 +1154,7 @@ namespace Tiny {
 
     void TUI::AbstractWidget::onEvent(const AbstractEvent &event) {
         if (!visible()) return;
-        renderEvent(Renderer::self());
-        if (!enabled()) return;
-        if (event.hash() == typeid(UserInputEvent).hash_code()) {
+        if (enabled() && event.hash() == typeid(UserInputEvent).hash_code()) {
             const InputEvent& in_event = dynamic_cast<const UserInputEvent&>(event).inputEvent();
             auto& input = in_event.input;
             switch (in_event.type) {
@@ -1177,6 +1176,7 @@ namespace Tiny {
                     break;
             }
         }
+        renderEvent(Renderer::self());
     }
 
     void TUI::AbstractWidget::onResizedTermSize(const Size &size) {
@@ -1608,9 +1608,37 @@ namespace Tiny {
         _clicked_event = {};
     }
 
+    void TUI::Button::setDefaultKeyEvent(const std::array<KeyEvent, 2> &key_events) {
+        _key_events = key_events;
+        for (int i = 0; i < 2; ++i) {
+            _key_events[i].is_pressed = true;
+            if (_key_events[i].key != KEY_SPECIAL) _key_events[i].sp_key = SP_KEY_UNKNOWN;
+        }
+    }
+
+    void TUI::Button::setDefaultKeys(uint8_t key1, uint8_t key2, SP_Keys sp_key1, SP_Keys sp_key2) {
+        if (key1 != KEY_SPECIAL) sp_key1 = SP_KEY_UNKNOWN;
+        if (key2 != KEY_SPECIAL) sp_key2 = SP_KEY_UNKNOWN;
+        _key_events[0].is_pressed = true;
+        _key_events[0].key = key1;
+        _key_events[0].sp_key = sp_key1;
+        _key_events[1].is_pressed = true;
+        _key_events[1].key = key2;
+        _key_events[1].sp_key = sp_key2;
+    }
+
     void TUI::Button::moveEvent(uint32_t x, uint32_t y) {
         Label::moveEvent(x, y);
         setFocus(isPointInRect({x, y}, position(), size()));
+    }
+
+    void TUI::Button::keyEvent(KeyEvent keyboard) {
+        for (auto& ev : _key_events) {
+            if (ev.key == keyboard.key && ev.sp_key == keyboard.sp_key) {
+                clickedEvent();
+                return;
+            }
+        }
     }
 
     void TUI::Button::clickedEvent() {
@@ -2190,7 +2218,10 @@ namespace Tiny {
         if (index < 0 || index >= _items.size()) return;
         if (count == 1) {
             _items.erase(_items.begin() + index);
+            _current_index = Misc::min(_current_index, static_cast<int32_t>(_items.size()) - 1);
             itemChangedEvent();
+            indexChangedEvent();
+            calcDisplay();
             return;
         }
         int32_t last_index = Misc::min(index + count - 1, static_cast<int32_t>(_items.size()));
@@ -2229,6 +2260,12 @@ namespace Tiny {
     void TUI::ListView::setActiveColor(const Color &fg_color, const Color &bg_color) {
         _fg_active_color = fg_color;
         _bg_active_color = bg_color;
+    }
+
+    void TUI::ListView::swapItems(int32_t index1, int32_t index2) {
+        if (index1 >= 0 && index1 < _items.size() && index2 >= 0 && index2 < _items.size()) {
+            std::swap(_items[index1], _items[index2]);
+        }
     }
 
     int32_t TUI::ListView::currentIndex() const {
@@ -2280,7 +2317,7 @@ namespace Tiny {
         uint8_t status{};
         auto my_style = currentStyle(&status);
         if (status == S_Normal || status == S_Checked) {
-            my_style.fg_color = Color::Black;
+            my_style.fg_color = _fg_filled_color;
             my_style.bg_color = _bg_filled_color;
         } else if (status == S_Active) {
             my_style.fg_color = _fg_active_color;
@@ -2288,7 +2325,6 @@ namespace Tiny {
         } else {
             my_style.property ^= Style::Reverse | Style::Bolder;
         }
-
         for (int i = 0; i < H; ++i) {
             if (has_item) {
                 if (_start_id + i >= _items.size()) {
@@ -2338,17 +2374,23 @@ namespace Tiny {
     }
     void TUI::ListView::mouseEvent(MouseEvent mouse) {
         if (!focus()) return;
+        bool is_changed{};
         if (mouse.button == MOUSE_WHEEL_UP) {
             _current_index = Misc::max(_current_index - 1, 0);
+            is_changed = true;
         } else if (mouse.button == MOUSE_WHEEL_DOWN) {
             _current_index = Misc::min(_current_index + 1, static_cast<int32_t>(_items.size()) - 1);
+            is_changed = true;
         }
         if (mouse.is_pressed && mouse.button == MOUSE_LEFT_BUTTON) {
             auto d = static_cast<int32_t>(mouse.position.row - position().row);
             _current_index = Misc::clamp(_start_id + d, 0, static_cast<int32_t>(_items.size()) - 1);
+            is_changed = true;
         }
-        indexChangedEvent();
-        calcDisplay();
+        if (is_changed) {
+            indexChangedEvent();
+            calcDisplay();
+        }
     }
 
     void TUI::ListView::focusEvent(bool focus) {}
