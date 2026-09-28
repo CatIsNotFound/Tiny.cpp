@@ -157,6 +157,57 @@ namespace Tiny {
         return _exec_cmd_list;
     }
 
+    std::string CommandParser::generateHelpInfo(uint8_t max_width, bool show_options_only) const {
+        std::ostringstream out;
+        if (!show_options_only) {
+            out << "USAGE: " << _argv[0] << " ";
+            if (!_default_cmd.empty()) {
+                out << "<" << _default_cmd << "> [Options] ...\r\n";
+            } else {
+                out << "[Options] ...\r\n";
+            }
+        }
+        out << "OPTIONS:\r\n";
+        uint32_t long_cmd_length{}, short_cmd_length{};
+        for (auto& iter : _commands) {
+            auto& cmd = iter.second;
+            if (cmd.option_name.length() >= long_cmd_length) long_cmd_length = cmd.option_name.length() + 2;
+            auto len = cmd.short_options.length() * 2;
+            if (!cmd.short_options.empty()) len += cmd.short_options.length() - 1;
+            if (len >= short_cmd_length)
+                short_cmd_length = len;
+        }
+        const char* TABS = "    ";
+        for (auto& iter : _commands) {
+            std::ostringstream s_oss;
+            auto& cmd = iter.second;
+            out << TABS << std::right << std::setw(long_cmd_length) << "--" + cmd.option_name;
+            if (cmd.short_options.empty()) {
+                out << "  " << std::setw(short_cmd_length) << ' ';
+            } else {
+                out << ", ";
+                for (size_t i = 0; i < cmd.short_options.size(); ++i) {
+                    s_oss << "-" << cmd.short_options[i];
+                    if (i != cmd.short_options.size() - 1) s_oss << "|";
+                }
+                out << std::setw(short_cmd_length) << std::left << s_oss.str();
+            }
+            int32_t des_len = static_cast<int>(max_width) - long_cmd_length - short_cmd_length - 10;
+            int32_t st = 0;
+            bool space{};
+            out << TABS;
+            do {
+                if (space) {
+                    out << std::setw(long_cmd_length + short_cmd_length + 10) << ' ';
+                }
+                out << cmd.description.substr(st, des_len) << "\r\n";
+                st += des_len;
+                space = true;
+            } while (st < cmd.description.length());
+        }
+        return out.str();
+    }
+
 
     size_t CommandParser::size() const {
         return _commands.size();

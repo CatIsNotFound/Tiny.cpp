@@ -35,6 +35,7 @@ int main(int argc, char *argv[]) {
     line_edit.setPlaceHolderText("Click one item or edit text...");
     line_edit.setMaximumLength(20);
     MyListView list_view("list_view", {2, 0}, {15, 6});
+    list_view.appendItems({"1", "2", "3", "4", "5", "6", "7", "8", "9"});
     list_view.setLineEdit(&line_edit);
     list_view.setButton(&test_btn);
     Button btn_add("add", {3, 17});
