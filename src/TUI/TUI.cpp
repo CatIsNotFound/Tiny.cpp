@@ -135,7 +135,7 @@ namespace Tiny {
             if (TUI::KEY_ENTER(temp[0])) {
                 break;
             }
-            if (static_cast<uint8_t>(temp[0]) == TUI::KEY_ESC) {
+            if (temp.size() == 1 && static_cast<uint8_t>(temp[0]) == TUI::KEY_ESC) {
                 return;
             }
             if (TUI::KEY_BACKSPACE(temp[0])) {
