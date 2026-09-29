@@ -181,24 +181,25 @@ namespace Tiny {
         for (auto& iter : _commands) {
             std::ostringstream s_oss;
             auto& cmd = iter.second;
-            out << TABS << std::right << std::setw(long_cmd_length) << "--" + cmd.option_name;
+            out << TABS << std::right << std::setw(static_cast<int>(long_cmd_length)) << "--" + cmd.option_name;
             if (cmd.short_options.empty()) {
-                out << "  " << std::setw(short_cmd_length) << ' ';
+                out << "  " << std::setw(static_cast<int>(short_cmd_length)) << ' ';
             } else {
                 out << ", ";
                 for (size_t i = 0; i < cmd.short_options.size(); ++i) {
                     s_oss << "-" << cmd.short_options[i];
                     if (i != cmd.short_options.size() - 1) s_oss << "|";
                 }
-                out << std::setw(short_cmd_length) << std::left << s_oss.str();
+                out << std::setw(static_cast<int>(short_cmd_length)) << std::left << s_oss.str();
             }
-            int32_t des_len = static_cast<int>(max_width) - long_cmd_length - short_cmd_length - 10;
+            int32_t des_len = static_cast<int>(max_width) - static_cast<int>(long_cmd_length) -
+                              static_cast<int>(short_cmd_length) - 10;
             int32_t st = 0;
             bool space{};
             out << TABS;
             do {
                 if (space) {
-                    out << std::setw(long_cmd_length + short_cmd_length + 10) << ' ';
+                    out << std::setw(static_cast<int>(long_cmd_length + short_cmd_length) + 10) << ' ';
                 }
                 out << cmd.description.substr(st, des_len) << "\r\n";
                 st += des_len;

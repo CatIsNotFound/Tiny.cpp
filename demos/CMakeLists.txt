@@ -33,6 +33,12 @@ addModule(ping  MY_MODULE
         ping/main.cpp
 )
 
+#addModule(Edit  MY_MODULE
+#        Edit/Editor.hpp
+#        Edit/Editor.cpp
+#        Edit/main.cpp
+#)
+
 #########################################################################################
 
 foreach (MODULE IN ITEMS ${MY_MODULE})

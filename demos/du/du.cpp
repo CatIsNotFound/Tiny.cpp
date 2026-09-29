@@ -117,7 +117,8 @@ int main(int argc, char* argv[]) {
         } else if (e.option_name == "file") {
             path = e.value;
         } else if (e.option_name == "help") {
-            print_help(parser);
+            // print_help(parser);
+            Terminal::printLine(parser.generateHelpInfo(Terminal::screenSize().width));
             return 0;
         }
     }

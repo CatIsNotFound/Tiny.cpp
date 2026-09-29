@@ -34,6 +34,11 @@ else()
 endif()
 endif()
 
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
+
 set(SOURCE_FILES
         src/Tiny.hpp
         src/Tiny.cpp

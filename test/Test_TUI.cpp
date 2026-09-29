@@ -72,13 +72,16 @@ int main(int argc, char *argv[]) {
     btn_rm.setDefaultKeys(KEY_BK, KEY_DEL);
     btn_clr.setDefaultKeys(KEY_SPECIAL, KEY_NONE, SP_KEY_DELETE);
     btn_update.setDefaultKeys(KEY_CTRL_U);
-    btn_quit.setDefaultKeys(KEY_CTRL_C, KEY_ESC);
+    btn_quit.setDefaultKeys(KEY_CTRL_C);
     btn_quit.setText("[   quit  ]");
     btn_quit.setEvent([&app](Button&) {
         app.exit();
     });
+    auto id = LISTEN_EVENT(ev, Application, {
+        title.setText(DT::formatStdTime(DT::currentTimestamps(), true));
+    }, &title);
+
     CurBlock cur("cur");
-    
     return app.run();
 }
 

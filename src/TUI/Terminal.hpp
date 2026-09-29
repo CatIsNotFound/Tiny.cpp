@@ -259,11 +259,13 @@ namespace Tiny {
 
         constexpr bool KEY_BACKSPACE(uint8_t key) { return key == KEY_BK || key == KEY_DEL; }
         constexpr bool KEY_ENTER(uint8_t key)     { return key == KEY_CR || key == KEY_LF; }
+        constexpr bool KEY_RETURN(uint8_t key)     { return key == KEY_CR || key == KEY_LF; }
         constexpr bool KEY_CONFIRM(uint8_t key)   { return key == KEY_SPACE || key == KEY_CR || key == KEY_LF; }
         constexpr bool KEY_CANCEL(uint8_t key)    { return key == KEY_BK || key == KEY_DEL || key == KEY_ESC; }
 
         enum SP_Keys : uint8_t {
             SP_KEY_UNKNOWN,
+            SP_KEY_NONE = 0,
             SP_KEY_F1,
             SP_KEY_F2,
             SP_KEY_F3,
@@ -299,21 +301,22 @@ namespace Tiny {
 
         enum SP_Mouse : uint8_t {
             SP_MOUSE_UNKNOWN,
-            MOUSE_UNKNOWN = 0,
             SP_MOUSE_LEFT_BUTTON,
-            MOUSE_LEFT_BUTTON = 1,
             SP_MOUSE_MIDDLE_BUTTON,
-            MOUSE_MIDDLE_BUTTON = 2,
             SP_MOUSE_RIGHT_BUTTON,
-            MOUSE_RIGHT_BUTTON = 3,
             SP_MOUSE_WHEEL_UP,
-            MOUSE_WHEEL_UP = 4,
             SP_MOUSE_WHEEL_DOWN,
-            MOUSE_WHEEL_DOWN = 5,
             SP_MOUSE_MOVED,
-            MOUSE_MOVED = 6,
             SP_MOUSE_RELEASE,
-            MOUSE_RELEASE = 7
+            ////////////////////////////////
+            MOUSE_UNKNOWN       = 0,
+            MOUSE_LEFT_BUTTON   = 1,
+            MOUSE_MIDDLE_BUTTON = 2,
+            MOUSE_RIGHT_BUTTON  = 3,
+            MOUSE_WHEEL_UP      = 4,
+            MOUSE_WHEEL_DOWN    = 5,
+            MOUSE_MOVED         = 6,
+            MOUSE_RELEASE       = 7
         };
 
         const char* getKeyName(const uint8_t &KEY, const SP_Keys &SP);

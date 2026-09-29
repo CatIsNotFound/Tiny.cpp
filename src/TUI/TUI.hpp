@@ -41,6 +41,46 @@
 #include <algorithm>
 #include <array>
 
+///
+/// @param META_NAME Defined a name that inherit from the `AbstractEvent` class.
+/// @param TYPE      Specified the class name as sender.
+/// @see   CALL_META_EVENT(META_NAME, EVENT_NAME, OBJECT, SIGNAL, ...)
+#define REG_META_EVENT(META_NAME, TYPE)                                    \
+    class META_NAME : public Tiny::TUI::AbstractEvent {                    \
+        public:                                                            \
+            META_NAME(TYPE* const object, size_t signal = 0)               \
+                : AbstractEvent(typeid(META_NAME)),                        \
+                  _object(object), _signal(signal) {}                      \
+            virtual ~META_NAME() = default;                                \
+            const TYPE& object() const { return *_object; }                \
+            size_t signal() const { return _signal; }                      \
+        private:                                                           \
+            TYPE* const _object;                                           \
+            size_t _signal;                                                \
+    }
+
+/// @note This macro function only works with subclasses that inherit from the `Object` class.
+/// @param META_NAME  Specified name who inherit from `AbstractEvent` class.
+/// @param EVENT_NAME The event name.
+/// @param OBJECT     The object who is sender.
+/// @param SIGNAL     Specified the signal when published by EventBus.
+/// @see   REG_META_EVENT(META_NAME, TYPE)
+/// @see   LISTEN_EVENT(YOUR_EVENT, TYPE, EVENT, ...)
+#define CALL_META_EVENT(META_NAME, EVENT_NAME, OBJECT, SIGNAL, ...)                         \
+    Tiny::TUI::EventBus::self().publish<typeof(*OBJECT)>(new META_NAME(OBJECT, SIGNAL));    \
+    EVENT_NAME(__VA_ARGS__)
+
+///
+/// @param YOUR_EVENT Defined a variable for AbstractEvent.
+/// @param TYPE       Class name which should be listened.
+/// @param EVENT      Defined the events when EventBus has captured.
+/// @param ...        The variable list which should be captured.
+/// @return           The `SubscriberID` which in the EventBus.
+#define LISTEN_EVENT(YOUR_EVENT, TYPE, EVENT, ...)  \
+    Tiny::TUI::EventBus::self().subscribe<TYPE>([__VA_ARGS__] (const AbstractEvent& YOUR_EVENT) \
+    EVENT \
+    );
+
 namespace Tiny {
     namespace TUI {
         struct RGBColor {
@@ -391,6 +431,7 @@ namespace Tiny {
             virtual ~Object() = default;
 
             void renameObject(const std::string& name);
+            void setObjectName(const std::string& name);
             [[nodiscard]] const std::string& objectName() const;
             void setParent(Object* parent);
             Object* parent() const;
@@ -596,6 +637,10 @@ namespace Tiny {
             [[nodiscard]] AbstractWidget* widget(size_t index) const;
             [[nodiscard]] uint64_t indexOf(const AbstractWidget* widget) const;
         protected:
+            void onEvent(const AbstractEvent &event) override;
+            void onObjectNameChanged() override;
+            void onParentChanged() override;
+            void onResizedTermSize(const Size &size) override;
             virtual void renderEvent(Renderer& renderer) = 0;
             virtual void moveEvent(uint32_t x, uint32_t y) = 0;
             virtual void resizeEvent(uint32_t width, uint32_t height) = 0;
@@ -606,6 +651,18 @@ namespace Tiny {
             Size _size{};
             std::bitset<8> _status_flag{};
         };
+
+        // class VBoxLayout : public AbstractLayout {
+        // public:
+        //     explicit VBoxLayout(const std::string& name, uint8_t max_count = 3, Object* parent = nullptr);
+        //     virtual ~VBoxLayout() = default;
+        //
+        //     void setMaxCount(uint8_t max_count);
+        //     uint8_t maxCount() const;
+        //
+        // private:
+        //     uint8_t _max_count{};
+        // };
 
         class CurBlock : public AbstractWidget {
         public:
@@ -667,8 +724,8 @@ namespace Tiny {
             void setEvent(const std::function<void(Button&)>& event);
             void unsetEvent();
             void setDefaultKeyEvent(const std::array<KeyEvent, 2>& key_events);
-            void setDefaultKeys(uint8_t key1, uint8_t key2 = KEY_UNKNOWN,
-                                SP_Keys sp_key1 = SP_KEY_UNKNOWN, SP_Keys sp_key2 = SP_KEY_UNKNOWN);
+            void setDefaultKeys(uint8_t key1, uint8_t key2 = KEY_NONE,
+                                SP_Keys sp_key1 = SP_KEY_NONE, SP_Keys sp_key2 = SP_KEY_NONE);
 
         protected:
             void moveEvent(uint32_t x, uint32_t y) override;

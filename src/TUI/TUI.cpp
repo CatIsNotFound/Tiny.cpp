@@ -134,7 +134,11 @@ namespace Tiny {
             if (read_bytes < 0) break;
             if (TUI::KEY_ENTER(temp[0])) {
                 break;
-            } else if (TUI::KEY_BACKSPACE(temp[0])) {
+            }
+            if (static_cast<uint8_t>(temp[0]) == TUI::KEY_ESC) {
+                return;
+            }
+            if (TUI::KEY_BACKSPACE(temp[0])) {
                 if (!result.empty()) {
                     size_t ori_length = result.size();
                     size_t del_length = U8Code::lastCharCount(result.substr(0, cur_text_pos));
@@ -774,6 +778,11 @@ namespace Tiny {
         onObjectNameChanged();
     }
 
+    void TUI::Object::setObjectName(const std::string &name) {
+        _name = name;
+        onObjectNameChanged();
+    }
+
     const std::string & TUI::Object::objectName() const {
         return _name;
     }
@@ -793,6 +802,7 @@ namespace Tiny {
             globalApp->_objects.push_back(this);
         }
         _parent = parent;
+        onParentChanged();
     }
 
     TUI::Object * TUI::Object::parent() const {
@@ -1384,6 +1394,11 @@ namespace Tiny {
         }
         return SIZE_MAX;
     }
+
+    void TUI::AbstractLayout::onEvent(const AbstractEvent &) {}
+    void TUI::AbstractLayout::onObjectNameChanged() {}
+    void TUI::AbstractLayout::onParentChanged() {}
+    void TUI::AbstractLayout::onResizedTermSize(const Size &) {}
 
     TUI::CurBlock::CurBlock(const std::string &name, Object *parent)
             : AbstractWidget(name, {}, {}, typeid(CurBlock), parent) {

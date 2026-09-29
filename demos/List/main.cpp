@@ -299,7 +299,7 @@ int main(int argc, char** argv) {
     uint8_t opt{};
     for (auto& cmd : exec_list) {
         if (cmd.option_name == "help") {
-            print_help(cmd_parser);
+            Terminal::printLine(cmd_parser.generateHelpInfo(Terminal::screenSize().width));
             return 0;
         }
         if (cmd.option_name == "version") {

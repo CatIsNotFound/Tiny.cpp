@@ -223,7 +223,7 @@ int main(int argc, char** argv) {
     auto exec_cmds = cmd_parser.execCommandList();
     for (auto& c : exec_cmds) {
         if (c.option_name == "help") {
-            print_help(cmd_parser);
+            Terminal::printLine(cmd_parser.generateHelpInfo(Terminal::screenSize().width));
             return 0;
         }
         if (c.option_name == "version") {
