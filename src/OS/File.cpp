@@ -550,10 +550,11 @@ namespace Tiny {
         return out;
     }
 
-    std::string OS::File::readLine() {
+    std::string OS::File::readLine(size_t limit_length) {
         if (!isFile() || !isOpen()) return {};
         std::string out;
         char ch = '\0';
+        size_t cur_len = 0;
 #ifdef TINY_CPP_MY_OS_WINDOWS
         DWORD bytes_read;
         SetFilePointer(_handler, _position, nullptr, FILE_BEGIN);
@@ -561,9 +562,10 @@ namespace Tiny {
             auto ok = ReadFile(_handler, &ch, 1, &bytes_read, nullptr);
             if (ok && bytes_read > 0) {
                 _position += bytes_read;
+                cur_len += bytes_read;
                 out += ch;
             } else break;
-        } while (ch != '\n' && ch != '\r' && ch != '\0');
+        } while (ch != '\n' && ch != '\r' && (!limit_length || cur_len < limit_length));
 #elif defined(TINY_CPP_MY_OS_UNIX)
         lseek(_handler, _position, SEEK_SET);
         ssize_t read_length = 0;
@@ -571,11 +573,13 @@ namespace Tiny {
             read_length = ::read(_handler, &ch, sizeof(uint8_t));
             if (read_length > 0) {
                 _position += read_length;
+                cur_len += static_cast<uint64_t>(read_length);
                 out += ch;
             } else break;
-        } while (ch != '\n' && ch != '\r' && ch != '\0');
+        } while (ch != '\n' && ch != '\r' && (!limit_length || cur_len < limit_length));
 #endif
         if (out.back() == '\n' || out.back() == '\r') out.pop_back();
+        _position++;
         return out;
     }
 

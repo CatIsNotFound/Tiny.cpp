@@ -33,6 +33,10 @@ addModule(ping  MY_MODULE
         ping/main.cpp
 )
 
+addModule(read  MY_MODULE
+        read/main.cpp
+)
+
 #addModule(Edit  MY_MODULE
 #        Edit/Editor.hpp
 #        Edit/Editor.cpp

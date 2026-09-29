@@ -104,7 +104,7 @@ namespace Tiny {
                         int* err_arg_n = nullptr,
                         std::vector<std::string>* missing_command_list = nullptr);
         const std::vector<Command>& execCommandList() const;
-        std::string generateHelpInfo(uint8_t max_width = 64, bool show_options_only = false) const;
+        std::string generateHelpInfo(uint8_t max_width = 64, bool sort_option_name = false, bool show_options_only = false) const;
 
         size_t size() const;
         iter begin();

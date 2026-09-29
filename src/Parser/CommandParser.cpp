@@ -24,8 +24,11 @@
  *************************************************************************************/
 
 #include "CommandParser.hpp"
+
+#include <algorithm>
 #include <sstream>
 #include <iomanip>
+#include <map>
 
 namespace Tiny {
     CommandParser::CommandParser(int argc, char** argv) : _argc(argc), _argv(argv) {}
@@ -157,7 +160,7 @@ namespace Tiny {
         return _exec_cmd_list;
     }
 
-    std::string CommandParser::generateHelpInfo(uint8_t max_width, bool show_options_only) const {
+    std::string CommandParser::generateHelpInfo(uint8_t max_width, bool sort_option_name, bool show_options_only) const {
         std::ostringstream out;
         if (!show_options_only) {
             out << "USAGE: " << _argv[0] << " ";
@@ -169,18 +172,9 @@ namespace Tiny {
         }
         out << "OPTIONS:\r\n";
         uint32_t long_cmd_length{}, short_cmd_length{};
-        for (auto& iter : _commands) {
-            auto& cmd = iter.second;
-            if (cmd.option_name.length() >= long_cmd_length) long_cmd_length = cmd.option_name.length() + 2;
-            auto len = cmd.short_options.length() * 2;
-            if (!cmd.short_options.empty()) len += cmd.short_options.length() - 1;
-            if (len >= short_cmd_length)
-                short_cmd_length = len;
-        }
-        const char* TABS = "    ";
-        for (auto& iter : _commands) {
+        auto printOption = [&long_cmd_length, &short_cmd_length, &out, &max_width] (const Command& cmd) {
+            const char* TABS = "    ";
             std::ostringstream s_oss;
-            auto& cmd = iter.second;
             out << TABS << std::right << std::setw(static_cast<int>(long_cmd_length)) << "--" + cmd.option_name;
             if (cmd.short_options.empty()) {
                 out << "  " << std::setw(static_cast<int>(short_cmd_length)) << ' ';
@@ -188,7 +182,7 @@ namespace Tiny {
                 out << ", ";
                 for (size_t i = 0; i < cmd.short_options.size(); ++i) {
                     s_oss << "-" << cmd.short_options[i];
-                    if (i != cmd.short_options.size() - 1) s_oss << "|";
+                    if (i != cmd.short_options.size() - 1) s_oss << " ";
                 }
                 out << std::setw(static_cast<int>(short_cmd_length)) << std::left << s_oss.str();
             }
@@ -205,6 +199,34 @@ namespace Tiny {
                 st += des_len;
                 space = true;
             } while (st < cmd.description.length());
+        };
+        for (auto& iter : _commands) {
+            auto& cmd = iter.second;
+            if (cmd.option_name.length() >= long_cmd_length) long_cmd_length = cmd.option_name.length() + 3;
+            auto len = cmd.short_options.length() * 2;
+            if (!cmd.short_options.empty()) len += cmd.short_options.length() - 1;
+            if (len >= short_cmd_length)
+                short_cmd_length = len;
+        }
+        std::vector<std::pair<std::string, Command>> temp;
+        if (!sort_option_name) {
+            for (auto& iter : _commands) {
+                temp.emplace(temp.begin(), iter);
+            }
+            for (auto& cmd : temp) {
+                printOption(cmd.second);
+            }
+        } else {
+            for (auto& iter : _commands) {
+                temp.emplace_back(iter);
+            }
+            std::sort(temp.begin(), temp.end(), [](const std::pair<std::string, Command>& a,
+                                                   const std::pair<std::string, Command>& b) {
+                return a.second.option_name < b.second.option_name;
+            });
+            for (auto& cmd : temp) {
+                printOption(cmd.second);
+            }
         }
         return out.str();
     }
