@@ -565,7 +565,7 @@ namespace Tiny {
                 cur_len += bytes_read;
                 out += ch;
             } else break;
-        } while (ch != '\n' && ch != '\r' && (!limit_length || cur_len < limit_length));
+        } while (ch != '\n' && (!limit_length || cur_len < limit_length));
 #elif defined(TINY_CPP_MY_OS_UNIX)
         lseek(_handler, _position, SEEK_SET);
         ssize_t read_length = 0;
@@ -576,10 +576,9 @@ namespace Tiny {
                 cur_len += static_cast<uint64_t>(read_length);
                 out += ch;
             } else break;
-        } while (ch != '\n' && ch != '\r' && (!limit_length || cur_len < limit_length));
+        } while (ch != '\n' && (!limit_length || cur_len < limit_length));
 #endif
         if (out.back() == '\n' || out.back() == '\r') out.pop_back();
-        _position++;
         return out;
     }
 

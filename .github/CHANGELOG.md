@@ -97,6 +97,7 @@
 - 修复 Unix 环境下频繁捕获事件时出现段错误的问题。
 - 修复 macOS 系统下的编译问题。
 - 修复 `ping` 程序的部分已知问题。
+- 修复了读取文件时的逻辑，即仅文件内容中遇到 `'\n'` 字符时以进行换行。
 
 ---
 
@@ -199,3 +200,5 @@ All notable changes to this project will be documented in this file. The format 
 - Fixed a segmentation fault caused by frequent event capturing on Unix.
 - Fixed compilation issues on macOS.
 - Fixed several known issues in the `ping` program.
+- Fixed the logic for reading files so that it only breaks lines when it encounters the `'
+'` character in the file content.
