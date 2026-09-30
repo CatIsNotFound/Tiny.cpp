@@ -942,52 +942,7 @@ int nativeErrorNo() const;
 
 ## 8. 自由函数
 
-### 8.1 parseFromHostname（已弃用）
-
-```cpp
-std::vector<Address> parseFromHostname(const char* hostname, bool* ok = nullptr, int* err_cnt = nullptr);
-```
-
-- **功能**: 将主机名解析为多个 IP 地址
-- **参数**:
-  - `hostname` - 要解析的主机名（例如："www.example.com"）
-  - `ok` - 可选指针，用于接收成功状态
-  - `err_cnt` - 可选指针，用于接收错误计数
-- **返回值**: Address 对象向量（所有解析的地址）
-- **已弃用**: 请使用 `Address::parseFromHostname` 替代。将在 v0.4.0 中移除。
-- **示例**:
-```cpp
-bool success;
-auto addresses = Tiny::Net::parseFromHostname("www.google.com", &success);
-if (success) {
-    for (const auto& addr : addresses) {
-        std::cout << "解析结果: " << addr.toString() << std::endl;
-    }
-}
-```
-
-### 8.2 parseFirstHostname（已弃用）
-
-```cpp
-Address parseFirstHostname(const char* hostname, bool* ok = nullptr);
-```
-
-- **功能**: 将主机名解析为第一个 IP 地址
-- **参数**:
-  - `hostname` - 要解析的主机名
-  - `ok` - 可选指针，用于接收成功状态
-- **返回值**: 第一个解析的 Address 对象
-- **已弃用**: 请使用 `Address::parseFirstHostname` 替代。将在 v0.4.0 中移除。
-- **示例**:
-```cpp
-bool success;
-auto addr = Tiny::Net::parseFirstHostname("www.google.com", &success);
-if (success) {
-    std::cout << "第一个 IP: " << addr.toString() << std::endl;
-}
-```
-
-### 8.3 getLastSystemError
+### 8.1 getLastSystemError
 
 ```cpp
 int getLastSystemError(std::string* info = nullptr);
@@ -1003,7 +958,7 @@ int err = Tiny::Net::getLastSystemError(&error_info);
 std::cout << "错误 " << err << ": " << error_info << std::endl;
 ```
 
-### 8.4 getSystemErrorByErrno
+### 8.2 getSystemErrorByErrno
 
 ```cpp
 std::string getSystemErrorByErrno(int err_no);
@@ -1018,7 +973,7 @@ std::string desc = Tiny::Net::getSystemErrorByErrno(10048);
 // 返回: "Address already in use" (Windows)
 ```
 
-### 8.5 getSocketErrorName
+### 8.3 getSocketErrorName
 
 ```cpp
 const char* getSocketErrorName(SocketError err);
@@ -1154,9 +1109,9 @@ int main() {
 #include <iostream>
 
 int main() {
-    // 解析主机名
+    // 使用 Address 静态方法解析主机名
     bool success;
-    auto addresses = Tiny::Net::parseFromHostname("www.example.com", &success);
+    auto addresses = Tiny::Net::Address::parseFromHostname("www.example.com", &success);
     
     if (success && !addresses.empty()) {
         std::cout << "解析的地址:" << std::endl;

@@ -8,18 +8,26 @@
 
 1. [模块简介](#1-模块简介)
 2. [头文件](#2-头文件)
-3. [辅助函数](#3-辅助函数)
-4. [数据结构](#4-数据结构)
-5. [Terminal 类](#5-terminal-类)
-6. [Renderer 类](#6-renderer-类)
-7. [AbstractWidget 类](#7-abstractwidget-类)
-8. [EventBus 类](#8-eventbus-类)
-9. [Application 类](#9-application-类)
-10. [AbstractLayout 类](#10-abstractlayout-类)
-11. [Label 类](#11-label-类)
-12. [使用示例](#12-使用示例)
-13. [注意事项](#13-注意事项)
-14. [如何在 Linux 控制台下使用 GPM 库](#14-如何在-Linux-控制台下使用-GPM-库)
+3. [U8Code 命名空间](#3-u8code-命名空间)
+4. [辅助函数](#4-辅助函数)
+5. [数据结构](#5-数据结构)
+6. [Terminal 类](#6-terminal-类)
+7. [Renderer 类](#7-renderer-类)
+8. [Object 类](#8-object-类)
+9. [AbstractWidget 类](#9-abstractwidget-类)
+10. [EventBus 类](#10-eventbus-类)
+11. [Application 类](#11-application-类)
+12. [AbstractLayout 类](#12-abstractlayout-类)
+13. [CurBlock 类](#13-curblock-类)
+14. [Label 类](#14-label-类)
+15. [Button 类](#15-button-类)
+16. [LineEdit 类](#16-lineedit-类)
+17. [Slider 类](#17-slider-类)
+18. [ProgressBar 类](#18-progressbar-类)
+19. [ListView 类](#19-listview-类)
+20. [使用示例](#20-使用示例)
+21. [注意事项](#21-注意事项)
+22. [如何在 Linux 控制台下使用 GPM 库](#22-如何在-linux-控制台下使用-gpm-库)
 
 ---
 
@@ -31,7 +39,10 @@
 - **输入处理**: 按键读取、鼠标事件
 - **颜色样式**: 前景色、背景色、粗体、下划线等
 - **双缓冲渲染**: 高效的屏幕渲染
-- **控件基类**: 可扩展的控件系统
+- **Object 层级**: `Object` 基类提供父子关系管理
+- **控件系统**: 可扩展的控件层级，以 `AbstractWidget` 为基类
+- **事件总线**: 通过 `EventBus` 实现解耦的事件订阅和分发
+- **应用框架**: 顶层 `Application` 管理事件循环和控件渲染
 
 ---
 
@@ -46,9 +57,27 @@
 
 ---
 
-## 3. 辅助函数
+## 3. U8Code 命名空间
 
-### 3.1 splitFront
+`Tiny::U8Code` 命名空间提供 UTF-8 工具函数，定义在 `Terminal.hpp` 中。
+
+> **已弃用别名**: `Tiny::Code` 是 `Tiny::U8Code` 的别名。请使用 `Tiny::U8Code`；`Tiny::Code` 将从 v0.3.0 起移除。
+
+### 3.1 宽字符串转换
+
+```cpp
+// Windows 版本（带 codepage 参数，默认 65001 = UTF-8）
+std::wstring string2Wide(const std::string& str, uint32_t codepage = 65001);
+std::string wide2String(const std::wstring& str, uint32_t codepage = 65001);
+
+// Unix 版本
+std::wstring string2Wide(const std::string& str);
+std::string wide2String(const std::wstring& str);
+```
+
+### 3.2 UTF-8 字符串工具
+
+#### splitFront
 
 ```cpp
 std::string splitFront(const char* data);
@@ -57,29 +86,74 @@ std::string splitFront(const char* data);
 - **参数**: `data` - UTF-8 字符串
 - **返回值**: 第一个字符（可能多字节）
 
-### 3.2 splitUTF8
+#### splitUTF8
 
 ```cpp
 std::vector<std::string> splitUTF8(const char* data, size_t *display_size = nullptr);
 ```
 - **功能**: 将 UTF-8 字符串分割为字符数组
-- **参数**: 
+- **参数**:
   - `data` - UTF-8 字符串
   - `display_size` - 可选输出参数，用于获取显示宽度（默认值：`nullptr`）
 - **返回值**: 字符数组
 
-### 3.3 getKeyName
+#### calcStrDisplayWidth
+
+```cpp
+size_t calcStrDisplayWidth(const std::string& str);
+```
+- **功能**: 计算 UTF-8 字符串的显示宽度（终端列数）
+- **参数**: `str` - UTF-8 字符串
+- **返回值**: 显示宽度（CJK 字符计为 2）
+
+#### calcDisplaySize
+
+```cpp
+size_t calcDisplaySize(const std::string& str);
+```
+- **功能**: 计算 UTF-8 字符串的显示大小
+- **参数**: `str` - UTF-8 字符串
+- **返回值**: 显示大小
+
+#### subUTF8
+
+```cpp
+std::string subUTF8(const char* data, size_t display_count, size_t offset = 0,
+                    size_t *result_display_count = nullptr);
+```
+- **功能**: 按显示宽度计数和偏移量截取子串
+- **参数**:
+  - `data` - UTF-8 字符串
+  - `display_count` - 要截取的显示列数
+  - `offset` - 显示宽度偏移量（默认：`0`）
+  - `result_display_count` - 可选输出：实际截取的显示宽度
+- **返回值**: UTF-8 子串
+
+#### lastCharCount
+
+```cpp
+size_t lastCharCount(const std::string& buf);
+```
+- **功能**: 获取缓冲区中最后一个 UTF-8 字符的字节长度
+- **参数**: `buf` - UTF-8 字符串
+- **返回值**: 最后一个字符的字节长度
+
+---
+
+## 4. 辅助函数
+
+### 4.1 getKeyName
 
 ```cpp
 const char* getKeyName(const uint8_t& KEY, const SP_Keys& SP);
 ```
 - **功能**: 获取按键名称
-- **参数**: 
+- **参数**:
   - `KEY` - 按键码
   - `SP` - 特殊键类型
 - **返回值**: 按键名称字符串
 
-### 3.4 getMouseName
+### 4.2 getMouseName
 
 ```cpp
 const char* getMouseName(const SP_Mouse& SP);
@@ -88,61 +162,133 @@ const char* getMouseName(const SP_Mouse& SP);
 - **参数**: `SP` - 鼠标事件类型
 - **返回值**: 事件名称字符串
 
-### 3.5 isPointInRect
+### 4.3 isPointInRect
 
 ```cpp
-bool isPointInRect(const Position& point, Position& start_pos, Position& end_pos);
+bool isPointInRect(const Position& point, const Position& start_pos, const Position& end_pos);
+bool isPointInRect(const Position& point, const Position& start_pos, const Size& size);
 ```
 - **功能**: 检查点是否在矩形内
-- **参数**: 
+- **参数**:
   - `point` - 要检查的点
   - `start_pos` - 矩形左上角
-  - `end_pos` - 矩形右下角
+  - `end_pos` - 矩形右下角（第一个重载）
+  - `size` - 矩形大小（第二个重载）
 - **返回值**: `true` 表示点在矩形内
 
-### 3.6 KEY_BACKSPACE
+### 4.4 KEY_BACKSPACE
 
 ```cpp
 constexpr bool KEY_BACKSPACE(uint8_t key);
 ```
 - **功能**: 检查按键是否为退格键
 - **参数**: `key` - 按键码
-- **返回值**: `true` 表示是退格键（KEY_BK 或 KEY_DEL）
+- **返回值**: `true` 表示是退格键（`KEY_BK` (8) 或 `KEY_DEL` (127)）
 - **说明**: constexpr 辅助函数，用于按键匹配
 
-### 3.7 KEY_ENTER
+### 4.5 KEY_ENTER
 
 ```cpp
 constexpr bool KEY_ENTER(uint8_t key);
 ```
 - **功能**: 检查按键是否为回车键
 - **参数**: `key` - 按键码
-- **返回值**: `true` 表示是回车键（KEY_CR 或 KEY_LF）
+- **返回值**: `true` 表示是回车键（`KEY_CR` (13) 或 `KEY_LF` (10)）
 - **说明**: constexpr 辅助函数，用于按键匹配
+
+### 4.6 KEY_RETURN
+
+```cpp
+constexpr bool KEY_RETURN(uint8_t key);
+```
+- **功能**: `KEY_ENTER` 的别名
+
+### 4.7 KEY_CONFIRM
+
+```cpp
+constexpr bool KEY_CONFIRM(uint8_t key);
+```
+- **功能**: 检查按键是否为确认键（Space、CR 或 LF）
+
+### 4.8 KEY_CANCEL
+
+```cpp
+constexpr bool KEY_CANCEL(uint8_t key);
+```
+- **功能**: 检查按键是否为取消键（BK、DEL 或 ESC）
 
 ---
 
-## 4. 数据结构
+## 5. 数据结构
 
-### 4.1 Size 结构体
+### 5.1 Size 结构体
 
 ```cpp
 struct Size {
     uint32_t width;   // 宽度（列数）
     uint32_t height;  // 高度（行数）
+
+    Size();
+    Size(uint32_t width, uint32_t height);
+
+    bool operator==(const Size& other) const;
+    bool operator!=(const Size& other) const;
+    bool isEqual(const Size& other) const;
+    int8_t compare(const Size& other) const;
+
+    Size& operator+(const Size& other);
+    Size& operator+=(const Size& other);
+    Size& operator-(const Size& other);
+    Size& operator-=(const Size& other);
+    Size& operator*(uint32_t value);
+    Size& operator*=(uint32_t value);
 };
 ```
 
-### 4.2 Position 结构体
+| 成员 | 说明 |
+|------|------|
+| `Size()` | 默认构造，`{0, 0}` |
+| `Size(w, h)` | 显式宽高构造 |
+| `isEqual(other)` | `width * height == other.width * other.height`（总面积相同） |
+| `compare(other)` | 较小返回 `1`，较大返回 `-1`，相等返回 `0`（先比较高度再比较宽度） |
+| `operator+/-/*` | 算术运算符（原地修改，返回 `*this`） |
+
+### 5.2 Position 结构体
 
 ```cpp
 struct Position {
     uint32_t row;     // 行号（0-based）
     uint32_t column;  // 列号（0-based）
+
+    Position();
+    Position(uint32_t row, uint32_t column);
+    Position(const Size& size);  // 从 Size 构造：row=height, column=width
+
+    Position calcEndPos(const Size& size) const;
+
+    bool operator==(const Position& other) const;
+    bool operator!=(const Position& other) const;
+    int8_t compare(const Position& other) const;
+    void swap(Position& other) noexcept;
+
+    Position& operator+(const Position& other);
+    Position& operator+=(const Position& other);
+    Position& operator-(const Position& other);
+    Position& operator-=(const Position& other);
 };
 ```
 
-### 4.3 Color 枚举
+| 成员 | 说明 |
+|------|------|
+| `Position()` | 默认构造，`{0, 0}` |
+| `Position(r, c)` | 显式行列构造 |
+| `Position(const Size&)` | 从 `Size` 构造 `{height, width}` |
+| `calcEndPos(size)` | 返回 `{row + size.height - 1, column + size.width - 1}` |
+| `compare(other)` | 较小返回 `1`，较大返回 `-1`，相等返回 `0`（先行后列） |
+| `swap(other)` | 交换位置，noexcept |
+| `operator+/-` | 算术运算符（原地修改，返回 `*this`） |
+
+### 5.3 Color 枚举
 
 ```cpp
 enum class Color : uint8_t {
@@ -158,7 +304,7 @@ enum class Color : uint8_t {
 };
 ```
 
-### 4.4 Keys 枚举
+### 5.4 Keys 枚举
 
 ```cpp
 enum Keys : uint8_t {
@@ -172,13 +318,11 @@ enum Keys : uint8_t {
     KEY_ACK         = 6,
     KEY_BELL        = 7,
     KEY_BK          = 8,
-    KEY_BACKSPACE   = 8,
     KEY_TAB         = 9,
     KEY_LF          = 10,
     KEY_VT          = 11,
     KEY_FF          = 12,
     KEY_CR          = 13,
-    KEY_ENTER       = 13,
     KEY_SO          = 14,
     KEY_SI          = 15,
     KEY_DLE         = 16,
@@ -196,7 +340,9 @@ enum Keys : uint8_t {
     KEY_RS          = 30,
     KEY_US          = 31,
     KEY_SPACE       = 32,
+
     KEY_DEL         = 127,
+
     KEY_CTRL_A      = 1,
     KEY_CTRL_B      = 2,
     KEY_CTRL_C      = 3,
@@ -223,24 +369,20 @@ enum Keys : uint8_t {
     KEY_CTRL_X      = 24,
     KEY_CTRL_Y      = 25,
     KEY_CTRL_Z      = 26,
+
     KEY_SPECIAL     = 254,
     KEY_UNKNOWN     = 255
 };
 ```
 
-**控制键**:
-- `KEY_CTRL_A` 到 `KEY_CTRL_Z`: 对应 Ctrl+A 到 Ctrl+Z
+**按键别名**: constexpr 辅助函数提供 `KEY_BACKSPACE`、`KEY_ENTER` 等（参见 [辅助函数](#4-辅助函数)）。
 
-**按键别名**:
-- `KEY_BK` = `KEY_BACKSPACE` = `8`
-- `KEY_CR` = `KEY_ENTER` = `13`
-- `KEY_DEL` = `127`
-
-### 4.5 SP_Keys 枚举（特殊键）
+### 5.5 SP_Keys 枚举（特殊键）
 
 ```cpp
 enum SP_Keys : uint8_t {
     SP_KEY_UNKNOWN,
+    SP_KEY_NONE = 0,
     SP_KEY_F1, SP_KEY_F2, SP_KEY_F3, SP_KEY_F4,
     SP_KEY_F5, SP_KEY_F6, SP_KEY_F7, SP_KEY_F8,
     SP_KEY_F9, SP_KEY_F10, SP_KEY_F11, SP_KEY_F12,
@@ -265,29 +407,38 @@ enum SP_Keys : uint8_t {
 };
 ```
 
-### 4.6 SP_Mouse 枚举（鼠标事件）
+### 5.6 SP_Mouse 枚举（鼠标事件）
 
 ```cpp
 enum SP_Mouse : uint8_t {
     SP_MOUSE_UNKNOWN,
-    SP_MOUSE_LEFT_BUTTON,    // 左键
-    SP_MOUSE_MIDDLE_BUTTON,  // 中键
-    SP_MOUSE_RIGHT_BUTTON,   // 右键
-    SP_MOUSE_WHEEL_UP,       // 滚轮上
-    SP_MOUSE_WHEEL_DOWN,     // 滚轮下
-    SP_MOUSE_MOVED,          // 鼠标移动
-    SP_MOUSE_RELEASE         // 鼠标释放
+    SP_MOUSE_LEFT_BUTTON,
+    SP_MOUSE_MIDDLE_BUTTON,
+    SP_MOUSE_RIGHT_BUTTON,
+    SP_MOUSE_WHEEL_UP,
+    SP_MOUSE_WHEEL_DOWN,
+    SP_MOUSE_MOVED,
+    SP_MOUSE_RELEASE,
+    // 别名（相同值，0-7）:
+    MOUSE_UNKNOWN       = 0,
+    MOUSE_LEFT_BUTTON   = 1,
+    MOUSE_MIDDLE_BUTTON = 2,
+    MOUSE_RIGHT_BUTTON  = 3,
+    MOUSE_WHEEL_UP      = 4,
+    MOUSE_WHEEL_DOWN    = 5,
+    MOUSE_MOVED         = 6,
+    MOUSE_RELEASE       = 7
 };
 ```
 
-### 4.7 InputEvent 结构体
+### 5.7 InputEvent 结构体
 
 ```cpp
 struct InputEvent {
     enum Type : uint8_t {
-        None,
-        Keyboard,
-        Mouse
+        None, N = 0,
+        Keyboard, Key = 1, K = 1,
+        Mouse, M = 2
     } type;
     union Input {
         struct Keyboard {
@@ -306,7 +457,7 @@ struct InputEvent {
 
 | 成员 | 类型 | 说明 |
 |------|------|------|
-| `type` | `Type` | 事件类型：None、Keyboard 或 Mouse |
+| `type` | `Type` | 事件类型 |
 | `input.keyboard.key` | `uint8_t` | 按键码 |
 | `input.keyboard.sp_key` | `SP_Keys` | 特殊键类型 |
 | `input.keyboard.is_pressed` | `bool` | 按键是否按下（仅 Windows） |
@@ -314,14 +465,19 @@ struct InputEvent {
 | `input.mouse.button` | `SP_Mouse` | 鼠标按钮/事件 |
 | `input.mouse.is_pressed` | `bool` | 鼠标按钮是否按下 |
 
-### 4.8 类型别名
+**Type 别名**:
+- `None = N = 0`
+- `Keyboard = Key = K = 1`
+- `Mouse = M = 2`
+
+### 5.8 类型别名
 
 ```cpp
 using KeyEvent = InputEvent::Input::Keyboard;
 using MouseEvent = InputEvent::Input::Mouse;
 ```
 
-### 4.9 RGBColor 结构体
+### 5.9 RGBColor 结构体
 
 ```cpp
 struct RGBColor {
@@ -334,13 +490,7 @@ struct RGBColor {
 };
 ```
 
-| 成员 | 类型 | 说明 |
-|------|------|------|
-| `r` | `uint8_t` | 红色分量（0-255） |
-| `g` | `uint8_t` | 绿色分量（0-255） |
-| `b` | `uint8_t` | 蓝色分量（0-255） |
-
-### 4.10 Char 类
+### 5.10 Char 类
 
 ```cpp
 class Char {
@@ -360,17 +510,7 @@ public:
 
 单个字符的轻量级封装（支持 UTF-8 多字节字符）。
 
-| 成员 | 说明 |
-|------|------|
-| `Char()` | 默认构造函数，初始化为空格字符 |
-| `Char(const char* data)` | 从 C 字符串构造（提取第一个 UTF-8 字符） |
-| `Char(const std::string& data)` | 从 `std::string` 构造（提取第一个 UTF-8 字符） |
-| `operator=` | 赋值运算符（从字符串、C 字符串或另一个 Char） |
-| `operator==` / `operator!=` | 比较运算符 |
-| `data()` | 获取字符的底层字符串表示 |
-| `length()` | 获取字符的字节长度 |
-
-### 4.11 Alignment 枚举
+### 5.11 Alignment 枚举
 
 ```cpp
 enum class Alignment : uint8_t {
@@ -388,7 +528,7 @@ enum class Alignment : uint8_t {
 
 控件在布局中的对齐方式。
 
-### 4.12 TextAlignment 枚举
+### 5.12 TextAlignment 枚举
 
 ```cpp
 enum class TextAlignment : uint8_t {
@@ -400,30 +540,48 @@ enum class TextAlignment : uint8_t {
 
 控件内文本的对齐方式。
 
-### 4.13 SizePolicy 枚举
+### 5.13 SizePolicy 枚举
 
 ```cpp
 enum class SizePolicy : uint8_t {
-    Ignored,
     Fixed,
     Maximized,
-    Minimized
+    Minimized,
+    Ignored
 };
 ```
 
 控件在布局管理中的尺寸策略。
 
+### 5.14 Orientation 枚举
+
+```cpp
+enum class Orientation : uint8_t {
+    Horizontal, H = 0,
+    Vertical, V = 1
+};
+```
+
+用于 `Slider` 和 `ProgressBar` 的方向。
+
 ---
 
-## 5. Terminal 类
+## 6. Terminal 类
 
-### 5.1 类简介
+### 6.1 类简介
 
 终端控制类，提供原始模式切换、屏幕控制、光标操作、颜色设置、输入读取等功能。
 
-所有成员函数均为静态函数。
+#### self
 
-### 5.2 原始模式控制
+```cpp
+static Terminal& self();
+```
+- **功能**: 获取终端单例实例
+- **返回值**: Terminal 引用
+- **说明**: 支持流式输出链式调用
+
+### 6.2 原始模式控制
 
 #### enterRawMode
 
@@ -432,7 +590,7 @@ static bool enterRawMode();
 ```
 - **功能**: 进入原始模式（禁用行缓冲、回显等）
 - **返回值**: `true` 表示成功
-- **注意事项**: 
+- **注意事项**:
   - Windows: 创建新的屏幕缓冲区
   - Unix: 使用 termios 设置原始模式
 
@@ -452,7 +610,7 @@ static bool isInRawMode();
 - **功能**: 检查当前是否在原始模式
 - **返回值**: `true` 表示在原始模式
 
-### 5.3 屏幕信息
+### 6.3 屏幕信息
 
 #### screenSize
 
@@ -470,7 +628,7 @@ static Position cursorPosition();
 - **功能**: 获取光标当前位置
 - **返回值**: `Position` 结构体（行和列）
 
-### 5.4 输出函数
+### 6.4 输出函数
 
 #### print
 
@@ -479,10 +637,14 @@ static bool print(char ch);
 static bool print(const std::string& text);
 ```
 - **功能**: 输出单个字符或文本（不换行）
-- **参数**: 
-  - `ch` - 单个字符
-  - `text` - 要输出的文本
-- **返回值**: `true` 表示成功
+
+#### printW
+
+```cpp
+static bool printW(wchar_t ch);
+static bool printW(const std::wstring& text);
+```
+- **功能**: 输出宽字符或宽文本（不换行）
 
 #### printLine
 
@@ -490,8 +652,13 @@ static bool print(const std::string& text);
 static bool printLine(const std::string& text = {});
 ```
 - **功能**: 输出文本并换行
-- **参数**: `text` - 要输出的文本（可选，默认为空行）
-- **返回值**: `true` 表示成功
+
+#### printLineW
+
+```cpp
+static bool printLineW(const std::wstring& text = {});
+```
+- **功能**: 输出宽文本并换行
 
 #### printFormat
 
@@ -499,12 +666,7 @@ static bool printLine(const std::string& text = {});
 template<typename ... Args>
 static bool printFormat(const char* format, Args... args);
 ```
-- **功能**: 格式化输出（类似 Python f-string）
-- **参数**: 
-  - `format` - 格式字符串，使用 `{}` 作为占位符
-  - `args` - 可变参数
-- **返回值**: `true` 表示成功
-- **示例**: `printFormat("Hello, {}!", "World")`
+- **功能**: 格式化输出（使用 `{}` 作为占位符）
 
 #### formatString
 
@@ -512,28 +674,49 @@ static bool printFormat(const char* format, Args... args);
 template<typename ... Args>
 static std::string formatString(const char* format, Args... args);
 ```
-- **功能**: 格式化字符串
-- **参数**: 同 `printFormat`
+- **功能**: 格式化字符串（不输出）
 - **返回值**: 格式化后的字符串
 
-### 5.5 屏幕控制
+#### printError
+
+```cpp
+template<typename ... Args>
+static bool printError(const char* format, Args... args);
+static bool printError(const std::string& text);
+static bool printErrorW(const std::wstring& text);
+```
+- **功能**: 向 stderr 输出错误文本
+- **重载**:
+  - 带可变参数的模板版本
+  - 直接的 `std::string` 版本
+  - 宽字符版本
+
+#### 流式 print
+
+```cpp
+static Terminal& print();      // 流式风格，无需参数
+static Terminal& perror();     // 流式风格错误输出
+Terminal& operator<<(const std::string& text);
+Terminal& operator<<(char ch);
+Terminal& operator<<(int value);
+Terminal& operator<<(bool expr);
+Terminal& operator<<(const wchar_t* expr);
+```
+- **说明**: 支持流畅 API 风格：`Terminal::self() << "Hello " << 42`
+
+### 6.5 屏幕控制
 
 #### clearScreen
 
 ```cpp
 static bool clearScreen();
 ```
-- **功能**: 清屏
-- **返回值**: `true` 表示成功
 
 #### clearInRow
 
 ```cpp
 static bool clearInRow(uint8_t row);
 ```
-- **功能**: 清除指定行
-- **参数**: `row` - 行号（0-based）
-- **返回值**: `true` 表示成功
 
 #### moveCursor
 
@@ -541,96 +724,65 @@ static bool clearInRow(uint8_t row);
 static bool moveCursor(Position position);
 static bool moveCursor(uint32_t row, uint32_t column);
 ```
-- **功能**: 移动光标到指定位置
-- **参数**: 目标位置
-- **返回值**: `true` 表示成功
 
-#### setScrollRegion
+#### moveUpCursor / moveDownCursor / moveLeftCursor / moveRightCursor
+
+```cpp
+static bool moveUpCursor(uint32_t rows = 1);
+static bool moveDownCursor(uint32_t rows = 1);
+static bool moveLeftCursor(uint32_t cols = 1);
+static bool moveRightCursor(uint32_t cols = 1);
+```
+
+#### setScrollRegion / resetScrollRegion
 
 ```cpp
 static bool setScrollRegion(uint32_t row_start, uint32_t row_end);
-```
-- **功能**: 设置滚动区域
-- **参数**: 
-  - `row_start` - 起始行
-  - `row_end` - 结束行
-- **返回值**: `true` 表示成功
-
-#### resetScrollRegion
-
-```cpp
 static bool resetScrollRegion();
 ```
-- **功能**: 重置滚动区域为全屏
-- **返回值**: `true` 表示成功
 
 #### flushScreen
 
 ```cpp
 static bool flushScreen();
 ```
-- **功能**: 刷新屏幕输出
-- **返回值**: `true` 表示成功
 
-### 5.6 输入函数
+### 6.6 输入函数
 
-#### readLine
+#### readLine / readLineW
 
 ```cpp
 static std::string readLine();
-```
-- **功能**: 读取一行输入
-- **返回值**: 输入的字符串（不含换行符）
-
-#### readLineW
-
-```cpp
 static std::wstring readLineW();
 ```
-- **功能**: 读取一行宽字符输入
-- **返回值**: 宽字符串
 
 #### getKey
 
 ```cpp
 static uint8_t getKey(SP_Keys* sp_key = nullptr);
 ```
-- **功能**: 读取按键
-- **参数**: 
-  - `sp_key` - 输出特殊键类型（可选）
-- **返回值**: 按键码
 
-### 5.7 鼠标控制
+### 6.7 鼠标控制
 
 #### setMouseEnabled
 
 ```cpp
 static bool setMouseEnabled(bool enabled);
 ```
-- **功能**: 启用/禁用鼠标事件
-- **参数**: `enabled` - 是否启用
-- **返回值**: `true` 表示成功
 
 #### getMouseButton
 
 ```cpp
 static uint8_t getMouseButton(Position* mouse_pos = nullptr, bool* is_pressed = nullptr);
 ```
-- **功能**: 获取鼠标事件
-- **参数**: 
-  - `mouse_pos` - 输出鼠标位置（可选）
-  - `is_pressed` - 输出是否按下（可选）
-- **返回值**: 鼠标事件码
 
 #### getInput
 
 ```cpp
 static InputEvent getInput();
 ```
-- **功能**: 获取统一的输入事件（键盘或鼠标）
-- **返回值**: `InputEvent` 结构体，包含事件类型和数据
 
-### 5.8 颜色与样式函数
+### 6.8 颜色与样式函数
 
 #### 颜色设置
 
@@ -641,38 +793,60 @@ static void setForegroundColor(Color color, bool intensity = false);
 static void setForegroundColor(uint8_t r, uint8_t g, uint8_t b);
 ```
 
-| 函数 | 功能 | 参数 |
-|------|------|------|
-| `setBackgroundColor(Color, bool)` | 设置背景色（ANSI 16色） | `color` - 颜色，`intensity` - 是否高亮 |
-| `setBackgroundColor(uint8_t, uint8_t, uint8_t)` | 设置背景色（RGB） | `r, g, b` - 红绿蓝分量（0-255） |
-| `setForegroundColor(Color, bool)` | 设置前景色（ANSI 16色） | `color` - 颜色，`intensity` - 是否高亮 |
-| `setForegroundColor(uint8_t, uint8_t, uint8_t)` | 设置前景色（RGB） | `r, g, b` - 红绿蓝分量（0-255） |
-
 #### 样式设置
 
 ```cpp
-static void setBolder(bool enable);        // 粗体
-static void setDark(bool enable);          // 暗色
-static void setItalic(bool enable);        // 斜体
-static void setUnderline(bool enable);     // 下划线
-static void setBlinking(bool enable);      // 闪烁
-static void setReverseColor(bool enable);  // 反色
-static void setCursorVisible(bool enable); // 光标可见性
-static void setStrikethrough(bool enable); // 删除线
-static void reset();                       // 重置所有样式
+static void setBolder(bool enable);
+static void setDark(bool enable);
+static void setItalic(bool enable);
+static void setUnderline(bool enable);
+static void setBlinking(bool enable);
+static void setReverseColor(bool enable);
+static void setCursorVisible(bool enable);
+static void setStrikethrough(bool enable);
+static void reset();
+```
+
+### 6.9 TStyle 命名空间（v1.2.0）
+
+流式风格的终端颜色和样式设置接口。所有函数返回 `Terminal&` 以支持方法链式调用。
+
+```cpp
+namespace TStyle {
+    Terminal& bg(Color color, bool intense = false);
+    Terminal& bg(uint8_t r, uint8_t g, uint8_t b);
+    Terminal& fg(Color color, bool intense = true);
+    Terminal& fg(uint8_t r, uint8_t g, uint8_t b);
+    Terminal& bold(bool enabled = true);
+    Terminal& italic(bool enabled = true);
+    Terminal& underline(bool enabled = true);
+    Terminal& blink(bool enabled = true);
+    Terminal& reverse(bool enabled = true);
+    Terminal& showcur();
+    Terminal& hidecur();
+    Terminal& striketh(bool enabled = true);
+    Terminal& reset();
+}
+```
+
+**示例**:
+```cpp
+Terminal::self() << TStyle::fg(Color::Green) << TStyle::bold() << "绿色粗体文本";
+Terminal::self() << TStyle::bg(255, 0, 0) << "红色背景";
+Terminal::self() << TStyle::reset();
 ```
 
 ---
 
-## 6. Renderer 类
+## 7. Renderer 类
 
-### 6.1 类简介
+### 7.1 类简介
 
 双缓冲终端渲染器，支持字符绘制、矩形填充、边框绘制等功能。
 
-### 6.2 嵌套结构体
+### 7.2 嵌套结构体
 
-#### Style
+#### Style（也可作为 `Tiny::TUI::Style` 使用）
 
 ```cpp
 struct Style {
@@ -685,13 +859,13 @@ struct Style {
     RGBColor fg_rgb_color;  // RGB 前景色
 
     enum Property : uint8_t {
-        Bolder            = 1,    // 粗体
-        Dark              = 2,    // 暗色
-        Italic            = 4,    // 斜体
-        Underline         = 8,    // 下划线
-        Blinking          = 16,   // 闪烁
-        Reverse           = 32,   // 反色
-        Strikethrough     = 64,   // 删除线
+        Bolder            = 1,
+        Dark              = 2,
+        Italic            = 4,
+        Underline         = 8,
+        Blinking          = 16,
+        Reverse           = 32,
+        Strikethrough     = 64,
     };
 
     Style();
@@ -702,27 +876,25 @@ struct Style {
 };
 ```
 
+> **注意**: `Renderer::Style` 和 `Renderer::Corner` 是已弃用的 typedef。请直接使用 `Tiny::TUI::Style` 和 `Tiny::TUI::Corner` — 它们将从 v0.3.0 起移除。
+
 | 成员 | 类型 | 说明 |
 |------|------|------|
 | `property` | `uint8_t` | 样式属性位掩码 |
-| `bg_color` | `Color` | ANSI 背景色（默认值：`Color::Black`） |
+| `bg_color` | `Color` | ANSI 背景色（默认值：`Color::Default`） |
 | `fg_color` | `Color` | ANSI 前景色（默认值：`Color::Default`） |
-| `intensity` | `uint8_t` | 颜色强度：0=无, 1=仅背景, 2=仅前景, 3=全部（默认值：2） |
-| `used_rgb_color` | `bool` | 是否使用 RGB 颜色（true 时忽略 ANSI 颜色） |
-| `bg_rgb_color` | `RGBColor` | RGB 背景色（r, g, b 各 0-255） |
-| `fg_rgb_color` | `RGBColor` | RGB 前景色（r, g, b 各 0-255） |
-
-**Property 枚举**:
-- 使用位运算组合多个属性：`Style::Bolder | Style::Underline`
-- 或使用 `property` 字段直接设置
+| `intensity` | `uint8_t` | 颜色强度（默认值：2 = 仅前景） |
+| `used_rgb_color` | `bool` | 是否使用 RGB 颜色 |
+| `bg_rgb_color` | `RGBColor` | RGB 背景色 |
+| `fg_rgb_color` | `RGBColor` | RGB 前景色 |
 
 #### Cell
 
 ```cpp
 struct Cell {
-    Char data;        // 字符数据
-    bool is_dirty;    // 是否已修改
-    Style style;      // 样式
+    Char data;
+    bool is_dirty;
+    Style style;
 
     Cell();
     void reset();
@@ -730,71 +902,32 @@ struct Cell {
 };
 ```
 
-| 成员 | 类型 | 说明 |
-|------|------|------|
-| `data` | `Char` | 字符数据（支持多字节 UTF-8） |
-| `is_dirty` | `bool` | 该单元格是否已被修改 |
-| `style` | `Style` | 单元格样式 |
-
-**Char 类**:
-
-```cpp
-class Char {
-public:
-    Char();
-    Char(const char* data);
-    Char(const std::string& data);
-    Char& operator=(const std::string& ch);
-    Char& operator=(const char* ch);
-    Char& operator=(const Char& ch);
-    bool operator==(const Char& other) const;
-    bool operator!=(const Char& other) const;
-
-    const std::string& data() const;
-    uint8_t length() const;
-};
-```
-
-| 成员 | 类型 | 说明 |
-|------|------|------|
-| `data` | `std::string` | 字符字符串数据 |
-| `length` | `uint8_t` | 字符数据的字节长度 |
-
-#### Corner
+#### Corner（也可作为 `Tiny::TUI::Corner` 使用）
 
 ```cpp
 struct Corner {
-    Char left_top;     // 左上角
-    Char left;         // 左边
-    Char left_bottom;  // 左下角
-    Char right_top;    // 右上角
-    Char right;        // 右边
-    Char right_bottom; // 右下角
-    Char top;          // 上边
-    Char bottom;       // 下边
+    Char left_top{"+"};
+    Char left{"|"};
+    Char left_bottom{"+"};
+    Char right_top{"+"};
+    Char right{"|"};
+    Char right_bottom{"+"};
+    Char top{"-"};
+    Char bottom{"-"};
 };
 ```
 
-### 6.3 构造函数与静态成员函数
+### 7.3 静态成员函数
 
 #### self
 
 ```cpp
 static Renderer& self();
 ```
-- **功能**: 获取渲染器单例
-- **返回值**: 渲染器引用
 
-#### 析构函数
+### 7.4 成员函数
 
-```cpp
-virtual ~Renderer();
-```
-- **功能**: 释放渲染器资源并停止后台尺寸监控线程
-
-### 6.4 成员函数
-
-#### set (重载)
+#### set（重载）
 
 ```cpp
 void set(const Position& pos, uint8_t ch, Style style = {});
@@ -802,140 +935,50 @@ void set(uint32_t x, uint32_t y, uint8_t ch, Style style = {});
 void set(const Position& pos, const std::string& str, Style style = {});
 void set(uint32_t x, uint32_t y, const std::string& str, Style style = {});
 ```
-- **功能**: 在指定位置设置字符
-- **参数**: 
-  - `pos` / `x, y` - 位置
-  - `ch` / `str` - 字符或字符串
-  - `style` - 样式（可选）
 
-#### setStrF
+#### setStrF / setSSF / setSSFX
 
 ```cpp
 template<typename ... Args>
 void setStrF(const Position& pos, const char* format, Args... args);
-```
-- **功能**: 格式化设置字符串
-- **参数**: 
-  - `pos` - 位置
-  - `format` - 格式字符串
-  - `args` - 可变参数
 
-#### setSSF
-
-```cpp
 template<typename ... Args>
 void setSSF(const Position& pos, const char* format, const Style& style, Args... args);
-```
-- **功能**: 带样式的格式化设置
-- **参数**: 
-  - `pos` - 位置
-  - `format` - 格式字符串
-  - `style` - 样式
-  - `args` - 可变参数
 
-#### fillScreen
+template<typename ... Args>
+void setSSFX(const Position& pos, const char* format, const StyleList& styles, Args... args);
+```
+
+#### fillScreen / fillRows / fillCols / fillRect
 
 ```cpp
 void fillScreen(const Style& style = {});
-```
-- **功能**: 使用指定样式填充整个屏幕
-- **参数**: `style` - 填充样式
 
-#### fillRows
-
-```cpp
 void fillRows(uint32_t start_row, uint32_t end_row, uint8_t ch = ' ', Style style = {});
 void fillRows(uint32_t start_row, uint32_t end_row, const std::string& ch, Style style = {});
-```
-- **功能**: 填充指定行范围
-- **参数**: 
-  - `start_row` - 起始行
-  - `end_row` - 结束行
-  - `ch` / `str` - 填充字符或字符串
-  - `style` - 样式
 
-#### fillCols
-
-```cpp
 void fillCols(uint32_t start_col, uint32_t end_col, uint8_t ch = ' ', Style style = {});
 void fillCols(uint32_t start_col, uint32_t end_col, const std::string& ch, Style style = {});
-```
-- **功能**: 填充指定列范围
-- **参数**: 
-  - `start_col` - 起始列
-  - `end_col` - 结束列
-  - `ch` / `str` - 填充字符或字符串
-  - `style` - 样式
 
-#### fillRect
-
-```cpp
 void fillRect(const Position& start_pos, const Position& end_pos, uint8_t ch = ' ', Style style = {});
 void fillRect(const Position& start_pos, const Position& end_pos, const std::string& str, Style style = {});
 ```
-- **功能**: 填充矩形区域
-- **参数**: 
-  - `start_pos` - 起始位置
-  - `end_pos` - 结束位置
-  - `ch` / `str` - 填充字符或字符串
-  - `style` - 样式
 
 #### drawBorder
 
 ```cpp
 void drawBorder(const Position& start_pos, const Position& end_pos, Corner corner, Style style = {});
 ```
-- **功能**: 绘制边框
-- **参数**: 
-  - `start_pos` - 左上角位置
-  - `end_pos` - 右下角位置
-  - `corner` - 边角字符定义
-  - `style` - 样式
 
-#### unset
+#### unset / unsetRow / unsetCol / unsetRect
 
 ```cpp
 void unset(const Position& pos);
 void unset(uint32_t x, uint32_t y);
-```
-- **功能**: 清除指定位置
-- **参数**: 目标位置
-
-#### unsetRow
-
-```cpp
 void unsetRow(uint32_t row);
-```
-- **功能**: 清除整行
-- **参数**: `row` - 行号
-
-#### unsetCol
-
-```cpp
 void unsetCol(uint32_t col);
-```
-- **功能**: 清除整列
-- **参数**: `col` - 列号
-
-#### unsetRect
-
-```cpp
 void unsetRect(const Position& start_pos, const Position& end_pos);
 ```
-- **功能**: 清除矩形区域
-- **参数**: 
-  - `start_pos` - 起始位置
-  - `end_pos` - 结束位置
-
-#### setResizeEvent (已弃用)
-
-```cpp
-void setResizeEvent(const std::function<void(Renderer&)>& event);
-```
-- **功能**: 设置终端尺寸变化事件回调
-- **参数**: `event` - 回调函数，接收 Renderer 引用
-- **说明**: 当终端窗口大小变化时触发
-- **已弃用**: 已被 EventBus 替代，将在 v1.4.0 移除
 
 #### setStyle
 
@@ -943,97 +986,182 @@ void setResizeEvent(const std::function<void(Renderer&)>& event);
 void setStyle(const Position& pos, Style style);
 void setStyle(uint32_t x, uint32_t y, Style style);
 ```
-- **功能**: 在指定位置设置样式
-- **参数**: 
-  - `pos` / `x, y` - 位置
-  - `style` - 要应用的样式
 
-#### charAt
+#### charAt / styleAt
 
 ```cpp
 const Char& charAt(const Position& position);
-```
-- **功能**: 获取指定位置的字符
-- **参数**: `position` - 要查询的位置
-- **返回值**: 字符引用
-
-#### styleAt
-
-```cpp
 const Style& styleAt(const Position& position);
 ```
-- **功能**: 获取指定位置的样式
-- **参数**: `position` - 要查询的位置
-- **返回值**: 样式引用
 
-#### clear
+#### clear / present
 
 ```cpp
 void clear();
-```
-- **功能**: 清空前缓冲区
-
-#### present
-
-```cpp
 void present();
 ```
-- **功能**: 将前缓冲区内容呈现到屏幕
 
-### 6.5 受保护虚函数
+#### setResizeEvent（已弃用）
 
-#### renderEvent
+```cpp
+void setResizeEvent(const std::function<void(Renderer&)>& event);
+```
+- **已弃用**: 已被 `EventBus` 替代，将在 v1.4.0 移除。
+
+### 7.5 受保护虚函数
 
 ```cpp
 virtual void renderEvent();
-```
-- **功能**: 内部渲染事件处理函数，渲染器需要重绘时调用
-- **说明**: 子类可重写以自定义渲染行为
-
-#### resizeEvent
-
-```cpp
 virtual void resizeEvent(bool use_default_size = true, const Size& size = {});
 ```
-- **功能**: 内部尺寸变化事件处理函数，终端尺寸变化时调用
-- **参数**: 
-  - `use_default_size` - 是否使用当前终端尺寸（默认值：`true`）
-  - `size` - 当 `use_default_size` 为 `false` 时使用的自定义尺寸
-- **说明**: 子类可重写以自定义尺寸变化行为
 
 ---
 
-## 7. AbstractWidget 类
+## 8. Object 类
 
-### 7.1 类简介
+### 8.1 类简介
 
-抽象控件基类，所有 TUI 控件的基类。
+TUI 层级中所有对象的基类。提供对象命名、父子关系、类型信息和事件分发。`AbstractWidget` 和 `AbstractLayout` 都（间接）继承自 `Object`。
 
-### 7.2 构造函数
-
-```cpp
-explicit AbstractWidget(const std::string& name, const Position& position, const Size& size);
-```
-- **参数**: 
-  - `name` - 控件名称
-  - `position` - 位置
-  - `size` - 大小
-
-### 7.3 析构函数
+### 8.2 构造函数
 
 ```cpp
-virtual ~AbstractWidget();
+explicit Object(const std::string& name, std::type_index type_id, Object* parent = nullptr);
+explicit Object(const std::string& name, std::type_index type_id, std::type_index parent_type_id, Object* parent = nullptr);
 ```
 
-### 7.4 成员函数
+| 参数 | 说明 |
+|------|------|
+| `name` | 对象名称 |
+| `type_id` | 标识实际派生类型的 `std::type_index` |
+| `parent_type_id` | 期望父类型的 `std::type_index`（仅第二个构造函数） |
+| `parent` | 父对象指针（可选，默认：`nullptr`） |
 
-#### rename
+### 8.3 析构函数
 
 ```cpp
-void rename(const std::string& name);
+virtual ~Object() = default;
 ```
-- **功能**: 重命名控件
-- **参数**: `name` - 新名称
+
+### 8.4 成员函数
+
+#### renameObject / setObjectName / objectName
+
+```cpp
+void renameObject(const std::string& name);
+void setObjectName(const std::string& name);
+[[nodiscard]] const std::string& objectName() const;
+```
+
+重命名或查询对象名称。`renameObject` 和 `setObjectName` 效果相同。
+
+#### setParent / parent
+
+```cpp
+void setParent(Object* parent);
+Object* parent() const;
+```
+
+#### hash / phash
+
+```cpp
+size_t hash() const;
+size_t phash() const;
+```
+
+- `hash()` — 本对象的类型哈希
+- `phash()` — 父对象的类型哈希
+
+#### className
+
+```cpp
+const char* className() const;
+```
+
+从存储的 `type_index` 返回人类可读的类名。
+
+#### isChild
+
+```cpp
+bool isChild(Object* child) const;
+```
+
+检查 `child` 是否为该对象的直接子对象。
+
+#### findChild
+
+```cpp
+Object* findChild(const std::string& name) const;
+Object* findChild(std::type_index type_id, const std::string& name) const;
+```
+
+按名称（第一个重载）或类型 + 名称（第二个重载）查找子对象。找不到返回 `nullptr`。
+
+#### children
+
+```cpp
+[[nodiscard]] const std::vector<Object*>& children() const;
+```
+
+返回只读的直接子对象向量。
+
+### 8.5 受保护虚函数
+
+子类**必须**重写：
+
+```cpp
+virtual void onEvent(const AbstractEvent& event) = 0;
+virtual void onResizedTermSize(const Size& size) = 0;
+virtual void onObjectNameChanged() = 0;
+virtual void onParentChanged() = 0;
+```
+
+框架在事件到达、终端尺寸变化或父/名称改变时调用这些函数。
+
+---
+
+## 9. AbstractWidget 类
+
+### 9.1 类简介
+
+抽象控件基类，继承自 `Object`。提供位置/大小管理、样式状态、可检查状态、鼠标追踪以及子类必须实现的渲染/事件接口。
+
+### 9.2 StyleStatus 枚举
+
+```cpp
+enum StyleStatus : uint8_t {
+    S_Disabled,
+    S_Active,
+    S_Checked,
+    S_Normal
+};
+```
+
+与 `setStyle()` 一起使用，将 `Style` 关联到控件状态。
+
+### 9.3 构造函数
+
+```cpp
+explicit AbstractWidget(const std::string& name, const Position& position, const Size& size,
+                        std::type_index type_id, Object* parent = nullptr);
+explicit AbstractWidget(const std::string& name, std::type_index type_id, Object* parent = nullptr);
+```
+
+| 参数 | 说明 |
+|------|------|
+| `name` | 控件名称（传给 `Object` 基类） |
+| `position` | 控件位置 |
+| `size` | 控件大小 |
+| `type_id` | 具体子类的 `std::type_index` |
+| `parent` | 父对象（可选） |
+
+### 9.4 析构函数
+
+```cpp
+virtual ~AbstractWidget() = default;
+```
+
+### 9.5 成员函数
 
 #### move
 
@@ -1041,8 +1169,6 @@ void rename(const std::string& name);
 void move(const Position& position);
 void move(uint32_t x, uint32_t y);
 ```
-- **功能**: 移动控件位置
-- **参数**: 新位置
 
 #### resize
 
@@ -1050,216 +1176,128 @@ void move(uint32_t x, uint32_t y);
 void resize(const Size& size);
 void resize(uint32_t w, uint32_t h);
 ```
-- **功能**: 调整控件大小
-- **参数**: 新大小
 
-#### setMinimumSize
+#### setMinimumSize / setMaximumSize / setMinMaxSize
 
 ```cpp
 void setMinimumSize(const Size& size);
 void setMinimumSize(uint32_t w, uint32_t h);
-```
-- **功能**: 设置控件最小尺寸
-- **参数**: 最小尺寸约束
 
-#### setMaximumSize
-
-```cpp
 void setMaximumSize(const Size& size);
 void setMaximumSize(uint32_t w, uint32_t h);
-```
-- **功能**: 设置控件最大尺寸
-- **参数**: 最大尺寸约束
 
-#### setEnabled
+void setMinMaxSize(const Size& size);
+void setMinMaxSize(uint32_t w, uint32_t h);
+```
+
+`setMinMaxSize` 同时设置最小和最大尺寸为相同值（用于锁定尺寸）。
+
+#### setEnabled / setVisible / setFocus
 
 ```cpp
 void setEnabled(bool enabled);
-```
-- **功能**: 启用或禁用控件
-- **参数**: `enabled` - 是否启用
-
-#### setVisible
-
-```cpp
 void setVisible(bool visible);
-```
-- **功能**: 显示或隐藏控件
-- **参数**: `visible` - 是否可见
-
-#### setFocus
-
-```cpp
 void setFocus(bool focus);
 ```
-- **功能**: 设置控件焦点状态
-- **参数**: `focus` - 是否拥有焦点
 
 #### setSizePolicy
 
 ```cpp
 void setSizePolicy(SizePolicy policy);
 ```
-- **功能**: 设置控件尺寸策略
-- **参数**: `policy` - 布局管理的尺寸策略
 
-#### draw
+#### setMouseTracingEnabled / mouseTracingEnabled
 
 ```cpp
+void setMouseTracingEnabled(bool enabled);
+[[nodiscard]] bool mouseTracingEnabled() const;
+```
+
+启用后，即使未按下也能持续接收鼠标移动事件。
+
+#### setStyle / style
+
+```cpp
+void setStyle(uint8_t status, const Style& style);
+[[nodiscard]] Style style(uint8_t status) const;
+```
+
+将 `Style` 关联到控件状态（`S_Disabled`、`S_Active`、`S_Checked`、`S_Normal`）。
+
+#### draw（已弃用）
+
+```cpp
+API_DEPRECATED("The function will be removed since ver.0.3.0!")
 void draw();
 ```
-- **功能**: 触发控件渲染
 
-#### name
+> 请使用 `callDrawEvent()`（受保护）或让 `Application` 处理重绘。
 
-```cpp
-[[nodiscard]] const std::string& name() const;
-```
-- **功能**: 获取控件名称
-- **返回值**: 名称引用
-
-#### position
+#### Position / Size 获取器
 
 ```cpp
 [[nodiscard]] const Position& position() const;
-```
-- **功能**: 获取控件位置
-- **返回值**: 位置引用
-
-#### size
-
-```cpp
 [[nodiscard]] const Size& size() const;
-```
-- **功能**: 获取控件大小
-- **返回值**: 大小引用
-
-#### minimumSize
-
-```cpp
 [[nodiscard]] const Size& minimumSize() const;
-```
-- **功能**: 获取控件最小尺寸
-- **返回值**: 最小尺寸引用
-
-#### maximumSize
-
-```cpp
 [[nodiscard]] const Size& maximumSize() const;
 ```
-- **功能**: 获取控件最大尺寸
-- **返回值**: 最大尺寸引用
 
-#### enabled
+#### 状态获取器
 
 ```cpp
 [[nodiscard]] bool enabled() const;
-```
-- **功能**: 检查控件是否启用
-- **返回值**: `true` 表示已启用
-
-#### visible
-
-```cpp
 [[nodiscard]] bool visible() const;
-```
-- **功能**: 检查控件是否可见
-- **返回值**: `true` 表示可见
-
-#### focus
-
-```cpp
 [[nodiscard]] bool focus() const;
-```
-- **功能**: 检查控件是否拥有焦点
-- **返回值**: `true` 表示拥有焦点
-
-#### sizePolicy
-
-```cpp
 [[nodiscard]] SizePolicy sizePolicy() const;
 ```
-- **功能**: 获取控件尺寸策略
-- **返回值**: 尺寸策略枚举值
 
-### 7.5 受保护虚函数
+#### 可检查状态
+
+```cpp
+[[nodiscard]] bool checkable() const;
+[[nodiscard]] bool checked() const;
+```
+
+子类通过受保护方法控制可检查状态：
+
+```cpp
+protected:
+    void setCheckable(bool checkable);
+    void setChecked(bool checked);
+```
+
+### 9.6 受保护虚函数
+
+所有子类**必须**实现：
 
 ```cpp
 virtual void renderEvent(Renderer& renderer) = 0;
-```
-- **功能**: 渲染事件处理，必须由子类重写以自定义控件渲染
-- **参数**: `renderer` - 用于绘制的 Renderer 实例
-- **说明**: 纯虚函数
-
-```cpp
 virtual void resizeEvent(uint32_t width, uint32_t height) = 0;
-```
-- **功能**: 尺寸变化事件处理，必须由子类重写
-- **参数**:
-  - `width` - 新宽度
-  - `height` - 新高度
-- **说明**: 纯虚函数
-
-```cpp
 virtual void moveEvent(uint32_t x, uint32_t y) = 0;
-```
-- **功能**: 移动事件处理，必须由子类重写
-- **参数**:
-  - `x` - 新 x 坐标
-  - `y` - 新 y 坐标
-- **说明**: 纯虚函数
-
-```cpp
 virtual void keyEvent(KeyEvent keyboard) = 0;
-```
-- **功能**: 键盘事件处理，必须由子类重写
-- **参数**: `keyboard` - 键盘事件数据
-
-```cpp
 virtual void mouseEvent(MouseEvent mouse) = 0;
-```
-- **功能**: 鼠标事件处理，必须由子类重写
-- **参数**: `mouse` - 鼠标事件数据
-
-```cpp
 virtual void focusEvent(bool focus) = 0;
-```
-- **功能**: 焦点事件处理，必须由子类重写
-- **参数**: `focus` - 是否获得焦点
-
-```cpp
 virtual void enableEvent(bool enable) = 0;
-```
-- **功能**: 启用/禁用事件处理，必须由子类重写
-- **参数**: `enable` - 是否启用
-
-```cpp
 virtual void clickedEvent() = 0;
 ```
-- **功能**: 点击事件处理，必须由子类重写
 
-```cpp
-virtual void execEvent(const AbstractEvent& event);
-```
-- **功能**: 通用事件执行处理器
-- **参数**: `event` - 要处理的事件
-- **说明**: 可重写以自定义事件处理
+子类可用的额外受保护辅助函数：
 
 ```cpp
 void callDrawEvent();
+void resizeWithoutCalledEvent(uint32_t width, uint32_t height);
+const Style& currentStyle(uint8_t* status = nullptr) const;
 ```
-- **功能**: 内部绘制事件调用器
-- **说明**: 内部使用以触发渲染
 
 ---
 
-## 8. EventBus 类
+## 10. EventBus 类
 
-### 8.1 类简介
+### 10.1 类简介
 
-事件总线，用于管理 TUI 系统中的事件分发。
+事件总线，用于管理和分发 TUI 系统中的事件。
 
-### 8.2 事件类型
+### 10.2 事件类型
 
 #### AbstractEvent
 
@@ -1272,8 +1310,6 @@ public:
 };
 ```
 
-所有事件的基类。
-
 #### UserInputEvent
 
 ```cpp
@@ -1285,8 +1321,6 @@ public:
 };
 ```
 
-用户输入事件（键盘/鼠标）。
-
 #### RefreshRenderEvent
 
 ```cpp
@@ -1296,8 +1330,6 @@ public:
     virtual ~RefreshRenderEvent() = default;
 };
 ```
-
-触发渲染器刷新的事件。
 
 #### ResizeTermEvent
 
@@ -1311,9 +1343,7 @@ public:
 };
 ```
 
-终端尺寸变化事件。
-
-### 8.3 类型别名
+### 10.3 类型别名
 
 ```cpp
 using Subscriber = std::function<void(const AbstractEvent&)>;
@@ -1321,15 +1351,13 @@ using SubscriberMap = std::unordered_map<size_t, Subscriber>;
 using SubscriberID = size_t;
 ```
 
-### 8.4 成员函数
+### 10.4 成员函数
 
 #### self
 
 ```cpp
 static EventBus& self();
 ```
-- **功能**: 获取事件总线单例
-- **返回值**: EventBus 引用
 
 #### subscribe
 
@@ -1339,8 +1367,6 @@ SubscriberID subscribe(const Subscriber& subscriber);
 template <typename T>
 SubscriberID subscribe(Subscriber&& subscriber);
 ```
-- **功能**: 订阅事件类型
-- **参数**: `subscriber` - 回调函数
 - **返回值**: 用于取消订阅的订阅者 ID
 
 #### unsubscribe
@@ -1349,8 +1375,6 @@ SubscriberID subscribe(Subscriber&& subscriber);
 template <typename T>
 void unsubscribe(SubscriberID id);
 ```
-- **功能**: 取消订阅事件类型
-- **参数**: `id` - subscribe 返回的订阅者 ID
 
 #### publish
 
@@ -1360,50 +1384,39 @@ void publish(SubscriberID id, AbstractEvent *event, size_t priority = 0);
 template <typename T>
 void publish(AbstractEvent *event, size_t priority = 0);
 ```
-- **功能**: 发布事件给订阅者
-- **参数**: 
-  - `id` - 特定订阅者 ID（可选）
-  - `event` - 要发布的事件
-  - `priority` - 事件优先级（越高越先执行）
 
-#### pollEvents
+向特定订阅者（第一个重载）或所有类型为 `T` 的订阅者（第二个重载）发布事件。较高的 `priority` 值先执行。
+
+#### pollEvents / clear
 
 ```cpp
 void pollEvents();
-```
-- **功能**: 处理所有待处理事件
-
-#### clear
-
-```cpp
 void clear();
 ```
-- **功能**: 清除所有订阅者和待处理事件
 
 ---
 
-## 9. Application 类
+## 11. Application 类
 
-### 9.1 类简介
+### 11.1 类简介
 
-TUI 程序的主应用类。
+TUI 程序的主应用类。拥有事件循环，管理所有注册的 `Object` 实例（控件和布局），并协调渲染。
 
-### 9.2 构造函数
+### 11.2 构造函数
 
 ```cpp
-Application(int argc, char* argv[]);
+explicit Application();
 ```
-- **参数**: 
-  - `argc` - 参数数量
-  - `argv` - 参数值
 
-### 9.3 析构函数
+默认构造函数。无 `argc` / `argv` — 参数处理由用户负责。
+
+### 11.3 析构函数
 
 ```cpp
 virtual ~Application() = default;
 ```
 
-### 9.4 成员函数
+### 11.4 成员函数
 
 #### run
 
@@ -1411,52 +1424,98 @@ virtual ~Application() = default;
 int run();
 ```
 - **功能**: 运行应用程序主循环
-- **返回值**: 退出码
+- **返回值**: 退出码（由 `exit()` 设置）
 
 #### exit
 
 ```cpp
-void exit();
+void exit(int8_t exit_code = 0);
 ```
-- **功能**: 退出应用程序
+- **功能**: 请求应用程序以指定退出码终止
+- **参数**: `exit_code` — 退出状态（默认：`0`）
+
+#### setEnabledExitByKey / isEnabledExitByKey
+
+```cpp
+void setEnabledExitByKey(bool enabled);
+bool isEnabledExitByKey() const;
+```
+
+启用后，按下 `Ctrl+C` 或 `ESC` 将退出主循环。默认启用。
+
+#### setRefreshEnabled / isRefreshEnabled
+
+```cpp
+void setRefreshEnabled(bool enabled);
+bool isRefreshEnabled() const;
+```
+
+控制渲染器是否在每次循环迭代时刷新。
+
+#### Z-order 控制
+
+```cpp
+void setZOrder(const Object* object, uint32_t z_order);
+void setZOrder(uint32_t dst_order, uint32_t src_order);
+void setZOrder(const Object* dst_object, const Object* src_object);
+```
+
+| 重载 | 说明 |
+|------|------|
+| `(object, z_order)` | 将对象移动到指定 Z-order 位置 |
+| `(dst_order, src_order)` | 通过索引交换两个 Z-order 位置 |
+| `(dst_object, src_object)` | 交换两个对象的 Z-order |
+
+```cpp
+uint32_t zOrder() const;
+const Object* zOrderOf(uint32_t dst_order) const;
+```
+
+- `zOrder()` — 当前总 Z-order 数量
+- `zOrderOf(dst_order)` — 给定 Z-order 位置的对象（或 `nullptr`）
+
+#### count
+
+```cpp
+uint32_t count() const;
+```
+
+注册到应用程序的顶层 `Object` 实例数量。
 
 ---
 
-## 10. AbstractLayout 类
+## 12. AbstractLayout 类
 
-### 10.1 类简介
+### 12.1 类简介
 
-抽象布局基类，用于管理控件排列。
+抽象布局基类，用于管理控件排列。继承自 `Object`。
 
-### 10.2 类型别名
+### 12.2 类型别名
 
 ```cpp
 using WidgetIter = std::vector<AbstractWidget*>::iterator;
 using CWidgetIter = std::vector<AbstractWidget*>::const_iterator;
 ```
 
-### 10.3 构造函数
+### 12.3 构造函数
 
 ```cpp
-AbstractLayout(const std::string& name);
+AbstractLayout(const std::string& name, std::type_index type_id, Object* parent = nullptr);
 ```
-- **参数**: `name` - 布局名称
 
-### 10.4 析构函数
+| 参数 | 说明 |
+|------|------|
+| `name` | 布局名称 |
+| `type_id` | 具体布局子类的 `std::type_index` |
+| `parent` | 父对象（可选） |
+
+### 12.4 析构函数
 
 ```cpp
 virtual ~AbstractLayout() = default;
 ```
 
-### 10.5 成员函数
-
-#### rename
-
-```cpp
-void rename(const std::string& name);
-```
-- **功能**: 重命名布局
-- **参数**: `name` - 新名称
+### 12.5 成员函数
 
 #### move
 
@@ -1464,8 +1523,6 @@ void rename(const std::string& name);
 void move(const Position& position);
 void move(uint32_t x, uint32_t y);
 ```
-- **功能**: 移动布局位置
-- **参数**: 新位置
 
 #### resize
 
@@ -1473,228 +1530,486 @@ void move(uint32_t x, uint32_t y);
 void resize(const Size& size);
 void resize(uint32_t w, uint32_t h);
 ```
-- **功能**: 调整布局大小
-- **参数**: 新大小
 
-#### setEnabled
+#### setEnabled / setVisible
 
 ```cpp
 void setEnabled(bool enabled);
-```
-- **功能**: 启用或禁用布局
-- **参数**: `enabled` - 是否启用
-
-#### setVisible
-
-```cpp
 void setVisible(bool visible);
 ```
-- **功能**: 显示或隐藏布局
-- **参数**: `visible` - 是否可见
 
-#### appendWidget
+#### 控件管理
 
 ```cpp
 bool appendWidget(AbstractWidget* widget);
-```
-- **功能**: 添加控件到布局末尾
-- **参数**: `widget` - 要添加的控件
-- **返回值**: 成功返回 `true`
-
-#### insertWidget
-
-```cpp
 bool insertWidget(uint64_t index, AbstractWidget* widget);
-```
-- **功能**: 在指定索引插入控件
-- **参数**: 
-  - `index` - 插入位置
-  - `widget` - 要插入的控件
-- **返回值**: 成功返回 `true`
-
-#### removeWidget
-
-```cpp
 bool removeWidget(AbstractWidget* widget);
 bool removeWidget(uint64_t index);
-```
-- **功能**: 从布局移除控件
-- **参数**: 控件指针或索引
-- **返回值**: 成功返回 `true`
-
-#### swapWidget
-
-```cpp
+bool replaceWidget(uint64_t index, AbstractWidget* new_widget);
+bool replaceWidget(WidgetIter pos, AbstractWidget* new_widget);
 bool swapWidget(uint64_t index_1, uint64_t index_2);
 bool swapWidget(AbstractWidget* widget_1, AbstractWidget* widget_2);
-```
-- **功能**: 交换两个控件
-- **参数**: 控件指针或索引
-- **返回值**: 成功返回 `true`
-
-#### clear
-
-```cpp
 void clear();
 ```
-- **功能**: 移除布局中的所有控件
 
-#### name
+所有控件修改函数成功返回 `true`。`remove`/`replace`/`swap` 同时提供基于指针和基于索引的重载。
 
-```cpp
-[[nodiscard]] const std::string& name() const;
-```
-- **功能**: 获取布局名称
-- **返回值**: 名称引用
-
-#### position
+#### Position / Size / State 获取器
 
 ```cpp
 [[nodiscard]] const Position& position() const;
-```
-- **功能**: 获取布局位置
-- **返回值**: 位置引用
-
-#### size
-
-```cpp
 [[nodiscard]] const Size& size() const;
-```
-- **功能**: 获取布局大小
-- **返回值**: 大小引用
-
-#### enabled
-
-```cpp
 [[nodiscard]] bool enabled() const;
-```
-- **功能**: 检查布局是否启用
-- **返回值**: `true` 表示已启用
-
-#### visible
-
-```cpp
 [[nodiscard]] bool visible() const;
 ```
-- **功能**: 检查布局是否可见
-- **返回值**: `true` 表示可见
 
-#### begin
+#### 迭代器
 
 ```cpp
 [[nodiscard]] WidgetIter begin();
-```
-- **功能**: 获取第一个控件的迭代器
-- **返回值**: 迭代器
-
-#### end
-
-```cpp
 [[nodiscard]] WidgetIter end();
-```
-- **功能**: 获取最后一个控件之后的迭代器
-- **返回值**: 迭代器
-
-#### cbegin
-
-```cpp
 [[nodiscard]] CWidgetIter cbegin() const;
-```
-- **功能**: 获取第一个控件的常量迭代器
-- **返回值**: 常量迭代器
-
-#### cend
-
-```cpp
 [[nodiscard]] CWidgetIter cend() const;
 ```
-- **功能**: 获取最后一个控件之后的常量迭代器
-- **返回值**: 常量迭代器
 
-#### count
+#### count / widget / indexOf
 
 ```cpp
 [[nodiscard]] size_t count() const;
-```
-- **功能**: 获取控件数量
-- **返回值**: 控件数量
-
-#### widget
-
-```cpp
 [[nodiscard]] AbstractWidget* widget(size_t index) const;
-```
-- **功能**: 获取指定索引的控件
-- **参数**: `index` - 控件索引
-- **返回值**: 控件指针
-
-#### indexOf
-
-```cpp
 [[nodiscard]] uint64_t indexOf(const AbstractWidget* widget) const;
 ```
-- **功能**: 获取控件的索引
-- **参数**: `widget` - 要查找的控件
-- **返回值**: 控件索引
 
-### 10.6 受保护虚函数
+### 12.6 受保护虚函数
 
 ```cpp
 virtual void renderEvent(Renderer& renderer) = 0;
-```
-- **功能**: 渲染事件处理
-- **参数**: `renderer` - Renderer 实例
-
-```cpp
 virtual void moveEvent(uint32_t x, uint32_t y) = 0;
-```
-- **功能**: 移动事件处理
-- **参数**: 新坐标
-
-```cpp
 virtual void resizeEvent(uint32_t width, uint32_t height) = 0;
 ```
-- **功能**: 尺寸变化事件处理
-- **参数**: 新尺寸
 
 ---
 
-## 11. Label 类
+## 13. CurBlock 类
 
-### 11.1 类简介
+### 13.1 类简介
 
-简单文本标签控件。
+光标块控件。渲染为实心块，可作为光标指示器。继承自 `AbstractWidget`。
 
-### 11.2 构造函数
+### 13.2 构造函数
 
 ```cpp
-explicit Label(const std::string& name, const Position& position);
+explicit CurBlock(const std::string& name, Object* parent = nullptr);
 ```
-- **参数**: 
-  - `name` - 控件名称
-  - `position` - 控件位置
 
-### 11.3 析构函数
+| 参数 | 说明 |
+|------|------|
+| `name` | 控件名称 |
+| `parent` | 父对象（可选） |
+
+### 13.3 析构函数
+
+```cpp
+virtual ~CurBlock() = default;
+```
+
+该类故意保持极简 — 渲染行为完全由 `AbstractWidget` 中定义的受保护虚函数处理。
+
+---
+
+## 14. Label 类
+
+### 14.1 类简介
+
+简单文本标签控件。继承自 `AbstractWidget`。
+
+### 14.2 构造函数
+
+```cpp
+explicit Label(const std::string& name, const Position& position, Object* parent = nullptr);
+explicit Label(const std::string& name, const Position& position, const Size& size, Object* parent = nullptr);
+```
+
+| 参数 | 说明 |
+|------|------|
+| `name` | 控件名称 |
+| `position` | 控件位置 |
+| `size` | 控件大小（第二个构造函数；否则默认自动尺寸） |
+| `parent` | 父对象（可选） |
+
+### 14.3 析构函数
 
 ```cpp
 virtual ~Label() = default;
 ```
 
-### 11.4 成员函数
+### 14.4 成员函数
 
-#### setText
+#### setText / text
 
 ```cpp
 void setText(const std::string& text);
+[[nodiscard]] const std::string& text() const;
 ```
-- **功能**: 设置标签文本
-- **参数**: `text` - 要显示的文本
+
+#### setAutoSizeEnabled / autoSizeEnabled
+
+```cpp
+void setAutoSizeEnabled(bool enabled);
+[[nodiscard]] bool autoSizeEnabled() const;
+```
+
+启用时（默认，且未提供显式 size 时），标签自动调整大小以适应文本。
+
+#### setAlignment / alignment
+
+```cpp
+void setAlignment(Alignment alignment);
+[[nodiscard]] Alignment alignment() const;
+```
+
+在控件分配区域内的对齐方式。
 
 ---
 
-## 12. 使用示例
+## 15. Button 类
 
-### 12.1 基本终端控制
+### 15.1 类简介
+
+可点击按钮控件。继承自 `Label`。支持点击回调和可配置的默认激活键。
+
+### 15.2 构造函数
+
+```cpp
+Button(const std::string& name, const Position& position, Object* parent = nullptr);
+Button(const std::string& name, const Position& position, const Size& size, Object* parent = nullptr);
+```
+
+### 15.3 析构函数
+
+```cpp
+virtual ~Button() = default;
+```
+
+### 15.4 成员函数
+
+#### setEvent / unsetEvent
+
+```cpp
+void setEvent(const std::function<void(Button&)>& event);
+void unsetEvent();
+```
+
+设置或清除点击回调。回调接收被点击的 `Button` 的引用。
+
+#### setDefaultKeyEvent
+
+```cpp
+void setDefaultKeyEvent(const std::array<KeyEvent, 2>& key_events);
+```
+
+设置两个激活按钮的键盘快捷键。
+
+#### setDefaultKeys
+
+```cpp
+void setDefaultKeys(uint8_t key1, uint8_t key2 = KEY_NONE,
+                    SP_Keys sp_key1 = SP_KEY_NONE, SP_Keys sp_key2 = SP_KEY_NONE);
+```
+
+便捷重载 — 直接指定按键码和特殊键，无需构造 `KeyEvent` 对象。
+
+---
+
+## 16. LineEdit 类
+
+### 16.1 类简介
+
+单行文本输入控件。继承自 `AbstractWidget`。
+
+### 16.2 EchoMode 枚举
+
+```cpp
+enum class EchoMode : uint8_t {
+    NoEcho,
+    Normal,
+    Password
+};
+```
+
+### 16.3 构造函数
+
+```cpp
+explicit LineEdit(const std::string& name, const Position& position, uint32_t width, Object* parent = nullptr);
+```
+
+### 16.4 析构函数
+
+```cpp
+virtual ~LineEdit() = default;
+```
+
+### 16.5 成员函数
+
+#### 文本操作
+
+```cpp
+void setText(const std::string& text);
+void setText(const char* text);
+void appendText(const char* text);
+void appendText(const std::string& text);
+void clear();
+```
+
+#### 长度约束
+
+```cpp
+void setMinimumLength(uint16_t size);
+void setMaximumLength(uint16_t size);
+[[nodiscard]] uint16_t minimumLength() const;
+[[nodiscard]] uint16_t maximumLength() const;
+```
+
+#### 占位符
+
+```cpp
+void setPlaceHolderText(const std::string& text);
+void setPlaceHolderText(const char* text);
+```
+
+#### 回显模式
+
+```cpp
+void setEchoMode(EchoMode mode);
+[[nodiscard]] EchoMode echoMode() const;
+
+void setEchoPassChar(const Char& ch);
+[[nodiscard]] const Char& echoPassChar() const;
+```
+
+设置 `EchoMode::Password` 时，`echoPassChar`（默认 `*`）替换每个字符用于显示。
+
+#### 文本对齐
+
+```cpp
+void setTextAlignment(TextAlignment alignment);
+[[nodiscard]] TextAlignment textAlignment() const;
+```
+
+#### text
+
+```cpp
+[[nodiscard]] const std::string& text() const;
+```
+
+当前输入值。
+
+---
+
+## 17. Slider 类
+
+### 17.1 类简介
+
+交互式滑块控件。允许用户拖动或步进数值范围。继承自 `AbstractWidget`。
+
+### 17.2 构造函数
+
+```cpp
+explicit Slider(const std::string& name, const Position& position, uint8_t width, Object* parent = nullptr);
+```
+
+`width` 是显示列数（或行数，取决于方向）。
+
+### 17.3 析构函数
+
+```cpp
+virtual ~Slider() = default;
+```
+
+### 17.4 成员函数
+
+#### 方向 / 宽度
+
+```cpp
+void setOrientation(Orientation mode);
+[[nodiscard]] Orientation orientation() const;
+
+void setWidth(uint8_t width);
+[[nodiscard]] uint8_t width() const;
+```
+
+#### 范围 / 值
+
+```cpp
+void setMinimumValue(int value);
+void setMaximumValue(int value);
+void setValue(int value);
+void appendValue(int value);
+
+[[nodiscard]] int minimumValue() const;
+[[nodiscard]] int maximumValue() const;
+[[nodiscard]] int value() const;
+```
+
+#### 步长
+
+```cpp
+void setSingleStep(int value);
+void setPageStep(int value);
+
+[[nodiscard]] int singleStep() const;
+[[nodiscard]] int pageStep() const;
+```
+
+#### 反转
+
+```cpp
+void setInvertedEnabled(bool enable);
+[[nodiscard]] bool invertedEnabled() const;
+```
+
+启用时，滑块从相反方向填充。
+
+#### 事件回调
+
+```cpp
+void setEvent(const std::function<void(int)>& event);
+void unsetEvent();
+```
+
+值改变时回调接收当前整数值。
+
+#### 填充颜色
+
+```cpp
+void setFilledColor(const Color& fg_color, const Color& bg_color);
+[[nodiscard]] Color fgFilledColor() const;
+[[nodiscard]] Color bgFilledColor() const;
+```
+
+---
+
+## 18. ProgressBar 类
+
+### 18.1 类简介
+
+非交互式进度指示器。继承自 `AbstractWidget`。与 `Slider` 不同，它不响应用户输入。
+
+### 18.2 构造函数
+
+```cpp
+explicit ProgressBar(const std::string& name, const Position& position, uint32_t width,
+                     Object* parent = nullptr);
+```
+
+### 18.3 析构函数
+
+```cpp
+virtual ~ProgressBar() = default;
+```
+
+### 18.4 成员函数
+
+#### 方向 / 宽度
+
+```cpp
+void setOrientation(Orientation mode);
+[[nodiscard]] Orientation orientation() const;
+
+void setWidth(uint8_t width);
+[[nodiscard]] uint8_t width() const;
+```
+
+#### 值
+
+```cpp
+void setValue(int value);
+void appendValue(int value);
+[[nodiscard]] int value() const;
+```
+
+#### 反转
+
+```cpp
+void setInvertedEnabled(bool enable);
+[[nodiscard]] bool invertedEnabled() const;
+```
+
+#### 填充颜色
+
+```cpp
+void setFilledColor(const Color& fg_color, const Color& bg_color);
+[[nodiscard]] Color fgFilledColor() const;
+[[nodiscard]] Color bgFilledColor() const;
+```
+
+---
+
+## 19. ListView 类
+
+### 19.1 类简介
+
+可滚动列表控件。显示一组字符串，同时选中一项。继承自 `AbstractWidget`。
+
+### 19.2 构造函数
+
+```cpp
+explicit ListView(const std::string& name, const Position& position, const Size& size, Object* parent = nullptr);
+```
+
+### 19.3 析构函数
+
+```cpp
+virtual ~ListView() = default;
+```
+
+### 19.4 成员函数
+
+#### 项目操作
+
+```cpp
+void appendItem(const std::string& text);
+void appendItems(const std::vector<std::string>& items);
+void insertItem(int32_t index, const std::string& text);
+void popItem();
+void removeItems(int32_t index, int32_t count = 1);
+void clear();
+void setItem(int32_t index, const std::string& new_text);
+void swapItems(int32_t index1, int32_t index2);
+```
+
+#### 选择
+
+```cpp
+void setCurrentIndex(int32_t index);
+[[nodiscard]] int32_t currentIndex() const;
+```
+
+#### 查询
+
+```cpp
+[[nodiscard]] int32_t count() const;
+[[nodiscard]] std::string currentItem() const;
+[[nodiscard]] std::string itemAt(int32_t index) const;
+```
+
+#### 颜色
+
+```cpp
+void setSelectionColor(const Color& fg_color, const Color& bg_color);
+void setActiveColor(const Color& fg_color, const Color& bg_color);
+
+[[nodiscard]] Color bgSelectionColor() const;
+[[nodiscard]] Color fgSelectionColor() const;
+[[nodiscard]] Color bgActiveColor() const;
+[[nodiscard]] Color fgActiveColor() const;
+```
+
+---
+
+## 20. 使用示例
+
+### 20.1 基本终端控制
 
 ```cpp
 #include "TUI/TUI.hpp"
@@ -1702,215 +2017,135 @@ void setText(const std::string& text);
 
 int main() {
     using namespace Tiny::TUI;
-    
-    // 进入原始模式
+
     Terminal::enterRawMode();
-    
-    // 清屏
     Terminal::clearScreen();
-    
-    // 设置颜色并输出
+
     Terminal::setForegroundColor(Color::Green);
     Terminal::printLine("Hello, TUI!");
     Terminal::reset();
-    
-    // 格式化输出
-    Terminal::printFormat("Screen size: {}x{}\n", 
+
+    Terminal::printFormat("Screen size: {}x{}\n",
         Terminal::screenSize().width,
         Terminal::screenSize().height);
-    
-    // 移动光标
+
     Terminal::moveCursor(5, 10);
     Terminal::print("Position (5, 10)");
-    
-    // 读取按键
+
     Terminal::printLine("\nPress any key...");
     SP_Keys sp_key;
     uint8_t key = Terminal::getKey(&sp_key);
-    
-    Terminal::printFormat("Key: {} ({})", 
+
+    Terminal::printFormat("Key: {} ({})",
         getKeyName(key, sp_key),
         (int)key);
-    
-    // 退出原始模式
+
     Terminal::leaveRawMode();
-    
     return 0;
 }
 ```
 
-### 12.2 渲染器使用
+### 20.2 Slider 控件
 
 ```cpp
 #include "TUI/TUI.hpp"
 
 int main() {
     using namespace Tiny::TUI;
-    
-    // 获取渲染器实例
-    auto& renderer = Renderer::self();
-    
-    // 设置字符
-    renderer.set(0, 0, 'H');
-    renderer.set(1, 0, "Hello");
-    
-    // 设置样式
-    Renderer::Style style;
-    style.fg_color = Color::Green;
-    renderer.set(2, 0, "Green Text", style);
-    
-    // 绘制边框
-    Renderer::Corner corner;
-    corner.left_top = "+";
-    corner.left = "|";
-    corner.top = "-";
-    corner.right_top = "+";
-    corner.right = "|";
-    corner.right_bottom = "+";
-    corner.left_bottom = "+";
-    corner.bottom = "-";
-    renderer.drawBorder({5, 5}, {15, 25}, corner);
-    
-    // 填充矩形
-    renderer.fillRect({6, 6}, {14, 24}, ' ');
-    
-    // 格式化输出
-    renderer.setStrF({7, 7}, "Count: {}", 42);
-    
-    // 呈现到屏幕
-    renderer.present();
-    
-    // 等待输入
-    Terminal::getKey();
-    
-    return 0;
+
+    Application app;
+
+    auto* slider = new Slider("volume", {2, 2}, 40);
+    slider->setMinimumValue(0);
+    slider->setMaximumValue(100);
+    slider->setValue(50);
+    slider->setEvent([](int v) {
+        Terminal::printError("Value changed: {}\n", v);
+    });
+
+    return app.run();
 }
 ```
 
-### 12.3 鼠标事件处理
+### 20.3 Button 与快捷键
 
 ```cpp
-#include "TUI/TUI.hpp"
-#include <iostream>
+using namespace Tiny::TUI;
 
-int main() {
-    using namespace Tiny::TUI;
-    
-    Terminal::enterRawMode();
-    Terminal::setMouseEnabled(true);
-    Terminal::clearScreen();
-    
-    Terminal::printLine("Click anywhere or press 'q' to quit...");
-    
-    while (true) {
-        uint8_t key;
-        SP_Keys sp_key;
-        Terminal::getKey(key, sp_key);
-        
-        if (key == 'q' || key == 'Q') {
-            break;
-        }
-        
-        if (key == KEY_SPECIAL) {
-            Position pos;
-            bool pressed;
-            uint8_t mouse_btn = Terminal::getMouseButton(&pos, &pressed);
-            
-            Terminal::moveCursor(2, 0);
-            Terminal::clearInRow(2);
-            Terminal::printFormat("Mouse: {} at ({}, {}), Pressed: {}",
-                getMouseName(static_cast<SP_Mouse>(mouse_btn)),
-                pos.row, pos.column, pressed);
-        }
-    }
-    
-    Terminal::setMouseEnabled(false);
-    Terminal::leaveRawMode();
-    
-    return 0;
-}
+auto* ok_btn = new Button("ok", {4, 4}, Size{10, 1});
+ok_btn->setText(" OK ");
+ok_btn->setDefaultKeys(KEY_CR, KEY_NONE, SP_KEY_NONE, SP_KEY_NONE);
+ok_btn->setEvent([](Button& b) {
+    Terminal::printError("Clicked: {}\n", b.objectName());
+});
 ```
 
-### 12.4 颜色样式示例
+### 20.4 LineEdit 密码模式
 
 ```cpp
-#include "TUI/TUI.hpp"
+using namespace Tiny::TUI;
 
-int main() {
-    using namespace Tiny::TUI;
-    
-    Terminal::enterRawMode();
-    Terminal::clearScreen();
-    
-    // ANSI 16 色
-    Terminal::setForegroundColor(Color::Red);
-    Terminal::printLine("Red Text");
-    
-    Terminal::setForegroundColor(Color::Blue, true);  // 高亮
-    Terminal::printLine("Bright Blue Text");
-    
-    // RGB 颜色
-    Terminal::setForegroundColor(255, 128, 0);  // 橙色
-    Terminal::setBackgroundColor(0, 0, 128);    // 深蓝背景
-    Terminal::printLine("Orange on Dark Blue");
-    
-    Terminal::reset();
-    
-    // 样式组合
-    Terminal::setBolder(true);
-    Terminal::setUnderline(true);
-    Terminal::printLine("Bold and Underlined");
-    
-    Terminal::reset();
-    Terminal::getKey();
-    Terminal::leaveRawMode();
-    
-    return 0;
-}
+auto* password = new LineEdit("pwd", {6, 4}, 30);
+password->setEchoMode(LineEdit::EchoMode::Password);
+password->setPlaceHolderText("Enter password");
+password->setMaximumLength(32);
 ```
 
 ---
 
-## 13. 注意事项
+## 21. 注意事项
 
-### 13.1 原始模式
+### 21.1 原始模式
 
 - 进入原始模式后，终端不会自动处理输入输出
 - 必须手动处理回车、退格等按键
 - 程序退出前必须调用 `leaveRawMode()`
 - 建议使用 RAII 模式确保恢复终端状态
 
-### 13.2 终端兼容性
+### 21.2 终端兼容性
 
 - 需要支持 ANSI 转义序列的终端
 - Windows 10+、现代 Linux 终端、macOS Terminal 均支持
 - Windows 7/8 可能需要启用虚拟终端处理
 
-### 13.3 鼠标支持
-
-- 需要终端支持鼠标事件
-- 启用后鼠标事件通过 `getKey()` 返回 `KEY_SPECIAL`
-- 然后调用 `getMouseButton()` 获取详细信息
-
-### 13.4 渲染器使用
+### 21.3 渲染器使用
 
 - 使用双缓冲机制，先绘制到缓冲区
 - 调用 `present()` 才实际输出到屏幕
 - 调用 `clear()` 清空前缓冲区以便重新绘制
-- 终端尺寸变化由 `resizeEvent()` 内部处理；可使用 `setResizeEvent()` 注册自定义回调
 
-### 13.5 UTF-8 支持
+### 21.4 `Application` 与直接使用 `Renderer`
 
-- 支持多字节字符显示
-- 使用 `splitUTF8()` 处理字符串
-- 注意中文字符等宽字符的宽度计算
+- 基于控件的 UI 应使用 `Application::run()` — 它处理主循环、输入分发和渲染
+- 简单的非控件程序或自定义渲染器适合直接使用 `Renderer::self()`
 
-### 13.6 性能考虑
+### 21.5 Object 层级
 
-- 避免频繁调用 `present()`
-- 批量绘制后统一呈现
-- 使用脏标记减少不必要的重绘
+```
+Object                          ← name, parent/children, type info
+├── AbstractWidget              ← position, size, styles, checkable, mouse tracing
+│   ├── CurBlock
+│   ├── Label
+│   │   └── Button
+│   ├── LineEdit
+│   ├── Slider
+│   ├── ProgressBar
+│   └── ListView
+└── AbstractLayout              ← manages a list of AbstractWidget children
+```
 
-## 14. 如何在 Linux 控制台下使用 GPM 库
+### 21.6 已弃用符号
+
+| 符号 | 替代方案 | 移除版本 |
+|------|----------|----------|
+| `Renderer::Style` typedef | `Tiny::TUI::Style` | v0.3.0 |
+| `Renderer::Corner` typedef | `Tiny::TUI::Corner` | v0.3.0 |
+| `Tiny::Code` 命名空间 | `Tiny::U8Code` | v0.3.0 |
+| `AbstractWidget::draw()` | 受保护的 `callDrawEvent()` | v0.3.0 |
+| `Renderer::setResizeEvent()` | `EventBus::subscribe<ResizeTermEvent>()` | v1.4.0 |
+
+---
+
+## 22. 如何在 Linux 控制台下使用 GPM 库
 
 见文章 [GPM_In_Linux.md](GPM_In_Linux.md)，介绍了如何在 Linux 无桌面环境下使用 GPM 库以解决 TTY 模式下的鼠标事件处理问题。

@@ -14,8 +14,9 @@ Namespace: `Tiny::DT`
 6. [DateTime Class](#6-datetime-class)
 7. [Time Unit Literals](#7-time-unit-literals)
 8. [Time Conversion Functions](#8-time-conversion-functions)
-9. [Usage Examples](#9-usage-examples)
-10. [Notes](#10-notes)
+9. [Timestamp Formatting Functions](#9-timestamp-formatting-functions)
+10. [Usage Examples](#10-usage-examples)
+11. [Notes](#11-notes)
 
 ---
 
@@ -349,9 +350,47 @@ Duration milliseconds(Duration timestamps) noexcept;
 
 ---
 
-## 9. Usage Examples
+## 9. Timestamp Formatting Functions
 
-### 9.1 Basic Construction
+### 9.1 currentTimestamps
+
+```cpp
+Duration currentTimestamps() noexcept;
+```
+
+- **Function**: Get current system timestamp in milliseconds
+- **Return Value**: Milliseconds since Unix epoch
+
+### 9.2 formatStdTime
+
+```cpp
+std::string formatStdTime(Duration timestamps, bool show_milliseconds = false);
+```
+
+- **Function**: Format a timestamp to standard time string (yyyy-MM-dd HH:mm:ss)
+- **Parameters**:
+  - `timestamps` - Millisecond timestamp
+  - `show_milliseconds` - Whether to include milliseconds (default: false)
+- **Return Value**: Formatted time string
+- **Example**: `"2026-07-02 12:30:00"` or `"2026-07-02 12:30:00.123"`
+
+### 9.3 formatTime
+
+```cpp
+std::string formatTime(const char* format, Duration timestamps);
+```
+
+- **Function**: Format a timestamp using a custom format string
+- **Parameters**:
+  - `format` - Format specifier string (same format as `DateTime::formatString`)
+  - `timestamps` - Millisecond timestamp
+- **Return Value**: Formatted time string
+
+---
+
+## 10. Usage Examples
+
+### 10.1 Basic Construction
 
 ```cpp
 #include "DateTime/DateTime.hpp"
@@ -368,7 +407,7 @@ int main() {
 }
 ```
 
-### 9.2 Current Time
+### 10.2 Current Time
 
 ```cpp
 #include "DateTime/DateTime.hpp"
@@ -384,7 +423,7 @@ int main() {
 }
 ```
 
-### 9.3 Arithmetic
+### 10.3 Arithmetic
 
 ```cpp
 #include "DateTime/DateTime.hpp"
@@ -403,7 +442,7 @@ int main() {
 }
 ```
 
-### 9.4 Timestamp Conversion
+### 10.4 Timestamp Conversion
 
 ```cpp
 #include "DateTime/DateTime.hpp"
@@ -422,22 +461,22 @@ int main() {
 
 ---
 
-## 10. Notes
+## 11. Notes
 
-### 10.1 Timestamp Base
+### 11.1 Timestamp Base
 
 - All internal timestamps are milliseconds relative to the Unix epoch (1970-01-01 00:00:00 UTC).
 
-### 10.2 Local vs UTC
+### 11.2 Local vs UTC
 
 - `use_local_time = true` uses the system local timezone.
 - `use_local_time = false` uses UTC.
 - Comparing `DateTime` objects with different time modes may yield unexpected results.
 
-### 10.3 Validity
+### 11.3 Validity
 
 - If construction or `reset()` fails, `isValid()` returns `false` and getters return default/zero values.
 
-### 10.4 Overflow
+### 11.4 Overflow
 
 - Arithmetic uses signed 64-bit math. Large subtractions may underflow; use appropriate `Duration` values.

@@ -942,52 +942,7 @@ int nativeErrorNo() const;
 
 ## 8. Free Functions
 
-### 8.1 parseFromHostname (Deprecated)
-
-```cpp
-std::vector<Address> parseFromHostname(const char* hostname, bool* ok = nullptr, int* err_cnt = nullptr);
-```
-
-- **Function**: Resolve hostname to multiple IP addresses
-- **Parameters**:
-  - `hostname` - Hostname to resolve (e.g., "www.example.com")
-  - `ok` - Optional pointer to receive success status
-  - `err_cnt` - Optional pointer to receive error count
-- **Return Value**: Vector of Address objects (all resolved addresses)
-- **Deprecated**: Use `Address::parseFromHostname` instead. Will be removed in v0.4.0.
-- **Example**:
-```cpp
-bool success;
-auto addresses = Tiny::Net::parseFromHostname("www.google.com", &success);
-if (success) {
-    for (const auto& addr : addresses) {
-        std::cout << "Resolved: " << addr.toString() << std::endl;
-    }
-}
-```
-
-### 8.2 parseFirstHostname (Deprecated)
-
-```cpp
-Address parseFirstHostname(const char* hostname, bool* ok = nullptr);
-```
-
-- **Function**: Resolve hostname to first IP address
-- **Parameters**:
-  - `hostname` - Hostname to resolve
-  - `ok` - Optional pointer to receive success status
-- **Return Value**: First resolved Address object
-- **Deprecated**: Use `Address::parseFirstHostname` instead. Will be removed in v0.4.0.
-- **Example**:
-```cpp
-bool success;
-auto addr = Tiny::Net::parseFirstHostname("www.google.com", &success);
-if (success) {
-    std::cout << "First IP: " << addr.toString() << std::endl;
-}
-```
-
-### 8.3 getLastSystemError
+### 8.1 getLastSystemError
 
 ```cpp
 int getLastSystemError(std::string* info = nullptr);
@@ -1003,7 +958,7 @@ int err = Tiny::Net::getLastSystemError(&error_info);
 std::cout << "Error " << err << ": " << error_info << std::endl;
 ```
 
-### 8.4 getSystemErrorByErrno
+### 8.2 getSystemErrorByErrno
 
 ```cpp
 std::string getSystemErrorByErrno(int err_no);
@@ -1018,7 +973,7 @@ std::string desc = Tiny::Net::getSystemErrorByErrno(10048);
 // Returns: "Address already in use" (Windows)
 ```
 
-### 8.5 getSocketErrorName
+### 8.3 getSocketErrorName
 
 ```cpp
 const char* getSocketErrorName(SocketError err);
@@ -1154,9 +1109,9 @@ int main() {
 #include <iostream>
 
 int main() {
-    // Resolve hostname
+    // Resolve hostname using Address static methods
     bool success;
-    auto addresses = Tiny::Net::parseFromHostname("www.example.com", &success);
+    auto addresses = Tiny::Net::Address::parseFromHostname("www.example.com", &success);
     
     if (success && !addresses.empty()) {
         std::cout << "Resolved addresses:" << std::endl;

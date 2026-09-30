@@ -14,8 +14,9 @@
 6. [DateTime 类](#6-datetime-类)
 7. [时间单位字面量](#7-时间单位字面量)
 8. [时间转换函数](#8-时间转换函数)
-9. [使用示例](#9-使用示例)
-10. [注意事项](#10-注意事项)
+9. [时间戳格式化函数](#9-时间戳格式化函数)
+10. [使用示例](#10-使用示例)
+11. [注意事项](#11-注意事项)
 
 ---
 
@@ -349,9 +350,38 @@ Duration milliseconds(Duration timestamps) noexcept;
 
 ---
 
-## 9. 使用示例
+## 9. 时间戳格式化函数
 
-### 9.1 基本构造
+### 9.1 formatStdTime
+
+```cpp
+std::string formatStdTime(Duration timestamps, bool show_milliseconds = false);
+```
+
+- **功能**: 将时间戳格式化为标准时间字符串（yyyy-MM-dd HH:mm:ss）
+- **参数**:
+  - `timestamps` - 毫秒时间戳
+  - `show_milliseconds` - 是否显示毫秒（默认：false）
+- **返回值**: 格式化后的时间字符串
+- **示例**: `"2026-07-02 12:30:00"` 或 `"2026-07-02 12:30:00.123"`
+
+### 9.2 formatTime
+
+```cpp
+std::string formatTime(const char* format, Duration timestamps);
+```
+
+- **功能**: 使用自定义格式字符串格式化时间戳
+- **参数**:
+  - `format` - 格式说明符字符串（与 `DateTime::formatString` 相同的格式）
+  - `timestamps` - 毫秒时间戳
+- **返回值**: 格式化后的时间字符串
+
+---
+
+## 10. 使用示例
+
+### 10.1 基本构造
 
 ```cpp
 #include "DateTime/DateTime.hpp"
@@ -368,7 +398,7 @@ int main() {
 }
 ```
 
-### 9.2 当前时间
+### 10.2 当前时间
 
 ```cpp
 #include "DateTime/DateTime.hpp"
@@ -384,7 +414,7 @@ int main() {
 }
 ```
 
-### 9.3 算术运算
+### 10.3 算术运算
 
 ```cpp
 #include "DateTime/DateTime.hpp"
@@ -403,7 +433,7 @@ int main() {
 }
 ```
 
-### 9.4 时间戳转换
+### 10.4 时间戳转换
 
 ```cpp
 #include "DateTime/DateTime.hpp"
@@ -422,22 +452,22 @@ int main() {
 
 ---
 
-## 10. 注意事项
+## 11. 注意事项
 
-### 10.1 时间戳基准
+### 11.1 时间戳基准
 
 - 所有内部时间戳均为自 Unix 纪元（1970-01-01 00:00:00 UTC）以来的毫秒数。
 
-### 10.2 本地时间与 UTC
+### 11.2 本地时间与 UTC
 
 - `use_local_time = true` 使用系统本地时区。
 - `use_local_time = false` 使用 UTC。
 - 比较不同时间模式的 `DateTime` 对象可能产生意外结果。
 
-### 10.3 有效性
+### 11.3 有效性
 
 - 如果构造或 `reset()` 失败，`isValid()` 返回 `false`，获取器返回默认值或零。
 
-### 10.4 溢出
+### 11.4 溢出
 
 - 算术运算使用有符号 64 位数学。大数值的减法可能会下溢；请使用合适的 `Duration` 值。

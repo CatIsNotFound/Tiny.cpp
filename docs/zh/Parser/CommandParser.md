@@ -239,6 +239,26 @@ const std::vector<Command>& execCommandList() const;
 - **功能**: 获取解析后的命令列表
 - **返回值**: 命令数组的常量引用
 
+#### generateHelpInfo
+
+```cpp
+std::string generateHelpInfo(uint8_t max_width = 64, bool sort_option_name = false, bool show_options_only = false) const;
+```
+- **功能**: 生成所有已添加命令的帮助信息字符串
+- **参数**:
+  - `max_width` - 描述格式化的最大宽度（默认：64）
+  - `sort_option_name` - 是否按选项名称排序命令（默认：false）
+  - `show_options_only` - 是否仅显示命令选项（默认：false）
+- **返回值**: 格式化后的帮助字符串
+- **示例**:
+```cpp
+std::string help = parser.generateHelpInfo();
+std::cout << help << std::endl;
+// 输出:
+//   -h, --help       显示帮助信息
+//   -o, --output     输出文件          (默认: output.txt)
+```
+
 ### 6.4 查询函数
 
 #### size

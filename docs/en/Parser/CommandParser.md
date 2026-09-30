@@ -239,6 +239,26 @@ const std::vector<Command>& execCommandList() const;
 - **Function**: Get parsed command list
 - **Return Value**: Constant reference to command array
 
+#### generateHelpInfo
+
+```cpp
+std::string generateHelpInfo(uint8_t max_width = 64, bool sort_option_name = false, bool show_options_only = false) const;
+```
+- **Function**: Generate help information string for all added commands
+- **Parameters**:
+  - `max_width` - Maximum description width for formatting (default: 64)
+  - `sort_option_name` - Whether to sort commands by option name (default: false)
+  - `show_options_only` - Whether to show only command options (default: false)
+- **Return Value**: Formatted help string
+- **Example**:
+```cpp
+std::string help = parser.generateHelpInfo();
+std::cout << help << std::endl;
+// Output:
+//   -h, --help       Show help information
+//   -o, --output     Output file          (default: output.txt)
+```
+
 ### 6.4 Query Functions
 
 #### size

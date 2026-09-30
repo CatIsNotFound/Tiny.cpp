@@ -614,9 +614,10 @@ std::string readText(size_t length);
 #### readLine
 
 ```cpp
-std::string readLine();
+std::string readLine(size_t limit_length = 0);
 ```
 - **Function**: Read one line of text (until newline)
+- **Parameter**: `limit_length` - Maximum characters to read, 0 means no limit (default: 0)
 - **Return Value**: Line content (including newline)
 
 #### readAllText

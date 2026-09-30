@@ -614,9 +614,10 @@ std::string readText(size_t length);
 #### readLine
 
 ```cpp
-std::string readLine();
+std::string readLine(size_t limit_length = 0);
 ```
 - **功能**: 读取一行文本（到换行符为止）
+- **参数**: `limit_length` - 最大读取字符数，0 表示无限制（默认值：0）
 - **返回值**: 行内容（包含换行符）
 
 #### readAllText

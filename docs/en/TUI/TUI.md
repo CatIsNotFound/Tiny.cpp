@@ -8,17 +8,25 @@ Namespace: `Tiny::TUI`
 
 1. [Module Overview](#1-module-overview)
 2. [Header File](#2-header-file)
-3. [Helper Functions](#3-helper-functions)
-4. [Data Structures](#4-data-structures)
-5. [Terminal Class](#5-terminal-class)
-6. [Renderer Class](#6-renderer-class)
-7. [AbstractWidget Class](#7-abstractwidget-class)
-8. [EventBus Class](#8-eventbus-class)
-9. [Application Class](#9-application-class)
-10. [AbstractLayout Class](#10-abstractlayout-class)
-11. [Label Class](#11-label-class)
-12. [Usage Examples](#12-usage-examples)
-13. [Notes](#13-notes)
+3. [U8Code Namespace](#3-u8code-namespace)
+4. [Helper Functions](#4-helper-functions)
+5. [Data Structures](#5-data-structures)
+6. [Terminal Class](#6-terminal-class)
+7. [Renderer Class](#7-renderer-class)
+8. [Object Class](#8-object-class)
+9. [AbstractWidget Class](#9-abstractwidget-class)
+10. [EventBus Class](#10-eventbus-class)
+11. [Application Class](#11-application-class)
+12. [AbstractLayout Class](#12-abstractlayout-class)
+13. [CurBlock Class](#13-curblock-class)
+14. [Label Class](#14-label-class)
+15. [Button Class](#15-button-class)
+16. [LineEdit Class](#16-lineedit-class)
+17. [Slider Class](#17-slider-class)
+18. [ProgressBar Class](#18-progressbar-class)
+19. [ListView Class](#19-listview-class)
+20. [Usage Examples](#20-usage-examples)
+21. [Notes](#21-notes)
 
 ---
 
@@ -30,7 +38,10 @@ The `TUI` module provides terminal user interface functionality, including:
 - **Input Handling**: Key reading, mouse events
 - **Color & Style**: Foreground/background colors, bold, underline, etc.
 - **Double Buffering**: Efficient screen rendering
-- **Widget Base Class**: Extensible widget system
+- **Object Hierarchy**: `Object` base class providing parent-child relationships
+- **Widget System**: Extensible widget hierarchy with `AbstractWidget` as the base
+- **Event Bus**: Decoupled event subscription and dispatch via `EventBus`
+- **Application Framework**: Top-level `Application` managing the event loop and widget rendering
 
 ---
 
@@ -45,9 +56,27 @@ The `TUI` module provides terminal user interface functionality, including:
 
 ---
 
-## 3. Helper Functions
+## 3. U8Code Namespace
 
-### 3.1 splitFront
+The `Tiny::U8Code` namespace provides UTF-8 utility functions. It is defined in `Terminal.hpp`.
+
+> **Deprecated alias**: `Tiny::Code` is an alias of `Tiny::U8Code`. Use `Tiny::U8Code`; `Tiny::Code` will be removed since v0.3.0.
+
+### 3.1 Wide String Conversion
+
+```cpp
+// Windows versions (with codepage parameter, default 65001 = UTF-8)
+std::wstring string2Wide(const std::string& str, uint32_t codepage = 65001);
+std::string wide2String(const std::wstring& str, uint32_t codepage = 65001);
+
+// Unix versions
+std::wstring string2Wide(const std::string& str);
+std::string wide2String(const std::wstring& str);
+```
+
+### 3.2 UTF-8 String Utilities
+
+#### splitFront
 
 ```cpp
 std::string splitFront(const char* data);
@@ -56,29 +85,74 @@ std::string splitFront(const char* data);
 - **Parameter**: `data` - UTF-8 string
 - **Return Value**: First character (may be multi-byte)
 
-### 3.2 splitUTF8
+#### splitUTF8
 
 ```cpp
 std::vector<std::string> splitUTF8(const char* data, size_t *display_size = nullptr);
 ```
 - **Function**: Split UTF-8 string into character array
-- **Parameters**: 
+- **Parameters**:
   - `data` - UTF-8 string
   - `display_size` - Optional output parameter for display width (default: `nullptr`)
 - **Return Value**: Character array
 
-### 3.3 getKeyName
+#### calcStrDisplayWidth
+
+```cpp
+size_t calcStrDisplayWidth(const std::string& str);
+```
+- **Function**: Calculate the display width (terminal columns) of a UTF-8 string
+- **Parameter**: `str` - UTF-8 string
+- **Return Value**: Display width in columns (CJK characters count as 2)
+
+#### calcDisplaySize
+
+```cpp
+size_t calcDisplaySize(const std::string& str);
+```
+- **Function**: Calculate display size of a UTF-8 string
+- **Parameter**: `str` - UTF-8 string
+- **Return Value**: Display size
+
+#### subUTF8
+
+```cpp
+std::string subUTF8(const char* data, size_t display_count, size_t offset = 0,
+                    size_t *result_display_count = nullptr);
+```
+- **Function**: Extract a substring by display-width count and offset
+- **Parameters**:
+  - `data` - UTF-8 string
+  - `display_count` - Number of display columns to extract
+  - `offset` - Display-width offset (default: `0`)
+  - `result_display_count` - Optional output: actual display count extracted
+- **Return Value**: UTF-8 substring
+
+#### lastCharCount
+
+```cpp
+size_t lastCharCount(const std::string& buf);
+```
+- **Function**: Get the byte length of the last UTF-8 character in a buffer
+- **Parameter**: `buf` - UTF-8 string
+- **Return Value**: Byte length of the last character
+
+---
+
+## 4. Helper Functions
+
+### 4.1 getKeyName
 
 ```cpp
 const char* getKeyName(const uint8_t& KEY, const SP_Keys& SP);
 ```
 - **Function**: Get key name
-- **Parameters**: 
+- **Parameters**:
   - `KEY` - Key code
   - `SP` - Special key type
 - **Return Value**: Key name string
 
-### 3.4 getMouseName
+### 4.2 getMouseName
 
 ```cpp
 const char* getMouseName(const SP_Mouse& SP);
@@ -87,19 +161,21 @@ const char* getMouseName(const SP_Mouse& SP);
 - **Parameter**: `SP` - Mouse event type
 - **Return Value**: Event name string
 
-### 3.5 isPointInRect
+### 4.3 isPointInRect
 
 ```cpp
-bool isPointInRect(const Position& point, Position& start_pos, Position& end_pos);
+bool isPointInRect(const Position& point, const Position& start_pos, const Position& end_pos);
+bool isPointInRect(const Position& point, const Position& start_pos, const Size& size);
 ```
 - **Function**: Check if a point is inside a rectangle
-- **Parameters**: 
+- **Parameters**:
   - `point` - Point to check
   - `start_pos` - Top-left corner of rectangle
-  - `end_pos` - Bottom-right corner of rectangle
+  - `end_pos` - Bottom-right corner of rectangle (first overload)
+  - `size` - Size of rectangle (second overload)
 - **Return Value**: `true` if point is inside the rectangle
 
-### 3.6 KEY_BACKSPACE
+### 4.4 KEY_BACKSPACE
 
 ```cpp
 constexpr bool KEY_BACKSPACE(uint8_t key);
@@ -109,7 +185,7 @@ constexpr bool KEY_BACKSPACE(uint8_t key);
 - **Return Value**: `true` if key is `KEY_BK` (8) or `KEY_DEL` (127)
 - **Note**: Helper function for convenient backspace key detection
 
-### 3.7 KEY_ENTER
+### 4.5 KEY_ENTER
 
 ```cpp
 constexpr bool KEY_ENTER(uint8_t key);
@@ -119,29 +195,103 @@ constexpr bool KEY_ENTER(uint8_t key);
 - **Return Value**: `true` if key is `KEY_CR` (13) or `KEY_LF` (10)
 - **Note**: Helper function for convenient enter key detection
 
+### 4.6 KEY_RETURN
+
+```cpp
+constexpr bool KEY_RETURN(uint8_t key);
+```
+- **Function**: Alias of `KEY_ENTER`
+
+### 4.7 KEY_CONFIRM
+
+```cpp
+constexpr bool KEY_CONFIRM(uint8_t key);
+```
+- **Function**: Check if a key code represents a confirm key (Space, CR, or LF)
+
+### 4.8 KEY_CANCEL
+
+```cpp
+constexpr bool KEY_CANCEL(uint8_t key);
+```
+- **Function**: Check if a key code represents a cancel key (BK, DEL, or ESC)
+
 ---
 
-## 4. Data Structures
+## 5. Data Structures
 
-### 4.1 Size Structure
+### 5.1 Size Structure
 
 ```cpp
 struct Size {
     uint32_t width;   // Width (columns)
     uint32_t height;  // Height (rows)
+
+    Size();
+    Size(uint32_t width, uint32_t height);
+
+    bool operator==(const Size& other) const;
+    bool operator!=(const Size& other) const;
+    bool isEqual(const Size& other) const;
+    int8_t compare(const Size& other) const;
+
+    Size& operator+(const Size& other);
+    Size& operator+=(const Size& other);
+    Size& operator-(const Size& other);
+    Size& operator-=(const Size& other);
+    Size& operator*(uint32_t value);
+    Size& operator*=(uint32_t value);
 };
 ```
 
-### 4.2 Position Structure
+| Member | Type | Description |
+|--------|------|-------------|
+| `width` | `uint32_t` | Width in columns |
+| `height` | `uint32_t` | Height in rows |
+| `Size()` | - | Default constructor, `{0, 0}` |
+| `Size(w, h)` | - | Construct with explicit width and height |
+| `isEqual(other)` | - | `width * height == other.width * other.height` (same total area) |
+| `compare(other)` | - | Returns `1` if smaller, `-1` if larger, `0` if equal (compared by height then width) |
+| `operator+/-/*` | - | Arithmetic operators (modify in-place, return `*this`) |
+
+### 5.2 Position Structure
 
 ```cpp
 struct Position {
     uint32_t row;     // Row number (0-based)
     uint32_t column;  // Column number (0-based)
+
+    Position();
+    Position(uint32_t row, uint32_t column);
+    Position(const Size& size);  // Constructs from size: row=height, column=width
+
+    Position calcEndPos(const Size& size) const;
+
+    bool operator==(const Position& other) const;
+    bool operator!=(const Position& other) const;
+    int8_t compare(const Position& other) const;
+    void swap(Position& other) noexcept;
+
+    Position& operator+(const Position& other);
+    Position& operator+=(const Position& other);
+    Position& operator-(const Position& other);
+    Position& operator-=(const Position& other);
 };
 ```
 
-### 4.3 Color Enum
+| Member | Type | Description |
+|--------|------|-------------|
+| `row` | `uint32_t` | Row (0-based) |
+| `column` | `uint32_t` | Column (0-based) |
+| `Position()` | - | Default constructor, `{0, 0}` |
+| `Position(r, c)` | - | Construct with explicit row and column |
+| `Position(const Size&)` | - | Constructs `{height, width}` from a `Size` |
+| `calcEndPos(size)` | - | Returns `{row + size.height - 1, column + size.width - 1}` |
+| `compare(other)` | - | Returns `1` if smaller, `-1` if larger, `0` if equal (compared by row then column) |
+| `swap(other)` | - | Swap positions noexcept |
+| `operator+/-` | - | Arithmetic operators (modify in-place, return `*this`) |
+
+### 5.3 Color Enum
 
 ```cpp
 enum class Color : uint8_t {
@@ -157,7 +307,7 @@ enum class Color : uint8_t {
 };
 ```
 
-### 4.4 Keys Enum
+### 5.4 Keys Enum
 
 ```cpp
 enum Keys : uint8_t {
@@ -171,13 +321,11 @@ enum Keys : uint8_t {
     KEY_ACK         = 6,
     KEY_BELL        = 7,
     KEY_BK          = 8,
-    KEY_BACKSPACE   = 8,
     KEY_TAB         = 9,
     KEY_LF          = 10,
     KEY_VT          = 11,
     KEY_FF          = 12,
     KEY_CR          = 13,
-    KEY_ENTER       = 13,
     KEY_SO          = 14,
     KEY_SI          = 15,
     KEY_DLE         = 16,
@@ -195,7 +343,9 @@ enum Keys : uint8_t {
     KEY_RS          = 30,
     KEY_US          = 31,
     KEY_SPACE       = 32,
+
     KEY_DEL         = 127,
+
     KEY_CTRL_A      = 1,
     KEY_CTRL_B      = 2,
     KEY_CTRL_C      = 3,
@@ -222,24 +372,20 @@ enum Keys : uint8_t {
     KEY_CTRL_X      = 24,
     KEY_CTRL_Y      = 25,
     KEY_CTRL_Z      = 26,
+
     KEY_SPECIAL     = 254,
     KEY_UNKNOWN     = 255
 };
 ```
 
-**Control Keys**:
-- `KEY_CTRL_A` to `KEY_CTRL_Z`: Correspond to Ctrl+A to Ctrl+Z
+**Key Aliases** (helpers like `KEY_BACKSPACE`, `KEY_ENTER`, etc. are provided by constexpr functions — see [Helper Functions](#4-helper-functions)).
 
-**Key Aliases**:
-- `KEY_BK` = `KEY_BACKSPACE` = `8`
-- `KEY_CR` = `KEY_ENTER` = `13`
-- `KEY_DEL` = `127`
-
-### 4.5 SP_Keys Enum (Special Keys)
+### 5.5 SP_Keys Enum (Special Keys)
 
 ```cpp
 enum SP_Keys : uint8_t {
     SP_KEY_UNKNOWN,
+    SP_KEY_NONE = 0,
     SP_KEY_F1, SP_KEY_F2, SP_KEY_F3, SP_KEY_F4,
     SP_KEY_F5, SP_KEY_F6, SP_KEY_F7, SP_KEY_F8,
     SP_KEY_F9, SP_KEY_F10, SP_KEY_F11, SP_KEY_F12,
@@ -264,29 +410,38 @@ enum SP_Keys : uint8_t {
 };
 ```
 
-### 4.6 SP_Mouse Enum (Mouse Events)
+### 5.6 SP_Mouse Enum (Mouse Events)
 
 ```cpp
 enum SP_Mouse : uint8_t {
     SP_MOUSE_UNKNOWN,
-    SP_MOUSE_LEFT_BUTTON,    // Left button
-    SP_MOUSE_MIDDLE_BUTTON,  // Middle button
-    SP_MOUSE_RIGHT_BUTTON,   // Right button
-    SP_MOUSE_WHEEL_UP,       // Wheel up
-    SP_MOUSE_WHEEL_DOWN,     // Wheel down
-    SP_MOUSE_MOVED,          // Mouse moved
-    SP_MOUSE_RELEASE         // Mouse button released
+    SP_MOUSE_LEFT_BUTTON,
+    SP_MOUSE_MIDDLE_BUTTON,
+    SP_MOUSE_RIGHT_BUTTON,
+    SP_MOUSE_WHEEL_UP,
+    SP_MOUSE_WHEEL_DOWN,
+    SP_MOUSE_MOVED,
+    SP_MOUSE_RELEASE,
+    // Aliases (same values, 0-7):
+    MOUSE_UNKNOWN       = 0,
+    MOUSE_LEFT_BUTTON   = 1,
+    MOUSE_MIDDLE_BUTTON = 2,
+    MOUSE_RIGHT_BUTTON  = 3,
+    MOUSE_WHEEL_UP      = 4,
+    MOUSE_WHEEL_DOWN    = 5,
+    MOUSE_MOVED         = 6,
+    MOUSE_RELEASE       = 7
 };
 ```
 
-### 4.7 InputEvent Structure
+### 5.7 InputEvent Structure
 
 ```cpp
 struct InputEvent {
     enum Type : uint8_t {
-        None,
-        Keyboard,
-        Mouse
+        None, N = 0,
+        Keyboard, Key = 1, K = 1,
+        Mouse, M = 2
     } type;
     union Input {
         struct Keyboard {
@@ -305,7 +460,7 @@ struct InputEvent {
 
 | Member | Type | Description |
 |--------|------|-------------|
-| `type` | `Type` | Event type: None, Keyboard, or Mouse |
+| `type` | `Type` | Event type |
 | `input.keyboard.key` | `uint8_t` | Key code |
 | `input.keyboard.sp_key` | `SP_Keys` | Special key type |
 | `input.keyboard.is_pressed` | `bool` | Whether key is pressed (Windows only) |
@@ -313,14 +468,19 @@ struct InputEvent {
 | `input.mouse.button` | `SP_Mouse` | Mouse button/event |
 | `input.mouse.is_pressed` | `bool` | Whether mouse button is pressed |
 
-### 4.8 Type Aliases
+**Type Aliases**:
+- `None = N = 0`
+- `Keyboard = Key = K = 1`
+- `Mouse = M = 2`
+
+### 5.8 Type Aliases
 
 ```cpp
 using KeyEvent = InputEvent::Input::Keyboard;
 using MouseEvent = InputEvent::Input::Mouse;
 ```
 
-### 4.9 RGBColor Structure
+### 5.9 RGBColor Structure
 
 ```cpp
 struct RGBColor {
@@ -333,13 +493,7 @@ struct RGBColor {
 };
 ```
 
-| Member | Type | Description |
-|--------|------|-------------|
-| `r` | `uint8_t` | Red component (0-255) |
-| `g` | `uint8_t` | Green component (0-255) |
-| `b` | `uint8_t` | Blue component (0-255) |
-
-### 4.10 Char Class
+### 5.10 Char Class
 
 ```cpp
 class Char {
@@ -359,17 +513,7 @@ public:
 
 A lightweight wrapper for a single character (supports UTF-8 multi-byte characters).
 
-| Member | Description |
-|--------|-------------|
-| `Char()` | Default constructor, initializes with a space character |
-| `Char(const char* data)` | Construct from a C-string (extracts the first UTF-8 character) |
-| `Char(const std::string& data)` | Construct from a `std::string` (extracts the first UTF-8 character) |
-| `operator=` | Assignment operators (from string, C-string, or another Char) |
-| `operator==` / `operator!=` | Comparison operators |
-| `data()` | Get the underlying string representation of the character |
-| `length()` | Get the byte length of the character |
-
-### 4.11 Alignment Enum
+### 5.11 Alignment Enum
 
 ```cpp
 enum class Alignment : uint8_t {
@@ -385,9 +529,7 @@ enum class Alignment : uint8_t {
 };
 ```
 
-Widget alignment within layout.
-
-### 4.12 TextAlignment Enum
+### 5.12 TextAlignment Enum
 
 ```cpp
 enum class TextAlignment : uint8_t {
@@ -397,26 +539,33 @@ enum class TextAlignment : uint8_t {
 };
 ```
 
-Text alignment within widget.
-
-### 4.13 SizePolicy Enum
+### 5.13 SizePolicy Enum
 
 ```cpp
 enum class SizePolicy : uint8_t {
-    Ignored,
     Fixed,
     Maximized,
-    Minimized
+    Minimized,
+    Ignored
 };
 ```
 
-Widget size policy for layout management.
+### 5.14 Orientation Enum
+
+```cpp
+enum class Orientation : uint8_t {
+    Horizontal, H = 0,
+    Vertical, V = 1
+};
+```
+
+Orientation for `Slider` and `ProgressBar`.
 
 ---
 
-## 5. Terminal Class
+## 6. Terminal Class
 
-### 5.1 Class Overview
+### 6.1 Class Overview
 
 Terminal control class providing raw mode switching, screen control, cursor operations, color settings, input reading, and other functions.
 
@@ -431,7 +580,7 @@ static Terminal& self();
 - **Return Value**: Terminal reference
 - **Note**: Enables stream-style output chaining
 
-### 5.2 Raw Mode Control
+### 6.2 Raw Mode Control
 
 #### enterRawMode
 
@@ -440,7 +589,7 @@ static bool enterRawMode();
 ```
 - **Function**: Enter raw mode (disable line buffering, echo, etc.)
 - **Return Value**: `true` means success
-- **Notes**: 
+- **Notes**:
   - Windows: Creates new screen buffer
   - Unix: Uses termios to set raw mode
 
@@ -460,7 +609,7 @@ static bool isInRawMode();
 - **Function**: Check if currently in raw mode
 - **Return Value**: `true` means in raw mode
 
-### 5.3 Screen Information
+### 6.3 Screen Information
 
 #### screenSize
 
@@ -478,7 +627,7 @@ static Position cursorPosition();
 - **Function**: Get current cursor position
 - **Return Value**: `Position` structure (row and column)
 
-### 5.4 Output Functions
+### 6.4 Output Functions
 
 #### print
 
@@ -487,63 +636,14 @@ static bool print(char ch);
 static bool print(const std::string& text);
 ```
 - **Function**: Output a single character or text (no newline)
-- **Parameters**:
-  - `ch` - Single character
-  - `text` - Text to output
-- **Return Value**: `true` means success
 
-#### print (stream-style, v1.2.0)
+#### printW
 
 ```cpp
-static Terminal& print(const std::string& text);
-static Terminal& print(char ch);
-static Terminal& print(int value);
+static bool printW(wchar_t ch);
+static bool printW(const std::wstring& text);
 ```
-- **Function**: Stream-style output functions that return Terminal reference for chaining
-- **Parameters**:
-  - `text` - Text to output
-  - `ch` - Single character
-  - `value` - Integer value
-- **Return Value**: Terminal reference for method chaining
-- **Note**: New in v1.2.0, enables fluent API style
-
-#### operator<< (stream-style, v1.2.0)
-
-```cpp
-Terminal& operator<<(const std::string& text);
-Terminal& operator<<(char ch);
-Terminal& operator<<(int value);
-```
-- **Function**: Stream-style output operators for chaining
-- **Parameters**:
-  - `text` - Text to output
-  - `ch` - Single character
-  - `value` - Integer value
-- **Return Value**: Terminal reference for method chaining
-- **Note**: New in v1.2.0, allows `Terminal::self() << "Hello" << " World"`
-
-#### perror (v1.2.0)
-
-```cpp
-static Terminal& perror(const std::string& text);
-```
-- **Function**: Output error text to stderr
-- **Parameter**: `text` - Error text to output
-- **Return Value**: Terminal reference for method chaining
-- **Note**: New in v1.2.0
-
-#### printError (v1.2.0)
-
-```cpp
-template<typename ... Args>
-static bool printError(const char* format, Args... args);
-```
-- **Function**: Formatted error output
-- **Parameters**:
-  - `format` - Format string
-  - `args` - Variable arguments
-- **Return Value**: `true` means success
-- **Note**: New in v1.2.0
+- **Function**: Output a wide character or wide text (no newline)
 
 #### printLine
 
@@ -551,8 +651,13 @@ static bool printError(const char* format, Args... args);
 static bool printLine(const std::string& text = {});
 ```
 - **Function**: Output text with newline
-- **Parameter**: `text` - Text to output (optional, defaults to empty line)
-- **Return Value**: `true` means success
+
+#### printLineW
+
+```cpp
+static bool printLineW(const std::wstring& text = {});
+```
+- **Function**: Output wide text with newline
 
 #### printFormat
 
@@ -560,12 +665,7 @@ static bool printLine(const std::string& text = {});
 template<typename ... Args>
 static bool printFormat(const char* format, Args... args);
 ```
-- **Function**: Formatted output (similar to Python f-string)
-- **Parameters**: 
-  - `format` - Format string using `{}` as placeholders
-  - `args` - Variable arguments
-- **Return Value**: `true` means success
-- **Example**: `printFormat("Hello, {}!", "World")`
+- **Function**: Formatted output (uses `{}` placeholders)
 
 #### formatString
 
@@ -573,28 +673,49 @@ static bool printFormat(const char* format, Args... args);
 template<typename ... Args>
 static std::string formatString(const char* format, Args... args);
 ```
-- **Function**: Format string
-- **Parameters**: Same as `printFormat`
+- **Function**: Format string without printing
 - **Return Value**: Formatted string
 
-### 5.5 Screen Control
+#### printError
+
+```cpp
+template<typename ... Args>
+static bool printError(const char* format, Args... args);
+static bool printError(const std::string& text);
+static bool printErrorW(const std::wstring& text);
+```
+- **Function**: Output error text to stderr
+- **Overloads**:
+  - Template version with format string and variable args
+  - Direct `std::string` version
+  - Wide-character version
+
+#### Stream-style print (v1.2.0)
+
+```cpp
+static Terminal& print();      // Stream-style, no arg needed
+static Terminal& perror();     // Stream-style error output
+Terminal& operator<<(const std::string& text);
+Terminal& operator<<(char ch);
+Terminal& operator<<(int value);
+Terminal& operator<<(bool expr);
+Terminal& operator<<(const wchar_t* expr);
+```
+- **Note**: Enables fluent API style: `Terminal::self() << "Hello " << 42`
+
+### 6.5 Screen Control
 
 #### clearScreen
 
 ```cpp
 static bool clearScreen();
 ```
-- **Function**: Clear screen
-- **Return Value**: `true` means success
 
 #### clearInRow
 
 ```cpp
 static bool clearInRow(uint8_t row);
 ```
-- **Function**: Clear specified row
-- **Parameter**: `row` - Row number (0-based)
-- **Return Value**: `true` means success
 
 #### moveCursor
 
@@ -602,136 +723,65 @@ static bool clearInRow(uint8_t row);
 static bool moveCursor(Position position);
 static bool moveCursor(uint32_t row, uint32_t column);
 ```
-- **Function**: Move cursor to specified position
-- **Parameters**: Target position
-- **Return Value**: `true` means success
 
-#### moveUpCursor (v1.2.0)
+#### moveUpCursor / moveDownCursor / moveLeftCursor / moveRightCursor
 
 ```cpp
 static bool moveUpCursor(uint32_t rows = 1);
-```
-- **Function**: Move cursor up by specified rows
-- **Parameter**: `rows` - Number of rows to move (default: 1)
-- **Return Value**: `true` means success
-- **Note**: New in v1.2.0
-
-#### moveDownCursor (v1.2.0)
-
-```cpp
 static bool moveDownCursor(uint32_t rows = 1);
-```
-- **Function**: Move cursor down by specified rows
-- **Parameter**: `rows` - Number of rows to move (default: 1)
-- **Return Value**: `true` means success
-- **Note**: New in v1.2.0
-
-#### moveLeftCursor (v1.2.0)
-
-```cpp
 static bool moveLeftCursor(uint32_t cols = 1);
-```
-- **Function**: Move cursor left by specified columns
-- **Parameter**: `cols` - Number of columns to move (default: 1)
-- **Return Value**: `true` means success
-- **Note**: New in v1.2.0
-
-#### moveRightCursor (v1.2.0)
-
-```cpp
 static bool moveRightCursor(uint32_t cols = 1);
 ```
-- **Function**: Move cursor right by specified columns
-- **Parameter**: `cols` - Number of columns to move (default: 1)
-- **Return Value**: `true` means success
-- **Note**: New in v1.2.0
 
-#### setScrollRegion
+#### setScrollRegion / resetScrollRegion
 
 ```cpp
 static bool setScrollRegion(uint32_t row_start, uint32_t row_end);
-```
-- **Function**: Set scroll region
-- **Parameters**: 
-  - `row_start` - Start row
-  - `row_end` - End row
-- **Return Value**: `true` means success
-
-#### resetScrollRegion
-
-```cpp
 static bool resetScrollRegion();
 ```
-- **Function**: Reset scroll region to full screen
-- **Return Value**: `true` means success
 
 #### flushScreen
 
 ```cpp
 static bool flushScreen();
 ```
-- **Function**: Flush screen output
-- **Return Value**: `true` means success
 
-### 5.6 Input Functions
+### 6.6 Input Functions
 
-#### readLine
+#### readLine / readLineW
 
 ```cpp
 static std::string readLine();
-```
-- **Function**: Read a line of input
-- **Return Value**: Input string (without newline)
-
-#### readLineW
-
-```cpp
 static std::wstring readLineW();
 ```
-- **Function**: Read a line of wide character input
-- **Return Value**: Wide string
 
 #### getKey
 
 ```cpp
 static uint8_t getKey(SP_Keys* sp_key = nullptr);
 ```
-- **Function**: Read key press
-- **Parameter**: 
-  - `sp_key` - Output special key type (optional)
-- **Return Value**: Key code
 
-### 5.7 Mouse Control
+### 6.7 Mouse Control
 
 #### setMouseEnabled
 
 ```cpp
 static bool setMouseEnabled(bool enabled);
 ```
-- **Function**: Enable/disable mouse events
-- **Parameter**: `enabled` - Whether to enable
-- **Return Value**: `true` means success
 
 #### getMouseButton
 
 ```cpp
 static uint8_t getMouseButton(Position* mouse_pos = nullptr, bool* is_pressed = nullptr);
 ```
-- **Function**: Get mouse event
-- **Parameters**: 
-  - `mouse_pos` - Output mouse position (optional)
-  - `is_pressed` - Output whether pressed (optional)
-- **Return Value**: Mouse event code
 
 #### getInput
 
 ```cpp
 static InputEvent getInput();
 ```
-- **Function**: Get unified input event (keyboard or mouse)
-- **Return Value**: `InputEvent` structure containing event type and data
 
-### 5.8 Color and Style Functions
+### 6.8 Color and Style Functions
 
 #### Color Settings
 
@@ -742,64 +792,41 @@ static void setForegroundColor(Color color, bool intensity = false);
 static void setForegroundColor(uint8_t r, uint8_t g, uint8_t b);
 ```
 
-| Function | Description | Parameters |
-|----------|-------------|------------|
-| `setBackgroundColor(Color, bool)` | Set background color (ANSI 16 colors) | `color` - Color, `intensity` - Whether bright |
-| `setBackgroundColor(uint8_t, uint8_t, uint8_t)` | Set background color (RGB) | `r, g, b` - Red, green, blue components (0-255) |
-| `setForegroundColor(Color, bool)` | Set foreground color (ANSI 16 colors) | `color` - Color, `intensity` - Whether bright |
-| `setForegroundColor(uint8_t, uint8_t, uint8_t)` | Set foreground color (RGB) | `r, g, b` - Red, green, blue components (0-255) |
-
 #### Style Settings
 
 ```cpp
-static void setBolder(bool enable);        // Bold
-static void setDark(bool enable);          // Dim
-static void setItalic(bool enable);        // Italic
-static void setUnderline(bool enable);     // Underline
-static void setBlinking(bool enable);      // Blink
-static void setReverseColor(bool enable);  // Reverse
-static void setCursorVisible(bool enable); // Cursor visibility
-static void setStrikethrough(bool enable); // Strikethrough
-static void reset();                       // Reset all styles
+static void setBolder(bool enable);
+static void setDark(bool enable);
+static void setItalic(bool enable);
+static void setUnderline(bool enable);
+static void setBlinking(bool enable);
+static void setReverseColor(bool enable);
+static void setCursorVisible(bool enable);
+static void setStrikethrough(bool enable);
+static void reset();
 ```
 
-### 5.9 TStyle Namespace (v1.2.0)
+### 6.9 TStyle Namespace (v1.2.0)
 
 Stream-style interface for setting terminal colors and styles. All functions return `Terminal&` for method chaining.
 
 ```cpp
 namespace TStyle {
-    Terminal& bg(Color color, bool intensity = true);
-    Terminal& fg(Color color, bool intensity = false);
+    Terminal& bg(Color color, bool intense = false);
     Terminal& bg(uint8_t r, uint8_t g, uint8_t b);
+    Terminal& fg(Color color, bool intense = true);
     Terminal& fg(uint8_t r, uint8_t g, uint8_t b);
-    Terminal& bold(bool enable = true);
-    Terminal& italic(bool enable = true);
-    Terminal& underline(bool enable = true);
-    Terminal& blink(bool enable = true);
-    Terminal& reverse(bool enable = true);
-    Terminal& showcur(bool enable = true);
-    Terminal& hidecur(bool enable = true);
-    Terminal& striketh(bool enable = true);
+    Terminal& bold(bool enabled = true);
+    Terminal& italic(bool enabled = true);
+    Terminal& underline(bool enabled = true);
+    Terminal& blink(bool enabled = true);
+    Terminal& reverse(bool enabled = true);
+    Terminal& showcur();
+    Terminal& hidecur();
+    Terminal& striketh(bool enabled = true);
     Terminal& reset();
 }
 ```
-
-| Function | Description | Parameters |
-|----------|-------------|------------|
-| `bg(Color, bool)` | Set background color (ANSI 16 colors) | `color` - Color, `intensity` - Whether bright |
-| `bg(uint8_t, uint8_t, uint8_t)` | Set background color (RGB) | `r, g, b` - Red, green, blue components (0-255) |
-| `fg(Color, bool)` | Set foreground color (ANSI 16 colors) | `color` - Color, `intensity` - Whether bright |
-| `fg(uint8_t, uint8_t, uint8_t)` | Set foreground color (RGB) | `r, g, b` - Red, green, blue components (0-255) |
-| `bold(bool)` | Enable/disable bold | `enable` - Whether to enable (default: `true`) |
-| `italic(bool)` | Enable/disable italic | `enable` - Whether to enable (default: `true`) |
-| `underline(bool)` | Enable/disable underline | `enable` - Whether to enable (default: `true`) |
-| `blink(bool)` | Enable/disable blink | `enable` - Whether to enable (default: `true`) |
-| `reverse(bool)` | Enable/disable reverse video | `enable` - Whether to enable (default: `true`) |
-| `showcur(bool)` | Show cursor | `enable` - Whether to show (default: `true`) |
-| `hidecur(bool)` | Hide cursor | `enable` - Whether to hide (default: `true`) |
-| `striketh(bool)` | Enable/disable strikethrough | `enable` - Whether to enable (default: `true`) |
-| `reset()` | Reset all styles | None |
 
 **Example**:
 ```cpp
@@ -810,15 +837,15 @@ Terminal::self() << TStyle::reset();
 
 ---
 
-## 6. Renderer Class
+## 7. Renderer Class
 
-### 6.1 Class Overview
+### 7.1 Class Overview
 
 Double-buffered terminal renderer supporting character drawing, rectangle filling, border drawing, and other functions.
 
-### 6.2 Nested Structures
+### 7.2 Nested Structures
 
-#### Style
+#### Style (also available as `Tiny::TUI::Style`)
 
 ```cpp
 struct Style {
@@ -831,13 +858,13 @@ struct Style {
     RGBColor fg_rgb_color;  // RGB foreground color
 
     enum Property : uint8_t {
-        Bolder            = 1,    // Bold
-        Dark              = 2,    // Dim
-        Italic            = 4,    // Italic
-        Underline         = 8,    // Underline
-        Blinking          = 16,   // Blink
-        Reverse           = 32,   // Reverse
-        Strikethrough     = 64,   // Strikethrough
+        Bolder            = 1,
+        Dark              = 2,
+        Italic            = 4,
+        Underline         = 8,
+        Blinking          = 16,
+        Reverse           = 32,
+        Strikethrough     = 64,
     };
 
     Style();
@@ -848,27 +875,25 @@ struct Style {
 };
 ```
 
+> **Note**: `Renderer::Style` and `Renderer::Corner` are deprecated typedefs. Use `Tiny::TUI::Style` and `Tiny::TUI::Corner` directly — they will be removed since ver.0.3.0.
+
 | Member | Type | Description |
 |--------|------|-------------|
 | `property` | `uint8_t` | Style property bitmask |
-| `bg_color` | `Color` | ANSI background color (default: `Color::Black`) |
+| `bg_color` | `Color` | ANSI background color (default: `Color::Default`) |
 | `fg_color` | `Color` | ANSI foreground color (default: `Color::Default`) |
-| `intensity` | `uint8_t` | Color intensity: 0=None, 1=Background only, 2=Foreground only, 3=All (default: 2) |
-| `used_rgb_color` | `bool` | Whether to use RGB colors (when true, ignores ANSI colors) |
-| `bg_rgb_color` | `RGBColor` | RGB background color (r, g, b each 0-255) |
-| `fg_rgb_color` | `RGBColor` | RGB foreground color (r, g, b each 0-255) |
-
-**Property Enum**:
-- Use bitwise operations to combine multiple properties: `Style::Bolder | Style::Underline`
-- Or set directly via the `property` field
+| `intensity` | `uint8_t` | Color intensity (default: 2 = Foreground only) |
+| `used_rgb_color` | `bool` | Whether to use RGB colors |
+| `bg_rgb_color` | `RGBColor` | RGB background color |
+| `fg_rgb_color` | `RGBColor` | RGB foreground color |
 
 #### Cell
 
 ```cpp
 struct Cell {
-    Char data;        // Character data
-    bool is_dirty;    // Whether modified
-    Style style;      // Style
+    Char data;
+    bool is_dirty;
+    Style style;
 
     Cell();
     void reset();
@@ -876,69 +901,30 @@ struct Cell {
 };
 ```
 
-| Member | Type | Description |
-|--------|------|-------------|
-| `data` | `Char` | Character data (supports multi-byte UTF-8) |
-| `is_dirty` | `bool` | Whether the cell has been modified |
-| `style` | `Style` | Cell style |
-
-**Char Class**:
-
-```cpp
-class Char {
-public:
-    Char();
-    Char(const char* data);
-    Char(const std::string& data);
-    Char& operator=(const std::string& ch);
-    Char& operator=(const char* ch);
-    Char& operator=(const Char& ch);
-    bool operator==(const Char& other) const;
-    bool operator!=(const Char& other) const;
-
-    const std::string& data() const;
-    uint8_t length() const;
-};
-```
-
-| Member | Type | Description |
-|--------|------|-------------|
-| `data` | `std::string` | Character string data |
-| `length` | `uint8_t` | Byte length of the character data |
-
-#### Corner
+#### Corner (also available as `Tiny::TUI::Corner`)
 
 ```cpp
 struct Corner {
-    Char left_top;     // Top-left corner
-    Char left;         // Left side
-    Char left_bottom;  // Bottom-left corner
-    Char right_top;    // Top-right corner
-    Char right;        // Right side
-    Char right_bottom; // Bottom-right corner
-    Char top;          // Top side
-    Char bottom;       // Bottom side
+    Char left_top{"+"};
+    Char left{"|"};
+    Char left_bottom{"+"};
+    Char right_top{"+"};
+    Char right{"|"};
+    Char right_bottom{"+"};
+    Char top{"-"};
+    Char bottom{"-"};
 };
 ```
 
-### 6.3 Constructors and Static Member Functions
+### 7.3 Static Member Functions
 
 #### self
 
 ```cpp
 static Renderer& self();
 ```
-- **Function**: Get renderer singleton
-- **Return Value**: Renderer reference
 
-#### Destructor
-
-```cpp
-virtual ~Renderer();
-```
-- **Function**: Release renderer resources and stop background resize monitoring thread
-
-### 6.4 Member Functions
+### 7.4 Member Functions
 
 #### set (overloads)
 
@@ -948,140 +934,50 @@ void set(uint32_t x, uint32_t y, uint8_t ch, Style style = {});
 void set(const Position& pos, const std::string& str, Style style = {});
 void set(uint32_t x, uint32_t y, const std::string& str, Style style = {});
 ```
-- **Function**: Set character at specified position
-- **Parameters**: 
-  - `pos` / `x, y` - Position
-  - `ch` / `str` - Character or string
-  - `style` - Style (optional)
 
-#### setStrF
+#### setStrF / setSSF / setSSFX
 
 ```cpp
 template<typename ... Args>
 void setStrF(const Position& pos, const char* format, Args... args);
-```
-- **Function**: Set formatted string
-- **Parameters**: 
-  - `pos` - Position
-  - `format` - Format string
-  - `args` - Variable arguments
 
-#### setSSF
-
-```cpp
 template<typename ... Args>
 void setSSF(const Position& pos, const char* format, const Style& style, Args... args);
-```
-- **Function**: Set formatted string with style
-- **Parameters**: 
-  - `pos` - Position
-  - `format` - Format string
-  - `style` - Style
-  - `args` - Variable arguments
 
-#### fillScreen
+template<typename ... Args>
+void setSSFX(const Position& pos, const char* format, const StyleList& styles, Args... args);
+```
+
+#### fillScreen / fillRows / fillCols / fillRect
 
 ```cpp
 void fillScreen(const Style& style = {});
-```
-- **Function**: Fill entire screen with specified style
-- **Parameter**: `style` - Fill style
 
-#### fillRows
-
-```cpp
 void fillRows(uint32_t start_row, uint32_t end_row, uint8_t ch = ' ', Style style = {});
 void fillRows(uint32_t start_row, uint32_t end_row, const std::string& ch, Style style = {});
-```
-- **Function**: Fill specified row range
-- **Parameters**: 
-  - `start_row` - Start row
-  - `end_row` - End row
-  - `ch` / `str` - Fill character or string
-  - `style` - Style
 
-#### fillCols
-
-```cpp
 void fillCols(uint32_t start_col, uint32_t end_col, uint8_t ch = ' ', Style style = {});
 void fillCols(uint32_t start_col, uint32_t end_col, const std::string& ch, Style style = {});
-```
-- **Function**: Fill specified column range
-- **Parameters**: 
-  - `start_col` - Start column
-  - `end_col` - End column
-  - `ch` / `str` - Fill character or string
-  - `style` - Style
 
-#### fillRect
-
-```cpp
 void fillRect(const Position& start_pos, const Position& end_pos, uint8_t ch = ' ', Style style = {});
 void fillRect(const Position& start_pos, const Position& end_pos, const std::string& str, Style style = {});
 ```
-- **Function**: Fill rectangular region
-- **Parameters**: 
-  - `start_pos` - Start position
-  - `end_pos` - End position
-  - `ch` / `str` - Fill character or string
-  - `style` - Style
 
 #### drawBorder
 
 ```cpp
 void drawBorder(const Position& start_pos, const Position& end_pos, Corner corner, Style style = {});
 ```
-- **Function**: Draw border
-- **Parameters**: 
-  - `start_pos` - Top-left position
-  - `end_pos` - Bottom-right position
-  - `corner` - Corner character definitions
-  - `style` - Style
 
-#### unset
+#### unset / unsetRow / unsetCol / unsetRect
 
 ```cpp
 void unset(const Position& pos);
 void unset(uint32_t x, uint32_t y);
-```
-- **Function**: Clear specified position
-- **Parameters**: Target position
-
-#### unsetRow
-
-```cpp
 void unsetRow(uint32_t row);
-```
-- **Function**: Clear entire row
-- **Parameter**: `row` - Row number
-
-#### unsetCol
-
-```cpp
 void unsetCol(uint32_t col);
-```
-- **Function**: Clear entire column
-- **Parameter**: `col` - Column number
-
-#### unsetRect
-
-```cpp
 void unsetRect(const Position& start_pos, const Position& end_pos);
 ```
-- **Function**: Clear rectangular region
-- **Parameters**: 
-  - `start_pos` - Start position
-  - `end_pos` - End position
-
-#### setResizeEvent (Deprecated)
-
-```cpp
-void setResizeEvent(const std::function<void(Renderer&)>& event);
-```
-- **Function**: Set terminal resize event callback
-- **Parameter**: `event` - Callback function, receives Renderer reference
-- **Note**: Triggered when terminal window size changes
-- **Deprecated**: Replaced by EventBus, will be removed in v1.4.0
 
 #### setStyle
 
@@ -1089,97 +985,182 @@ void setResizeEvent(const std::function<void(Renderer&)>& event);
 void setStyle(const Position& pos, Style style);
 void setStyle(uint32_t x, uint32_t y, Style style);
 ```
-- **Function**: Set style at specified position
-- **Parameters**: 
-  - `pos` / `x, y` - Position
-  - `style` - Style to apply
 
-#### charAt
+#### charAt / styleAt
 
 ```cpp
 const Char& charAt(const Position& position);
-```
-- **Function**: Get character at specified position
-- **Parameter**: `position` - Position to query
-- **Return Value**: Character reference
-
-#### styleAt
-
-```cpp
 const Style& styleAt(const Position& position);
 ```
-- **Function**: Get style at specified position
-- **Parameter**: `position` - Position to query
-- **Return Value**: Style reference
 
-#### clear
+#### clear / present
 
 ```cpp
 void clear();
-```
-- **Function**: Clear front buffer
-
-#### present
-
-```cpp
 void present();
 ```
-- **Function**: Present front buffer content to screen
 
-### 6.5 Protected Virtual Functions
+#### setResizeEvent (Deprecated)
 
-#### renderEvent
+```cpp
+void setResizeEvent(const std::function<void(Renderer&)>& event);
+```
+- **Deprecated**: Replaced by `EventBus`, will be removed in v1.4.0.
+
+### 7.5 Protected Virtual Functions
 
 ```cpp
 virtual void renderEvent();
-```
-- **Function**: Internal render event handler, called when the renderer needs to redraw
-- **Note**: Can be overridden in subclasses to customize rendering behavior
-
-#### resizeEvent
-
-```cpp
 virtual void resizeEvent(bool use_default_size = true, const Size& size = {});
 ```
-- **Function**: Internal resize event handler, called when the terminal size changes
-- **Parameters**: 
-  - `use_default_size` - Whether to use the current terminal size (default: `true`)
-  - `size` - Custom size to use when `use_default_size` is `false`
-- **Note**: Can be overridden in subclasses to customize resize behavior
 
 ---
 
-## 7. AbstractWidget Class
+## 8. Object Class
 
-### 7.1 Class Overview
+### 8.1 Class Overview
 
-Abstract widget base class, base class for all TUI widgets.
+Base class for all objects in the TUI hierarchy. Provides object naming, parent-child relationships, type information, and event dispatch. Both `AbstractWidget` and `AbstractLayout` inherit (indirectly) from `Object`.
 
-### 7.2 Constructor
-
-```cpp
-explicit AbstractWidget(const std::string& name, const Position& position, const Size& size);
-```
-- **Parameters**: 
-  - `name` - Widget name
-  - `position` - Position
-  - `size` - Size
-
-### 7.3 Destructor
+### 8.2 Constructors
 
 ```cpp
-virtual ~AbstractWidget();
+explicit Object(const std::string& name, std::type_index type_id, Object* parent = nullptr);
+explicit Object(const std::string& name, std::type_index type_id, std::type_index parent_type_id, Object* parent = nullptr);
 ```
 
-### 7.4 Member Functions
+| Parameter | Description |
+|-----------|-------------|
+| `name` | Object name |
+| `type_id` | `std::type_index` identifying the actual derived type |
+| `parent_type_id` | `std::type_index` of the expected parent type (second constructor only) |
+| `parent` | Parent object pointer (optional, default: `nullptr`) |
 
-#### rename
+### 8.3 Destructor
 
 ```cpp
-void rename(const std::string& name);
+virtual ~Object() = default;
 ```
-- **Function**: Rename widget
-- **Parameter**: `name` - New name
+
+### 8.4 Member Functions
+
+#### renameObject / setObjectName / objectName
+
+```cpp
+void renameObject(const std::string& name);
+void setObjectName(const std::string& name);
+[[nodiscard]] const std::string& objectName() const;
+```
+
+Rename or query the object's name. `renameObject` and `setObjectName` have the same effect.
+
+#### setParent / parent
+
+```cpp
+void setParent(Object* parent);
+Object* parent() const;
+```
+
+#### hash / phash
+
+```cpp
+size_t hash() const;
+size_t phash() const;
+```
+
+- `hash()` — type hash of this object
+- `phash()` — type hash of the parent
+
+#### className
+
+```cpp
+const char* className() const;
+```
+
+Returns a human-readable class name derived from the stored `type_index`.
+
+#### isChild
+
+```cpp
+bool isChild(Object* child) const;
+```
+
+Check if `child` is a direct child of this object.
+
+#### findChild
+
+```cpp
+Object* findChild(const std::string& name) const;
+Object* findChild(std::type_index type_id, const std::string& name) const;
+```
+
+Find a child object by name (first overload) or by type + name (second overload). Returns `nullptr` if not found.
+
+#### children
+
+```cpp
+[[nodiscard]] const std::vector<Object*>& children() const;
+```
+
+Returns a read-only vector of direct child objects.
+
+### 8.5 Protected Virtual Functions
+
+Subclasses **must** override:
+
+```cpp
+virtual void onEvent(const AbstractEvent& event) = 0;
+virtual void onResizedTermSize(const Size& size) = 0;
+virtual void onObjectNameChanged() = 0;
+virtual void onParentChanged() = 0;
+```
+
+These are called by the framework when events arrive, the terminal is resized, or parent/name changes occur.
+
+---
+
+## 9. AbstractWidget Class
+
+### 9.1 Class Overview
+
+Abstract widget base class, inherits from `Object`. Provides position/size management, style states, checkable state, mouse tracing, and a render/event interface that subclasses must implement.
+
+### 9.2 StyleStatus Enum
+
+```cpp
+enum StyleStatus : uint8_t {
+    S_Disabled,
+    S_Active,
+    S_Checked,
+    S_Normal
+};
+```
+
+Used with `setStyle()` to associate a `Style` with a widget state.
+
+### 9.3 Constructors
+
+```cpp
+explicit AbstractWidget(const std::string& name, const Position& position, const Size& size,
+                        std::type_index type_id, Object* parent = nullptr);
+explicit AbstractWidget(const std::string& name, std::type_index type_id, Object* parent = nullptr);
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `name` | Widget name (passed to `Object` base) |
+| `position` | Widget position |
+| `size` | Widget size |
+| `type_id` | `std::type_index` of the concrete subclass |
+| `parent` | Parent object (optional) |
+
+### 9.4 Destructor
+
+```cpp
+virtual ~AbstractWidget() = default;
+```
+
+### 9.5 Member Functions
 
 #### move
 
@@ -1187,8 +1168,6 @@ void rename(const std::string& name);
 void move(const Position& position);
 void move(uint32_t x, uint32_t y);
 ```
-- **Function**: Move widget position
-- **Parameters**: New position
 
 #### resize
 
@@ -1196,216 +1175,128 @@ void move(uint32_t x, uint32_t y);
 void resize(const Size& size);
 void resize(uint32_t w, uint32_t h);
 ```
-- **Function**: Resize widget
-- **Parameters**: New size
 
-#### setMinimumSize
+#### setMinimumSize / setMaximumSize / setMinMaxSize
 
 ```cpp
 void setMinimumSize(const Size& size);
 void setMinimumSize(uint32_t w, uint32_t h);
-```
-- **Function**: Set minimum widget size
-- **Parameters**: Minimum size constraints
 
-#### setMaximumSize
-
-```cpp
 void setMaximumSize(const Size& size);
 void setMaximumSize(uint32_t w, uint32_t h);
-```
-- **Function**: Set maximum widget size
-- **Parameters**: Maximum size constraints
 
-#### setEnabled
+void setMinMaxSize(const Size& size);
+void setMinMaxSize(uint32_t w, uint32_t h);
+```
+
+`setMinMaxSize` sets both the minimum and maximum size to the same value (useful for locking size).
+
+#### setEnabled / setVisible / setFocus
 
 ```cpp
 void setEnabled(bool enabled);
-```
-- **Function**: Enable or disable widget
-- **Parameter**: `enabled` - Whether widget is enabled
-
-#### setVisible
-
-```cpp
 void setVisible(bool visible);
-```
-- **Function**: Show or hide widget
-- **Parameter**: `visible` - Whether widget is visible
-
-#### setFocus
-
-```cpp
 void setFocus(bool focus);
 ```
-- **Function**: Set widget focus state
-- **Parameter**: `focus` - Whether widget has focus
 
 #### setSizePolicy
 
 ```cpp
 void setSizePolicy(SizePolicy policy);
 ```
-- **Function**: Set widget size policy
-- **Parameter**: `policy` - Size policy for layout management
 
-#### draw
+#### setMouseTracingEnabled / mouseTracingEnabled
 
 ```cpp
+void setMouseTracingEnabled(bool enabled);
+[[nodiscard]] bool mouseTracingEnabled() const;
+```
+
+When enabled, the widget receives continuous mouse move events even when not pressed.
+
+#### setStyle / style
+
+```cpp
+void setStyle(uint8_t status, const Style& style);
+[[nodiscard]] Style style(uint8_t status) const;
+```
+
+Associate a `Style` with a widget state (`S_Disabled`, `S_Active`, `S_Checked`, `S_Normal`).
+
+#### draw (DEPRECATED)
+
+```cpp
+API_DEPRECATED("The function will be removed since ver.0.3.0!")
 void draw();
 ```
-- **Function**: Trigger widget rendering
 
-#### name
+> Use `callDrawEvent()` (protected) or let the `Application` handle redrawing.
 
-```cpp
-[[nodiscard]] const std::string& name() const;
-```
-- **Function**: Get widget name
-- **Return Value**: Name reference
-
-#### position
+#### Position / Size getters
 
 ```cpp
 [[nodiscard]] const Position& position() const;
-```
-- **Function**: Get widget position
-- **Return Value**: Position reference
-
-#### size
-
-```cpp
 [[nodiscard]] const Size& size() const;
-```
-- **Function**: Get widget size
-- **Return Value**: Size reference
-
-#### minimumSize
-
-```cpp
 [[nodiscard]] const Size& minimumSize() const;
-```
-- **Function**: Get widget minimum size
-- **Return Value**: Minimum size reference
-
-#### maximumSize
-
-```cpp
 [[nodiscard]] const Size& maximumSize() const;
 ```
-- **Function**: Get widget maximum size
-- **Return Value**: Maximum size reference
 
-#### enabled
+#### State getters
 
 ```cpp
 [[nodiscard]] bool enabled() const;
-```
-- **Function**: Check if widget is enabled
-- **Return Value**: `true` if enabled
-
-#### visible
-
-```cpp
 [[nodiscard]] bool visible() const;
-```
-- **Function**: Check if widget is visible
-- **Return Value**: `true` if visible
-
-#### focus
-
-```cpp
 [[nodiscard]] bool focus() const;
-```
-- **Function**: Check if widget has focus
-- **Return Value**: `true` if has focus
-
-#### sizePolicy
-
-```cpp
 [[nodiscard]] SizePolicy sizePolicy() const;
 ```
-- **Function**: Get widget size policy
-- **Return Value**: Size policy enum value
 
-### 7.5 Protected Virtual Functions (v1.2.0)
+#### Checkable state
+
+```cpp
+[[nodiscard]] bool checkable() const;
+[[nodiscard]] bool checked() const;
+```
+
+Subclasses control checkable state through protected methods:
+
+```cpp
+protected:
+    void setCheckable(bool checkable);
+    void setChecked(bool checked);
+```
+
+### 9.6 Protected Virtual Functions
+
+All subclasses **must** implement:
 
 ```cpp
 virtual void renderEvent(Renderer& renderer) = 0;
-```
-- **Function**: Render event handling, must be overridden by subclasses to customize widget rendering
-- **Parameters**: `renderer` - Renderer instance for drawing
-- **Note**: Changed to pure virtual in v1.2.0
-
-```cpp
 virtual void resizeEvent(uint32_t width, uint32_t height) = 0;
-```
-- **Function**: Resize event handling, must be overridden by subclasses
-- **Parameters**:
-  - `width` - New width
-  - `height` - New height
-- **Note**: New pure virtual function in v1.2.0
-
-```cpp
 virtual void moveEvent(uint32_t x, uint32_t y) = 0;
-```
-- **Function**: Move event handling, must be overridden by subclasses
-- **Parameters**:
-  - `x` - New x coordinate
-  - `y` - New y coordinate
-- **Note**: New pure virtual function in v1.2.0
-
-```cpp
 virtual void keyEvent(KeyEvent keyboard) = 0;
-```
-- **Function**: Keyboard event handling, must be overridden by subclasses
-- **Parameter**: `keyboard` - Keyboard event data
-
-```cpp
 virtual void mouseEvent(MouseEvent mouse) = 0;
-```
-- **Function**: Mouse event handling, must be overridden by subclasses
-- **Parameter**: `mouse` - Mouse event data
-
-```cpp
 virtual void focusEvent(bool focus) = 0;
-```
-- **Function**: Focus event handling, must be overridden by subclasses
-- **Parameter**: `focus` - Whether widget gained focus
-
-```cpp
 virtual void enableEvent(bool enable) = 0;
-```
-- **Function**: Enable/disable event handling, must be overridden by subclasses
-- **Parameter**: `enable` - Whether widget is enabled
-
-```cpp
 virtual void clickedEvent() = 0;
 ```
-- **Function**: Click event handling, must be overridden by subclasses
 
-```cpp
-virtual void execEvent(const AbstractEvent& event);
-```
-- **Function**: Generic event execution handler
-- **Parameter**: `event` - Event to process
-- **Note**: Can be overridden for custom event handling
+Additional protected helpers available to subclasses:
 
 ```cpp
 void callDrawEvent();
+void resizeWithoutCalledEvent(uint32_t width, uint32_t height);
+const Style& currentStyle(uint8_t* status = nullptr) const;
 ```
-- **Function**: Internal draw event caller
-- **Note**: Used internally to trigger rendering
 
 ---
 
-## 8. EventBus Class
+## 10. EventBus Class
 
-### 8.1 Class Overview
+### 10.1 Class Overview
 
 Event bus for managing and dispatching events in the TUI system.
 
-### 8.2 Event Types
+### 10.2 Event Types
 
 #### AbstractEvent
 
@@ -1418,8 +1309,6 @@ public:
 };
 ```
 
-Base class for all events.
-
 #### UserInputEvent
 
 ```cpp
@@ -1431,8 +1320,6 @@ public:
 };
 ```
 
-Event for user input (keyboard/mouse).
-
 #### RefreshRenderEvent
 
 ```cpp
@@ -1442,8 +1329,6 @@ public:
     virtual ~RefreshRenderEvent() = default;
 };
 ```
-
-Event for triggering renderer refresh.
 
 #### ResizeTermEvent
 
@@ -1457,9 +1342,7 @@ public:
 };
 ```
 
-Event for terminal resize.
-
-### 8.3 Type Aliases
+### 10.3 Type Aliases
 
 ```cpp
 using Subscriber = std::function<void(const AbstractEvent&)>;
@@ -1467,15 +1350,13 @@ using SubscriberMap = std::unordered_map<size_t, Subscriber>;
 using SubscriberID = size_t;
 ```
 
-### 8.4 Member Functions
+### 10.4 Member Functions
 
 #### self
 
 ```cpp
 static EventBus& self();
 ```
-- **Function**: Get event bus singleton
-- **Return Value**: EventBus reference
 
 #### subscribe
 
@@ -1485,8 +1366,6 @@ SubscriberID subscribe(const Subscriber& subscriber);
 template <typename T>
 SubscriberID subscribe(Subscriber&& subscriber);
 ```
-- **Function**: Subscribe to event type
-- **Parameter**: `subscriber` - Callback function
 - **Return Value**: Subscriber ID for unsubscribing
 
 #### unsubscribe
@@ -1495,8 +1374,6 @@ SubscriberID subscribe(Subscriber&& subscriber);
 template <typename T>
 void unsubscribe(SubscriberID id);
 ```
-- **Function**: Unsubscribe from event type
-- **Parameter**: `id` - Subscriber ID returned from subscribe
 
 #### publish
 
@@ -1506,50 +1383,39 @@ void publish(SubscriberID id, AbstractEvent *event, size_t priority = 0);
 template <typename T>
 void publish(AbstractEvent *event, size_t priority = 0);
 ```
-- **Function**: Publish event to subscribers
-- **Parameters**: 
-  - `id` - Specific subscriber ID (optional)
-  - `event` - Event to publish
-  - `priority` - Event priority (higher = executed first)
 
-#### pollEvents
+Publish to a specific subscriber (first overload) or all subscribers of type `T` (second overload). Higher `priority` values execute first.
+
+#### pollEvents / clear
 
 ```cpp
 void pollEvents();
-```
-- **Function**: Process all pending events
-
-#### clear
-
-```cpp
 void clear();
 ```
-- **Function**: Clear all subscribers and pending events
 
 ---
 
-## 9. Application Class
+## 11. Application Class
 
-### 9.1 Class Overview
+### 11.1 Class Overview
 
-Main application class for TUI programs.
+Main application class for TUI programs. Owns the event loop, manages all registered `Object` instances (widgets and layouts), and coordinates rendering.
 
-### 9.2 Constructor
+### 11.2 Constructor
 
 ```cpp
-Application(int argc, char* argv[]);
+explicit Application();
 ```
-- **Parameters**: 
-  - `argc` - Argument count
-  - `argv` - Argument values
 
-### 9.3 Destructor
+Default constructor. No `argc` / `argv` — argument handling is the user's responsibility.
+
+### 11.3 Destructor
 
 ```cpp
 virtual ~Application() = default;
 ```
 
-### 9.4 Member Functions
+### 11.4 Member Functions
 
 #### run
 
@@ -1557,52 +1423,98 @@ virtual ~Application() = default;
 int run();
 ```
 - **Function**: Run the application main loop
-- **Return Value**: Exit code
+- **Return Value**: Exit code (set by `exit()`)
 
 #### exit
 
 ```cpp
-void exit();
+void exit(int8_t exit_code = 0);
 ```
-- **Function**: Exit the application
+- **Function**: Request application termination with the given exit code
+- **Parameter**: `exit_code` — exit status (default: `0`)
+
+#### setEnabledExitByKey / isEnabledExitByKey
+
+```cpp
+void setEnabledExitByKey(bool enabled);
+bool isEnabledExitByKey() const;
+```
+
+When enabled, pressing `Ctrl+C` or `ESC` will exit the main loop. Enabled by default.
+
+#### setRefreshEnabled / isRefreshEnabled
+
+```cpp
+void setRefreshEnabled(bool enabled);
+bool isRefreshEnabled() const;
+```
+
+Control whether the renderer is refreshed on each loop iteration.
+
+#### Z-order control
+
+```cpp
+void setZOrder(const Object* object, uint32_t z_order);
+void setZOrder(uint32_t dst_order, uint32_t src_order);
+void setZOrder(const Object* dst_object, const Object* src_object);
+```
+
+| Overload | Description |
+|----------|-------------|
+| `(object, z_order)` | Move an object to a specific Z-order position |
+| `(dst_order, src_order)` | Swap two Z-order positions by index |
+| `(dst_object, src_object)` | Swap Z-order of two objects |
+
+```cpp
+uint32_t zOrder() const;
+const Object* zOrderOf(uint32_t dst_order) const;
+```
+
+- `zOrder()` — current total Z-order count
+- `zOrderOf(dst_order)` — object at the given Z-order position (or `nullptr`)
+
+#### count
+
+```cpp
+uint32_t count() const;
+```
+
+Number of top-level `Object` instances registered with the application.
 
 ---
 
-## 10. AbstractLayout Class
+## 12. AbstractLayout Class
 
-### 10.1 Class Overview
+### 12.1 Class Overview
 
-Abstract layout base class for managing widget arrangements.
+Abstract layout base class for managing widget arrangements. Inherits from `Object`.
 
-### 10.2 Type Aliases
+### 12.2 Type Aliases
 
 ```cpp
 using WidgetIter = std::vector<AbstractWidget*>::iterator;
 using CWidgetIter = std::vector<AbstractWidget*>::const_iterator;
 ```
 
-### 10.3 Constructor
+### 12.3 Constructor
 
 ```cpp
-AbstractLayout(const std::string& name);
+AbstractLayout(const std::string& name, std::type_index type_id, Object* parent = nullptr);
 ```
-- **Parameter**: `name` - Layout name
 
-### 10.4 Destructor
+| Parameter | Description |
+|-----------|-------------|
+| `name` | Layout name |
+| `type_id` | `std::type_index` of the concrete layout subclass |
+| `parent` | Parent object (optional) |
+
+### 12.4 Destructor
 
 ```cpp
 virtual ~AbstractLayout() = default;
 ```
 
-### 10.5 Member Functions
-
-#### rename
-
-```cpp
-void rename(const std::string& name);
-```
-- **Function**: Rename layout
-- **Parameter**: `name` - New name
+### 12.5 Member Functions
 
 #### move
 
@@ -1610,8 +1522,6 @@ void rename(const std::string& name);
 void move(const Position& position);
 void move(uint32_t x, uint32_t y);
 ```
-- **Function**: Move layout position
-- **Parameters**: New position
 
 #### resize
 
@@ -1619,228 +1529,488 @@ void move(uint32_t x, uint32_t y);
 void resize(const Size& size);
 void resize(uint32_t w, uint32_t h);
 ```
-- **Function**: Resize layout
-- **Parameters**: New size
 
-#### setEnabled
+#### setEnabled / setVisible
 
 ```cpp
 void setEnabled(bool enabled);
-```
-- **Function**: Enable or disable layout
-- **Parameter**: `enabled` - Whether layout is enabled
-
-#### setVisible
-
-```cpp
 void setVisible(bool visible);
 ```
-- **Function**: Show or hide layout
-- **Parameter**: `visible` - Whether layout is visible
 
-#### appendWidget
+#### Widget management
 
 ```cpp
 bool appendWidget(AbstractWidget* widget);
-```
-- **Function**: Add widget to end of layout
-- **Parameter**: `widget` - Widget to add
-- **Return Value**: `true` if successful
-
-#### insertWidget
-
-```cpp
 bool insertWidget(uint64_t index, AbstractWidget* widget);
-```
-- **Function**: Insert widget at specified index
-- **Parameters**: 
-  - `index` - Position to insert
-  - `widget` - Widget to insert
-- **Return Value**: `true` if successful
-
-#### removeWidget
-
-```cpp
 bool removeWidget(AbstractWidget* widget);
 bool removeWidget(uint64_t index);
-```
-- **Function**: Remove widget from layout
-- **Parameters**: Widget pointer or index
-- **Return Value**: `true` if successful
-
-#### swapWidget
-
-```cpp
+bool replaceWidget(uint64_t index, AbstractWidget* new_widget);
+bool replaceWidget(WidgetIter pos, AbstractWidget* new_widget);
 bool swapWidget(uint64_t index_1, uint64_t index_2);
 bool swapWidget(AbstractWidget* widget_1, AbstractWidget* widget_2);
-```
-- **Function**: Swap two widgets
-- **Parameters**: Widget pointers or indices
-- **Return Value**: `true` if successful
-
-#### clear
-
-```cpp
 void clear();
 ```
-- **Function**: Remove all widgets from layout
 
-#### name
+All widget-modification functions return `true` on success. Both pointer-based and index-based overloads are provided for remove/replace/swap.
 
-```cpp
-[[nodiscard]] const std::string& name() const;
-```
-- **Function**: Get layout name
-- **Return Value**: Name reference
-
-#### position
+#### Position / Size / State getters
 
 ```cpp
 [[nodiscard]] const Position& position() const;
-```
-- **Function**: Get layout position
-- **Return Value**: Position reference
-
-#### size
-
-```cpp
 [[nodiscard]] const Size& size() const;
-```
-- **Function**: Get layout size
-- **Return Value**: Size reference
-
-#### enabled
-
-```cpp
 [[nodiscard]] bool enabled() const;
-```
-- **Function**: Check if layout is enabled
-- **Return Value**: `true` if enabled
-
-#### visible
-
-```cpp
 [[nodiscard]] bool visible() const;
 ```
-- **Function**: Check if layout is visible
-- **Return Value**: `true` if visible
 
-#### begin
+#### Iterators
 
 ```cpp
 [[nodiscard]] WidgetIter begin();
-```
-- **Function**: Get iterator to first widget
-- **Return Value**: Iterator
-
-#### end
-
-```cpp
 [[nodiscard]] WidgetIter end();
-```
-- **Function**: Get iterator past last widget
-- **Return Value**: Iterator
-
-#### cbegin
-
-```cpp
 [[nodiscard]] CWidgetIter cbegin() const;
-```
-- **Function**: Get const iterator to first widget
-- **Return Value**: Const iterator
-
-#### cend
-
-```cpp
 [[nodiscard]] CWidgetIter cend() const;
 ```
-- **Function**: Get const iterator past last widget
-- **Return Value**: Const iterator
 
-#### count
+#### count / widget / indexOf
 
 ```cpp
 [[nodiscard]] size_t count() const;
-```
-- **Function**: Get number of widgets
-- **Return Value**: Widget count
-
-#### widget
-
-```cpp
 [[nodiscard]] AbstractWidget* widget(size_t index) const;
-```
-- **Function**: Get widget at index
-- **Parameter**: `index` - Widget index
-- **Return Value**: Widget pointer
-
-#### indexOf
-
-```cpp
 [[nodiscard]] uint64_t indexOf(const AbstractWidget* widget) const;
 ```
-- **Function**: Get index of widget
-- **Parameter**: `widget` - Widget to find
-- **Return Value**: Widget index
 
-### 10.6 Protected Virtual Functions
+### 12.6 Protected Virtual Functions
 
 ```cpp
 virtual void renderEvent(Renderer& renderer) = 0;
-```
-- **Function**: Render event handling
-- **Parameter**: `renderer` - Renderer instance
-
-```cpp
 virtual void moveEvent(uint32_t x, uint32_t y) = 0;
-```
-- **Function**: Move event handling
-- **Parameters**: New coordinates
-
-```cpp
 virtual void resizeEvent(uint32_t width, uint32_t height) = 0;
 ```
-- **Function**: Resize event handling
-- **Parameters**: New dimensions
 
 ---
 
-## 11. Label Class
+## 13. CurBlock Class
 
-### 11.1 Class Overview
+### 13.1 Class Overview
 
-Simple text label widget.
+A cursor-block widget. Renders as a solid block that can act as a cursor indicator.
 
-### 11.2 Constructor
+Inherits from `AbstractWidget`.
+
+### 13.2 Constructor
 
 ```cpp
-explicit Label(const std::string& name, const Position& position);
+explicit CurBlock(const std::string& name, Object* parent = nullptr);
 ```
-- **Parameters**: 
-  - `name` - Widget name
-  - `position` - Widget position
 
-### 11.3 Destructor
+| Parameter | Description |
+|-----------|-------------|
+| `name` | Widget name |
+| `parent` | Parent object (optional) |
+
+### 13.3 Destructor
+
+```cpp
+virtual ~CurBlock() = default;
+```
+
+This class is intentionally minimal — the rendering behavior is entirely handled by the protected virtual methods defined in `AbstractWidget`.
+
+---
+
+## 14. Label Class
+
+### 14.1 Class Overview
+
+Simple text label widget. Inherits from `AbstractWidget`.
+
+### 14.2 Constructors
+
+```cpp
+explicit Label(const std::string& name, const Position& position, Object* parent = nullptr);
+explicit Label(const std::string& name, const Position& position, const Size& size, Object* parent = nullptr);
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `name` | Widget name |
+| `position` | Widget position |
+| `size` | Widget size (second constructor; auto-sized by default otherwise) |
+| `parent` | Parent object (optional) |
+
+### 14.3 Destructor
 
 ```cpp
 virtual ~Label() = default;
 ```
 
-### 11.4 Member Functions
+### 14.4 Member Functions
 
-#### setText
+#### setText / text
 
 ```cpp
 void setText(const std::string& text);
+[[nodiscard]] const std::string& text() const;
 ```
-- **Function**: Set label text
-- **Parameter**: `text` - Text to display
+
+#### setAutoSizeEnabled / autoSizeEnabled
+
+```cpp
+void setAutoSizeEnabled(bool enabled);
+[[nodiscard]] bool autoSizeEnabled() const;
+```
+
+When enabled (the default, when no explicit size is given), the label sizes itself to fit its text.
+
+#### setAlignment / alignment
+
+```cpp
+void setAlignment(Alignment alignment);
+[[nodiscard]] Alignment alignment() const;
+```
+
+Alignment within the widget's allocated area.
 
 ---
 
-## 12. Usage Examples
+## 15. Button Class
 
-### 12.1 Basic Terminal Control
+### 15.1 Class Overview
+
+Clickable button widget. Inherits from `Label`. Supports a click callback and configurable default activation keys.
+
+### 15.2 Constructors
+
+```cpp
+Button(const std::string& name, const Position& position, Object* parent = nullptr);
+Button(const std::string& name, const Position& position, const Size& size, Object* parent = nullptr);
+```
+
+### 15.3 Destructor
+
+```cpp
+virtual ~Button() = default;
+```
+
+### 15.4 Member Functions
+
+#### setEvent / unsetEvent
+
+```cpp
+void setEvent(const std::function<void(Button&)>& event);
+void unsetEvent();
+```
+
+Set or clear the click callback. The callback receives a reference to the clicked `Button`.
+
+#### setDefaultKeyEvent
+
+```cpp
+void setDefaultKeyEvent(const std::array<KeyEvent, 2>& key_events);
+```
+
+Set two keyboard shortcuts that activate the button.
+
+#### setDefaultKeys
+
+```cpp
+void setDefaultKeys(uint8_t key1, uint8_t key2 = KEY_NONE,
+                    SP_Keys sp_key1 = SP_KEY_NONE, SP_Keys sp_key2 = SP_KEY_NONE);
+```
+
+Convenience overload — specify key codes and special keys directly instead of constructing `KeyEvent` objects.
+
+---
+
+## 16. LineEdit Class
+
+### 16.1 Class Overview
+
+Single-line text input widget. Inherits from `AbstractWidget`.
+
+### 16.2 EchoMode Enum
+
+```cpp
+enum class EchoMode : uint8_t {
+    NoEcho,
+    Normal,
+    Password
+};
+```
+
+### 16.3 Constructor
+
+```cpp
+explicit LineEdit(const std::string& name, const Position& position, uint32_t width, Object* parent = nullptr);
+```
+
+### 16.4 Destructor
+
+```cpp
+virtual ~LineEdit() = default;
+```
+
+### 16.5 Member Functions
+
+#### Text manipulation
+
+```cpp
+void setText(const std::string& text);
+void setText(const char* text);
+void appendText(const char* text);
+void appendText(const std::string& text);
+void clear();
+```
+
+#### Length constraints
+
+```cpp
+void setMinimumLength(uint16_t size);
+void setMaximumLength(uint16_t size);
+[[nodiscard]] uint16_t minimumLength() const;
+[[nodiscard]] uint16_t maximumLength() const;
+```
+
+#### Placeholder
+
+```cpp
+void setPlaceHolderText(const std::string& text);
+void setPlaceHolderText(const char* text);
+```
+
+#### Echo mode
+
+```cpp
+void setEchoMode(EchoMode mode);
+[[nodiscard]] EchoMode echoMode() const;
+
+void setEchoPassChar(const Char& ch);
+[[nodiscard]] const Char& echoPassChar() const;
+```
+
+When `EchoMode::Password` is set, `echoPassChar` (default `*`) replaces each character for display.
+
+#### Text alignment
+
+```cpp
+void setTextAlignment(TextAlignment alignment);
+[[nodiscard]] TextAlignment textAlignment() const;
+```
+
+#### text
+
+```cpp
+[[nodiscard]] const std::string& text() const;
+```
+
+Current input value.
+
+---
+
+## 17. Slider Class
+
+### 17.1 Class Overview
+
+Interactive slider widget. Allows the user to drag or step through a numeric range. Inherits from `AbstractWidget`.
+
+### 17.2 Constructor
+
+```cpp
+explicit Slider(const std::string& name, const Position& position, uint8_t width, Object* parent = nullptr);
+```
+
+`width` is the number of display columns (or rows, depending on orientation).
+
+### 17.3 Destructor
+
+```cpp
+virtual ~Slider() = default;
+```
+
+### 17.4 Member Functions
+
+#### Orientation / width
+
+```cpp
+void setOrientation(Orientation mode);
+[[nodiscard]] Orientation orientation() const;
+
+void setWidth(uint8_t width);
+[[nodiscard]] uint8_t width() const;
+```
+
+#### Range / value
+
+```cpp
+void setMinimumValue(int value);
+void setMaximumValue(int value);
+void setValue(int value);
+void appendValue(int value);
+
+[[nodiscard]] int minimumValue() const;
+[[nodiscard]] int maximumValue() const;
+[[nodiscard]] int value() const;
+```
+
+#### Step sizes
+
+```cpp
+void setSingleStep(int value);
+void setPageStep(int value);
+
+[[nodiscard]] int singleStep() const;
+[[nodiscard]] int pageStep() const;
+```
+
+#### Inverted
+
+```cpp
+void setInvertedEnabled(bool enable);
+[[nodiscard]] bool invertedEnabled() const;
+```
+
+When enabled, the slider fills from the opposite end.
+
+#### Event callback
+
+```cpp
+void setEvent(const std::function<void(int)>& event);
+void unsetEvent();
+```
+
+The callback receives the current integer value whenever it changes.
+
+#### Fill color
+
+```cpp
+void setFilledColor(const Color& fg_color, const Color& bg_color);
+[[nodiscard]] Color fgFilledColor() const;
+[[nodiscard]] Color bgFilledColor() const;
+```
+
+---
+
+## 18. ProgressBar Class
+
+### 18.1 Class Overview
+
+Non-interactive progress indicator. Inherits from `AbstractWidget`. Unlike `Slider`, it does not respond to user input.
+
+### 18.2 Constructor
+
+```cpp
+explicit ProgressBar(const std::string& name, const Position& position, uint32_t width,
+                     Object* parent = nullptr);
+```
+
+### 18.3 Destructor
+
+```cpp
+virtual ~ProgressBar() = default;
+```
+
+### 18.4 Member Functions
+
+#### Orientation / width
+
+```cpp
+void setOrientation(Orientation mode);
+[[nodiscard]] Orientation orientation() const;
+
+void setWidth(uint8_t width);
+[[nodiscard]] uint8_t width() const;
+```
+
+#### Value
+
+```cpp
+void setValue(int value);
+void appendValue(int value);
+[[nodiscard]] int value() const;
+```
+
+#### Inverted
+
+```cpp
+void setInvertedEnabled(bool enable);
+[[nodiscard]] bool invertedEnabled() const;
+```
+
+#### Fill color
+
+```cpp
+void setFilledColor(const Color& fg_color, const Color& bg_color);
+[[nodiscard]] Color fgFilledColor() const;
+[[nodiscard]] Color bgFilledColor() const;
+```
+
+---
+
+## 19. ListView Class
+
+### 19.1 Class Overview
+
+Scrollable list widget. Displays a set of strings with one selected item at a time. Inherits from `AbstractWidget`.
+
+### 19.2 Constructor
+
+```cpp
+explicit ListView(const std::string& name, const Position& position, const Size& size, Object* parent = nullptr);
+```
+
+### 19.3 Destructor
+
+```cpp
+virtual ~ListView() = default;
+```
+
+### 19.4 Member Functions
+
+#### Item manipulation
+
+```cpp
+void appendItem(const std::string& text);
+void appendItems(const std::vector<std::string>& items);
+void insertItem(int32_t index, const std::string& text);
+void popItem();
+void removeItems(int32_t index, int32_t count = 1);
+void clear();
+void setItem(int32_t index, const std::string& new_text);
+void swapItems(int32_t index1, int32_t index2);
+```
+
+#### Selection
+
+```cpp
+void setCurrentIndex(int32_t index);
+[[nodiscard]] int32_t currentIndex() const;
+```
+
+#### Queries
+
+```cpp
+[[nodiscard]] int32_t count() const;
+[[nodiscard]] std::string currentItem() const;
+[[nodiscard]] std::string itemAt(int32_t index) const;
+```
+
+#### Colors
+
+```cpp
+void setSelectionColor(const Color& fg_color, const Color& bg_color);
+void setActiveColor(const Color& fg_color, const Color& bg_color);
+
+[[nodiscard]] Color bgSelectionColor() const;
+[[nodiscard]] Color fgSelectionColor() const;
+[[nodiscard]] Color bgActiveColor() const;
+[[nodiscard]] Color fgActiveColor() const;
+```
+
+---
+
+## 20. Usage Examples
+
+### 20.1 Basic Terminal Control
 
 ```cpp
 #include "TUI/TUI.hpp"
@@ -1848,215 +2018,133 @@ void setText(const std::string& text);
 
 int main() {
     using namespace Tiny::TUI;
-    
-    // Enter raw mode
+
     Terminal::enterRawMode();
-    
-    // Clear screen
     Terminal::clearScreen();
-    
-    // Set color and output
+
     Terminal::setForegroundColor(Color::Green);
     Terminal::printLine("Hello, TUI!");
     Terminal::reset();
-    
-    // Formatted output
-    Terminal::printFormat("Screen size: {}x{}\n", 
+
+    Terminal::printFormat("Screen size: {}x{}\n",
         Terminal::screenSize().width,
         Terminal::screenSize().height);
-    
-    // Move cursor
+
     Terminal::moveCursor(5, 10);
     Terminal::print("Position (5, 10)");
-    
-    // Read key
+
     Terminal::printLine("\nPress any key...");
     SP_Keys sp_key;
     uint8_t key = Terminal::getKey(&sp_key);
-    
-    Terminal::printFormat("Key: {} ({})", 
+
+    Terminal::printFormat("Key: {} ({})",
         getKeyName(key, sp_key),
         (int)key);
-    
-    // Exit raw mode
+
     Terminal::leaveRawMode();
-    
     return 0;
 }
 ```
 
-### 12.2 Renderer Usage
+### 20.2 Slider Widget
 
 ```cpp
 #include "TUI/TUI.hpp"
 
 int main() {
     using namespace Tiny::TUI;
-    
-    // Get renderer instance
-    auto& renderer = Renderer::self();
-    
-    // Set character
-    renderer.set(0, 0, 'H');
-    renderer.set(1, 0, "Hello");
-    
-    // Set style
-    Renderer::Style style;
-    style.fg_color = Color::Green;
-    renderer.set(2, 0, "Green Text", style);
-    
-    // Draw border
-    Renderer::Corner corner;
-    corner.left_top = "+";
-    corner.left = "|";
-    corner.top = "-";
-    corner.right_top = "+";
-    corner.right = "|";
-    corner.right_bottom = "+";
-    corner.left_bottom = "+";
-    corner.bottom = "-";
-    renderer.drawBorder({5, 5}, {15, 25}, corner);
-    
-    // Fill rectangle
-    renderer.fillRect({6, 6}, {14, 24}, ' ');
-    
-    // Formatted output
-    renderer.setStrF({7, 7}, "Count: {}", 42);
-    
-    // Present to screen
-    renderer.present();
-    
-    // Wait for input
-    Terminal::getKey();
-    
-    return 0;
+
+    Application app;
+
+    auto* slider = new Slider("volume", {2, 2}, 40);
+    slider->setMinimumValue(0);
+    slider->setMaximumValue(100);
+    slider->setValue(50);
+    slider->setEvent([](int v) {
+        Terminal::printError("Value changed: {}\n", v);
+    });
+
+    return app.run();
 }
 ```
 
-### 12.3 Mouse Event Handling
+### 20.3 Button with Keys
 
 ```cpp
-#include "TUI/TUI.hpp"
-#include <iostream>
+using namespace Tiny::TUI;
 
-int main() {
-    using namespace Tiny::TUI;
-    
-    Terminal::enterRawMode();
-    Terminal::setMouseEnabled(true);
-    Terminal::clearScreen();
-    
-    Terminal::printLine("Click anywhere or press 'q' to quit...");
-    
-    while (true) {
-        uint8_t key;
-        SP_Keys sp_key;
-        Terminal::getKey(key, sp_key);
-        
-        if (key == 'q' || key == 'Q') {
-            break;
-        }
-        
-        if (key == KEY_SPECIAL) {
-            Position pos;
-            bool pressed;
-            uint8_t mouse_btn = Terminal::getMouseButton(&pos, &pressed);
-            
-            Terminal::moveCursor(2, 0);
-            Terminal::clearInRow(2);
-            Terminal::printFormat("Mouse: {} at ({}, {}), Pressed: {}",
-                getMouseName(static_cast<SP_Mouse>(mouse_btn)),
-                pos.row, pos.column, pressed);
-        }
-    }
-    
-    Terminal::setMouseEnabled(false);
-    Terminal::leaveRawMode();
-    
-    return 0;
-}
+auto* ok_btn = new Button("ok", {4, 4}, Size{10, 1});
+ok_btn->setText(" OK ");
+ok_btn->setDefaultKeys(KEY_CR, KEY_NONE, SP_KEY_NONE, SP_KEY_NONE);
+ok_btn->setEvent([](Button& b) {
+    Terminal::printError("Clicked: {}\n", b.objectName());
+});
 ```
 
-### 12.4 Color and Style Example
+### 20.4 LineEdit with Password Mode
 
 ```cpp
-#include "TUI/TUI.hpp"
+using namespace Tiny::TUI;
 
-int main() {
-    using namespace Tiny::TUI;
-    
-    Terminal::enterRawMode();
-    Terminal::clearScreen();
-    
-    // ANSI 16 colors
-    Terminal::setForegroundColor(Color::Red);
-    Terminal::printLine("Red Text");
-    
-    Terminal::setForegroundColor(Color::Blue, true);  // Bright
-    Terminal::printLine("Bright Blue Text");
-    
-    // RGB colors
-    Terminal::setForegroundColor(255, 128, 0);  // Orange
-    Terminal::setBackgroundColor(0, 0, 128);    // Dark blue background
-    Terminal::printLine("Orange on Dark Blue");
-    
-    Terminal::reset();
-    
-    // Style combination
-    Terminal::setBolder(true);
-    Terminal::setUnderline(true);
-    Terminal::printLine("Bold and Underlined");
-    
-    Terminal::reset();
-    Terminal::getKey();
-    Terminal::leaveRawMode();
-    
-    return 0;
-}
+auto* password = new LineEdit("pwd", {6, 4}, 30);
+password->setEchoMode(LineEdit::EchoMode::Password);
+password->setPlaceHolderText("Enter password");
+password->setMaximumLength(32);
 ```
 
 ---
 
-## 13. Notes
+## 21. Notes
 
-### 13.1 Raw Mode
+### 21.1 Raw Mode
 
 - After entering raw mode, terminal will not automatically handle input/output
 - Must manually handle Enter, Backspace, and other keys
 - Must call `leaveRawMode()` before program exit
 - Recommended to use RAII pattern to ensure terminal state restoration
 
-### 13.2 Terminal Compatibility
+### 21.2 Terminal Compatibility
 
 - Requires terminal supporting ANSI escape sequences
 - Windows 10+, modern Linux terminals, macOS Terminal are all supported
 - Windows 7/8 may need to enable virtual terminal processing
 
-### 13.3 Mouse Support
-
-- Requires terminal supporting mouse events
-- After enabling, mouse events are returned via `getKey()` as `KEY_SPECIAL`
-- Then call `getMouseButton()` to get detailed information
-
-### 13.4 Renderer Usage
+### 21.3 Renderer Usage
 
 - Uses double buffering mechanism, draws to buffer first
 - Call `present()` to actually output to screen
 - Call `clear()` to clear the front buffer before redrawing
-- Terminal size changes are handled internally by `resizeEvent()`; use `setResizeEvent()` to register custom callbacks
 
-### 13.5 UTF-8 Support
+### 21.4 `Application` vs. Direct `Renderer` Usage
 
-- Supports multi-byte character display
-- Use `splitUTF8()` to process strings
-- Note width calculation for full-width characters like Chinese
+- Widget-based UIs should use `Application::run()` — it handles the main loop, input dispatch, and rendering
+- Direct `Renderer::self()` usage is appropriate for simple, non-widget programs or for custom renderers
 
-### 13.6 Performance Considerations
+### 21.5 Object Hierarchy
 
-- Avoid frequent `present()` calls
-- Batch drawing and present uniformly
-- Use dirty marking to reduce unnecessary redraws
+```
+Object                          ← name, parent/children, type info
+├── AbstractWidget              ← position, size, styles, checkable, mouse tracing
+│   ├── CurBlock
+│   ├── Label
+│   │   └── Button
+│   ├── LineEdit
+│   ├── Slider
+│   ├── ProgressBar
+│   └── ListView
+└── AbstractLayout              ← manages a list of AbstractWidget children
+```
 
-## 14. How to Use the GPM Library on Linux Console
+### 21.6 Deprecated Symbols
+
+| Symbol | Replacement | Removes in |
+|--------|-------------|------------|
+| `Renderer::Style` typedef | `Tiny::TUI::Style` | v0.3.0 |
+| `Renderer::Corner` typedef | `Tiny::TUI::Corner` | v0.3.0 |
+| `Tiny::Code` namespace | `Tiny::U8Code` | v0.3.0 |
+| `AbstractWidget::draw()` | Protected `callDrawEvent()` | v0.3.0 |
+| `Renderer::setResizeEvent()` | `EventBus::subscribe<ResizeTermEvent>()` | v1.4.0 |
+
+## 22. How to Use the GPM Library on Linux Console
 
 See [GPM_In_Linux.md](GPM_In_Linux.md), which describes how to use the GPM library in a Linux non-desktop environment to solve mouse event handling issues in TTY mode.
