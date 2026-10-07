@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(Tiny LANGUAGES C CXX VERSION 0.2.0)
+project(Tiny LANGUAGES C CXX VERSION 0.3.0)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -62,6 +62,10 @@ set(SOURCE_FILES
         src/Net/Socket.cpp
         src/Net/Socket.hpp
         src/Net/SocketAdv.hpp
+        src/Net/TcpSocket.cpp
+        src/Net/TcpSocket.hpp
+        src/Net/UdpSocket.cpp
+        src/Net/UdpSocket.hpp
 )
 
 if (WIN32)

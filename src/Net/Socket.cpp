@@ -27,7 +27,7 @@
 #include <sstream>
 #include <mutex>
 #include <memory>
-#define SET_SOCK_OPT_ERR static_cast<int>(Net::SocketError::SetOptionError) * (-1)
+#define SET_SOCK_OPT_ERR static_cast<int>(Net::SocketError::SocketOptionError) * (-1)
 #ifdef TINY_CPP_MY_OS_WINDOWS
 #define SOCK_LEN_T int
 #else
@@ -116,6 +116,7 @@ namespace Tiny {
     const std::unordered_map<int, Net::SocketError> __SocketErrorsMap__{
         {0,                 Net::SocketError::Success},
         {WSAEINVAL,         Net::SocketError::InvalidParameter},
+        {WSAENOPROTOOPT,    Net::SocketError::SocketOptionError},
         {WSAEPROTONOSUPPORT,Net::SocketError::ProtoNotSupported},
         {WSAEPROTOTYPE,     Net::SocketError::ProtoNotSupported},
         {WSAENOTCONN,       Net::SocketError::SocketClosed},
@@ -147,6 +148,7 @@ namespace Tiny {
     static std::unordered_map<int, Net::SocketError> __SocketErrorsMap__{
             {0,                 Net::SocketError::Success},
             {EINVAL,            Net::SocketError::InvalidParameter},
+            {ENOPROTOOPT,       Net::SocketError::SocketOptionError},
             {EPROTONOSUPPORT,   Net::SocketError::ProtoNotSupported},
             {EPROTOTYPE,        Net::SocketError::ProtoNotSupported},
             {ENOTCONN,          Net::SocketError::SocketClosed},
@@ -182,7 +184,7 @@ namespace Tiny {
     const std::unordered_map<Net::SocketError, const char*> __SocketErrorStrings__{
             {Net::SocketError::Success,                 "Tiny::Net::SocketError::Success"},
             {Net::SocketError::InvalidParameter,        "Tiny::Net::SocketError::InvalidParameter"},
-            {Net::SocketError::SetOptionError,          "Tiny::Net::SocketError::SetOptionError"},
+            {Net::SocketError::SocketOptionError,       "Tiny::Net::SocketError::SocketOptionError"},
             {Net::SocketError::ProtoNotSupported,       "Tiny::Net::SocketError::ProtoNotSupported"},
             {Net::SocketError::SocketIsNotOpened,       "Tiny::Net::SocketError::SocketIsNotOpened"},
             {Net::SocketError::SocketClosed,            "Tiny::Net::SocketError::SocketClosed"},
@@ -766,7 +768,7 @@ namespace Tiny {
         }
 
         int recv(Net::Handle socket, Net::NetDatas& datas, size_t max_len) {
-            if (max_len > 0) datas.resize(max_len + 1);
+            if (max_len > 0) datas.resize(max_len);
 #ifdef TINY_CPP_MY_OS_WINDOWS
             return ::recv(socket, &datas[0], datas.size(), 0);
 #else
@@ -775,7 +777,7 @@ namespace Tiny {
         }
 
         int recv(Net::Handle socket, std::string& datas, size_t max_len) {
-            std::string temp(max_len > 0 ? max_len + 1 : datas.size(), '\0');
+            std::string temp(max_len > 0 ? max_len : datas.size(), '\0');
 #ifdef TINY_CPP_MY_OS_WINDOWS
             int ret = ::recv(socket, &temp[0], temp.size(), 0);
 #else
@@ -788,27 +790,36 @@ namespace Tiny {
             return ret;
         }
 
-        int recvfrom(Net::Handle socket, Net::NetDatas& datas, const Net::Address& src, int flag = 0) {
-            SOCK_LEN_T sz = src.isIPv6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
-            return ::recvfrom(socket, &datas[0], datas.size(), flag,
-                            static_cast<sockaddr*>(src.address()), &sz);
+        int recvfrom(Net::Handle socket, Net::NetDatas& datas, Net::Address* src = nullptr, int flag = 0) {
+            if (src) {
+                SOCK_LEN_T sz = src->isIPv6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
+                int ret = ::recvfrom(socket, &datas[0], datas.size(), flag,
+                                static_cast<sockaddr*>(src->address()), &sz);
+                src->validate();
+                return ret;
+            }
+            return ::recvfrom(socket, &datas[0], datas.size(), flag, nullptr, nullptr);
         }
 
-        int recvfrom(Net::Handle socket, std::string& datas, const Net::Address& src, int flag = 0) {
-            SOCK_LEN_T sz = src.isIPv6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
-            
-            return ::recvfrom(socket, &datas[0], datas.size(), flag,
-                            static_cast<sockaddr*>(src.address()), &sz);
+        int recvfrom(Net::Handle socket, std::string& datas, Net::Address* src = nullptr, int flag = 0) {
+            if (src) {
+                SOCK_LEN_T sz = src->isIPv6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
+                int ret = ::recvfrom(socket, &datas[0], datas.size(), flag,
+                                static_cast<sockaddr*>(src->address()), &sz);
+                src->validate();
+                return ret;
+            }
+            return ::recvfrom(socket, &datas[0], datas.size(), flag, nullptr, nullptr);
         }
 
-        int getsockname(Net::Handle socket, Net::Address& addr, bool use_ipv6) {
-            SOCK_LEN_T addr_size = use_ipv6 ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
-            return ::getsockname(socket, reinterpret_cast<sockaddr*>(addr.address()), &addr_size);
+        int getsockname(Net::Handle socket, Net::Address &addr) {
+            SOCK_LEN_T addr_size = addr.isIPv6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
+            return ::getsockname(socket, static_cast<sockaddr*>(addr.address()), &addr_size);
         }
 
-        int getpeername(Net::Handle socket, Net::Address& addr, bool use_ipv6) {
-            SOCK_LEN_T addr_size = use_ipv6 ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
-            return ::getpeername(socket, reinterpret_cast<sockaddr*>(addr.address()), &addr_size);
+        int getpeername(Net::Handle socket, Net::Address &addr) {
+            SOCK_LEN_T addr_size = addr.isIPv6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
+            return ::getpeername(socket, static_cast<sockaddr*>(addr.address()), &addr_size);
         }
 
         bool setUnblockEnabled(Net::Handle socket, uint32_t, const Net::OptionValue& value) {
@@ -1090,6 +1101,11 @@ namespace Tiny {
         ptr = nullptr;
     }
 
+    Net::Address::Address(bool make_addr, bool use_ipv6) {
+        if (!make_addr) return;
+        validate(use_ipv6 ? "::" : "0.0.0.0", 0, use_ipv6);
+    }
+
     Net::Address::Address(const char *address, uint16_t port, bool use_ipv6) {
         validate(address, port, use_ipv6);
     }
@@ -1101,7 +1117,7 @@ namespace Tiny {
     Net::Address::~Address() = default;
 
     std::string Net::Address::toString(bool* ok) const {
-        if (!_valid || !_addr_ptr) return {};
+        if (!_addr_ptr) return {};
         char result[64] = {};
         bool is_ok{};
 
@@ -1129,6 +1145,10 @@ namespace Tiny {
         return _valid;
     }
 
+    bool Net::Address::isSpecified() const {
+        return _is_specified;
+    }
+
     bool Net::Address::isIPv6() const {
         return _use_ipv6;
     }
@@ -1139,6 +1159,10 @@ namespace Tiny {
 
     void Net::Address::setAddress(const char *address, PortProtocol port, bool use_ipv6) {
         validate(address, static_cast<uint16_t>(port), use_ipv6);
+    }
+
+    void Net::Address::setAddress(const Address &address) {
+        validate(address.toString().data(), address.port(), address.isIPv6());
     }
 
     void Net::Address::setPort(uint16_t port) {
@@ -1165,12 +1189,47 @@ namespace Tiny {
         }
     }
 
+    bool Net::Address::validate() {
+        if (!_addr_ptr) {
+            _valid = false;
+            return false;
+        }
+        auto addr = static_cast<sockaddr*>(_addr_ptr.get());
+        if (addr->sa_family == AF_INET) {
+            _use_ipv6 = false;
+        } else if (addr->sa_family == AF_INET6) {
+            _use_ipv6 = true;
+        } else {
+            _use_ipv6 = false;
+            _valid = false;
+            return false;
+        }
+        if (!_use_ipv6) {
+            auto addr_ipv4 = static_cast<sockaddr_in*>(_addr_ptr.get());
+            if (addr_ipv4->sin_addr.s_addr == INADDR_ANY || addr_ipv4->sin_addr.s_addr == INADDR_BROADCAST) {
+                _is_specified = false;
+                return false;
+            }
+        } else {
+            auto addr_ipv6 = static_cast<sockaddr_in6*>(_addr_ptr.get());
+            if (IN6_IS_ADDR_UNSPECIFIED(&addr_ipv6->sin6_addr)) {
+                _is_specified = false;
+                return false;
+            }
+        }
+        _port = _use_ipv6 ? ntohs(static_cast<sockaddr_in6*>(_addr_ptr.get())->sin6_port)
+                          : ntohs(static_cast<sockaddr_in*>(_addr_ptr.get())->sin_port);
+        _valid = true;
+        _is_specified = true;
+        return true;
+    }
+
     Net::Address Net::Address::localHost() {
-        return {"127.0.0.1", 0};
+        return Address("127.0.0.1", 0);
     }
 
     Net::Address Net::Address::localHostIPv6() {
-        return {"::1", 0, true};
+        return Address("::1", 0, true);
     }
 
     std::vector<Net::Address> Net::Address::parseFromHostname(const char *hostname, bool *ok, int *err_cnt) {
@@ -1219,7 +1278,7 @@ namespace Tiny {
         auto is_ok = getaddrinfo(hostname, nullptr, &hints, &res) == 0;
         if (!is_ok) {
             if (ok) *ok = false;
-            return {};
+            return Address();
         }
         Address result{};
         void* addr{};
@@ -1252,6 +1311,8 @@ namespace Tiny {
         addr._use_ipv6 = false;
         _valid = addr._valid;
         addr._valid = false;
+        _is_specified = addr._is_specified;
+        addr._is_specified = false;
     }
 
     Net::Address & Net::Address::operator=(Address && addr) noexcept {
@@ -1262,6 +1323,8 @@ namespace Tiny {
         addr._use_ipv6 = false;
         _valid = addr._valid;
         addr._valid = false;
+        _is_specified = addr._is_specified;
+        addr._is_specified = false;
         return *this;
     }
 
@@ -1306,6 +1369,18 @@ namespace Tiny {
         }
         _port = port;
         _use_ipv6 = use_ipv6;
+        _is_specified = true;
+        if (!_use_ipv6) {
+            auto addr_ipv4 = static_cast<sockaddr_in*>(_addr_ptr.get());
+            if (addr_ipv4->sin_addr.s_addr == INADDR_ANY || addr_ipv4->sin_addr.s_addr == INADDR_BROADCAST) {
+                _is_specified = false;
+            }
+        } else {
+            auto addr_ipv6 = static_cast<sockaddr_in6*>(_addr_ptr.get());
+            if (IN6_IS_ADDR_UNSPECIFIED(&addr_ipv6->sin6_addr)) {
+                _is_specified = false;
+            }
+        }
     }
 
     const char *Net::getSocketErrorName(SocketError err) {
@@ -1316,7 +1391,8 @@ namespace Tiny {
     }
 
     Net::Socket::Socket(SocketType type, uint8_t msg_type, uint8_t proto_no)
-        : _handle(INVALID_SOCKET_VAL), _type(type), _err(), _state(), _msg_type(msg_type), _proto_no(proto_no) {}
+        : _local_addr("0.0.0.0", 0), _peer_addr("0.0.0.0", 0), _handle(INVALID_SOCKET_VAL), _type(type),
+          _err(), _state(), _msg_type(msg_type), _proto_no(proto_no) {}
 
     Net::Socket::Socket(Socket &&other) noexcept {
         _handle = other._handle;
@@ -1331,6 +1407,8 @@ namespace Tiny {
     }
 
     Net::Socket &Net::Socket::operator=(Socket &&other) noexcept {
+        if (this == &other) return *this;
+        close();
         _handle = other._handle;
         _local_addr = std::move(other._local_addr);
         _peer_addr = std::move(other._peer_addr);
@@ -1347,80 +1425,87 @@ namespace Tiny {
         if (_handle != INVALID_SOCKET_VAL) close();
     }
 
-    void Net::Socket::setLocalAddress(const char *address, uint16_t port, bool use_ipv6) {
-        if (_state != SocketState::Unused) {
+    bool Net::Socket::setLocalAddress(const char *address, uint16_t port, bool use_ipv6) {
+        if (_state != SocketState::Unused && _state != SocketState::Closed) {
             _sys_errno = 0;
             _err = SocketError::SocketInUse;
-            return;
+            return false;
         }
         _local_addr.setAddress(address, port, use_ipv6);
         _err = _local_addr.isValid() ? SocketError::Success : SocketError::InvalidParameter;
         _sys_errno = 0;
+        return true;
     }
 
-    void Net::Socket::setLocalAddress(Address &&address) {
-        if (_state != SocketState::Unused) {
+    bool Net::Socket::setLocalAddress(Address &&address) {
+        if (_state != SocketState::Unused && _state != SocketState::Closed) {
             _sys_errno = 0;
             _err = SocketError::SocketInUse;
-            return;
+            return false;
         }
         _local_addr = std::move(address);
         _err = _local_addr.isValid() ? SocketError::Success : SocketError::InvalidParameter;
         _sys_errno = 0;
+        return true;
     }
 
-    void Net::Socket::setLocalPort(uint16_t port) {
-        if (_state != SocketState::Unused) {
+    bool Net::Socket::setLocalPort(uint16_t port) {
+        if (_state != SocketState::Unused && _state != SocketState::Closed) {
             _sys_errno = 0;
             _err = SocketError::SocketInUse;
-            return;
+            return false;
         }
         _local_addr.setPort(port);
         _err = SocketError::Success;
         _sys_errno = 0;
+        return true;
     }
 
-    void Net::Socket::setPeerAddress(const char *address, uint16_t port, bool use_ipv6) {
-        if (_state != SocketState::Unused && _state != SocketState::Bound) {
+    bool Net::Socket::setPeerAddress(const char *address, uint16_t port, bool use_ipv6) {
+        if (_state != SocketState::Unused && _state != SocketState::Bound && _state != SocketState::Closed) {
             _sys_errno = 0;
             _err = SocketError::SocketInUse;
-            return;
+            return false;
         }
         _peer_addr.setAddress(address, port, use_ipv6);
         _err = _peer_addr.isValid() ? SocketError::Success : SocketError::InvalidParameter;
         _sys_errno = 0;
+        return true;
     }
 
-    void Net::Socket::setPeerAddress(Address &&address) {
-        if (_state != SocketState::Unused && _state != SocketState::Bound) {
+    bool Net::Socket::setPeerAddress(Address &&address) {
+        if (_state != SocketState::Unused && _state != SocketState::Bound && _state != SocketState::Closed) {
             _sys_errno = 0;
             _err = SocketError::SocketInUse;
-            return;
+            return false;
         }
         _peer_addr = std::move(address);
         _err = _peer_addr.isValid() ? SocketError::Success : SocketError::InvalidParameter;
         _sys_errno = 0;
+        return true;
     }
 
-    void Net::Socket::setPeerPort(uint16_t port) {
-        if (_state != SocketState::Unused && _state != SocketState::Bound) {
+    bool Net::Socket::setPeerPort(uint16_t port) {
+        if (_state != SocketState::Unused && _state != SocketState::Bound && _state != SocketState::Closed) {
             _sys_errno = 0;
             _err = SocketError::SocketInUse;
-            return;
+            return false;
         }
         _peer_addr.setPort(port);
         _err = SocketError::Success;
         _sys_errno = 0;
+        return true;
     }
 
-    void Net::Socket::setSocketType(SocketType type) {
-        if (_state == SocketState::Unused) {
+    bool Net::Socket::setSocketType(SocketType type) {
+        if (_state == SocketState::Unused || _state == SocketState::Closed) {
             _type = type;
             copeSuccess();
-        } else {
-            _err = SocketError::SocketInUse;
-            _sys_errno = 0;
+            return true;
         }
+        _err = SocketError::SocketInUse;
+        _sys_errno = 0;
+        return false;
     }
 
     void Net::Socket::setCustomSocketType(uint8_t type, uint8_t proto_no) {
@@ -1452,8 +1537,8 @@ namespace Tiny {
         _state = SocketState::Connecting;
         _handle = Socket_Impl::create(_peer_addr, _type, _msg_type, _proto_no);
         if (_handle == INVALID_SOCKET_VAL) {
+            _state = SocketState::Closed;
             copeFailed();
-            _state = SocketState::Unused;
             return false;
         }
         if (!setAllOptions()) {
@@ -1480,7 +1565,7 @@ namespace Tiny {
                 auto err = select(ncnt, nullptr, &w_sets, &e_sets, &timeout);
                 if (err <= 0) {
                     Socket_Impl::close(_handle);
-                    _state = SocketState::Unused;
+                    _state = SocketState::Closed;
                     _handle = INVALID_SOCKET_VAL;
                     if (err == 0) _err = SocketError::ConnectionTimeout;
                     return false;
@@ -1490,17 +1575,24 @@ namespace Tiny {
                 if (!ok || val.type != OptionValue::Int || val.var.i != 0) {
                     _err = __SocketErrorsMap__.at(val.var.i);
                     Socket_Impl::close(_handle);
-                    _state = SocketState::Unused;
+                    _state = SocketState::Closed;
                     _handle = INVALID_SOCKET_VAL;
                     return false;
                 }
             } else {
                 Socket_Impl::close(_handle);
-                _state = SocketState::Unused;
+                _state = SocketState::Closed;
                 _handle = INVALID_SOCKET_VAL;
                 return false;
             }
         }
+        Address new_local_addr(true, _local_addr.isIPv6());
+        if (Socket_Impl::getsockname(_handle, new_local_addr) == 0) {
+            new_local_addr.validate();
+            _local_addr = std::move(new_local_addr);
+        }
+
+        _local_addr.validate();
         _state = SocketState::Connected;
         copeSuccess();
         return true;
@@ -1527,6 +1619,10 @@ namespace Tiny {
             Socket_Impl::close(_handle);
             _handle = INVALID_SOCKET_VAL;
             return false;
+        }
+        if (_local_addr.port() == 0) {
+            Socket_Impl::getsockname(_handle, _local_addr);
+            _local_addr.validate();
         }
         _state = SocketState::Bound;
         copeSuccess();
@@ -1565,17 +1661,17 @@ namespace Tiny {
             _sys_errno = 0;
             return false;
         }
+        int ret{};
         _handle = Socket_Impl::create(_local_addr, _type, _msg_type, _proto_no);
         if (_handle == INVALID_SOCKET_VAL) {
             copeFailed();
             return false;
         }
         if (!setAllOptions()) {
-            copeFailed();
-            return false;
+            goto ListenFailed;
         }
         _state = SocketState::Listening;
-        auto ret = Socket_Impl::bind(_handle, _local_addr);
+        ret = Socket_Impl::bind(_handle, _local_addr);
         if (ret == SOCKET_ERROR) {
             goto ListenFailed;
         }
@@ -1588,7 +1684,7 @@ namespace Tiny {
 ListenFailed:
         copeFailed();
         Socket_Impl::close(_handle);
-        _state = SocketState::Unused;
+        _state = SocketState::Closed;
         _handle = INVALID_SOCKET_VAL;
         return false;
     }
@@ -1615,8 +1711,14 @@ ListenFailed:
         }
         Socket cli_socket(_type);
         cli_socket._handle = handle;
-        cli_socket._local_addr = std::move(new_address);
+        cli_socket._peer_addr = std::move(new_address);
         cli_socket._state = SocketState::Connected;
+
+        Address new_local_addr(true, _local_addr.isIPv6());
+        if (Socket_Impl::getsockname(handle, new_local_addr) == 0) {
+            new_local_addr.validate();
+            cli_socket._local_addr = std::move(new_local_addr);
+        }
         if (ok) *ok = true;
         copeSuccess();
         return cli_socket;
@@ -1624,11 +1726,16 @@ ListenFailed:
 
 
     bool Net::Socket::close() {
+        if (_handle == INVALID_SOCKET_VAL) {
+            _state = SocketState::Closed;
+            copeSuccess();
+            return true;
+        }
         _state = SocketState::Closing;
         bool ok = Socket_Impl::close(_handle) == 0;
         _handle = INVALID_SOCKET_VAL;
         if (ok) copeSuccess(); else copeFailed();
-        _state = SocketState::Unused;
+        _state = SocketState::Closed;
         return ok;
     }
 
@@ -1672,35 +1779,85 @@ ListenFailed:
         return true;
     }
 
-    bool Net::Socket::recv(NetDatas &data, size_t max_length, int* received_length) {
+    bool Net::Socket::recv(NetDatas &data, size_t max_len, int* recv_len, Address *src_addr, bool keep_addr) {
         if (_handle == INVALID_SOCKET_VAL) {
             _sys_errno = 0;
             _err = SocketError::SocketIsNotOpened;
             return false;
         }
-        auto ok = Socket_Impl::recv(_handle, data, max_length);
+        Address new_address(true, _local_addr.isIPv6());
+        int ok{};
+        if (_type == SocketType::UDP) {
+            if (max_len > 0) data.resize(max_len + 1);
+            ok = Socket_Impl::recvfrom(_handle, data);
+        } else {
+            ok = Socket_Impl::recv(_handle, data, max_len);
+        }
         if (ok < 0) {
             copeFailed();
             return false;
         }
+        if (ok == 0 && isConnectionOriented()) {
+            _err = SocketError::SocketClosed;
+            _sys_errno = 0;
+            _state = SocketState::Closed;
+            return false;
+        }
+        if (_type == SocketType::UDP && keep_addr) {
+            if (Socket_Impl::getsockname(_handle, new_address) == 0) {
+                new_address.validate();
+                _local_addr.setAddress(new_address);
+            }
+            Address new_peer_addr(true, _peer_addr.isIPv6());
+            if (Socket_Impl::getpeername(_handle, new_peer_addr) == 0) {
+                new_peer_addr.validate();
+                _peer_addr = std::move(new_peer_addr);
+            }
+        }
+        if (src_addr) *src_addr = std::move(new_address);
         copeSuccess();
-        if (received_length) *received_length = ok;
+        if (recv_len) *recv_len = ok;
         return true;
     }
 
-    bool Net::Socket::recv(std::string &message, size_t max_length, int* received_length) {
+    bool Net::Socket::recv(std::string &msg, size_t max_len, int *recv_len, Address *src_addr, bool keep_addr) {
         if (_handle == INVALID_SOCKET_VAL) {
             _sys_errno = 0;
             _err = SocketError::SocketIsNotOpened;
             return false;
         }
-        auto ok = Socket_Impl::recv(_handle, message, max_length);
+        Address new_address(true, _local_addr.isIPv6());
+        int ok{};
+        if (_type == SocketType::UDP) {
+            if (max_len > 0) msg.resize(max_len + 1);
+            ok = Socket_Impl::recvfrom(_handle, msg);
+        } else {
+            ok = Socket_Impl::recv(_handle, msg, max_len);
+        }
         if (ok < 0) {
             copeFailed();
             return false;
         }
+        if (ok == 0 && isConnectionOriented()) {
+            _err = SocketError::SocketClosed;
+            _sys_errno = 0;
+            _state = SocketState::Closed;
+            return false;
+        }
+        if (_type == SocketType::UDP && keep_addr) {
+            if (Socket_Impl::getsockname(_handle, new_address) == 0) {
+                new_address.validate();
+                _local_addr.setAddress(new_address);
+            }
+            Address new_peer_addr(true, _peer_addr.isIPv6());
+            if (Socket_Impl::getpeername(_handle, new_peer_addr) == 0) {
+                new_peer_addr.validate();
+                _peer_addr = std::move(new_peer_addr);
+            }
+        }
+        if (src_addr) *src_addr = std::move(new_address);
         copeSuccess();
-        if (received_length) *received_length = ok;
+        if (recv_len) *recv_len = ok;
         return true;
     }
 
@@ -1762,11 +1919,15 @@ ListenFailed:
             }
         }
         if (max_length > 0) message.resize(max_length);
-        auto len = Socket_Impl::recvfrom(_handle, message, address);
+        auto len = Socket_Impl::recvfrom(_handle, message);
         if (len < 0) {
             copeFailed();
             return false;
         }
+        Socket_Impl::getsockname(_handle, _local_addr);
+        Socket_Impl::getpeername(_handle, _peer_addr);
+        _local_addr.validate();
+        _peer_addr.validate();
         if (received_length) *received_length = len;
         copeSuccess();
         return true;
@@ -1785,11 +1946,15 @@ ListenFailed:
             }
         }
         if (max_length > 0) data.resize(max_length);
-        auto len = Socket_Impl::recvfrom(_handle, data, address);
+        auto len = Socket_Impl::recvfrom(_handle, data);
         if (len < 0) {
             copeFailed();
             return false;
         }
+        Socket_Impl::getsockname(_handle, _local_addr);
+        Socket_Impl::getpeername(_handle, _peer_addr);
+        _local_addr.validate();
+        _peer_addr.validate();
         if (received_length) *received_length = len;
         copeSuccess();
         return true;
@@ -1812,7 +1977,7 @@ ListenFailed:
                 is_ok = (setting.setter && setting.setter(_handle, option_id, value));
             } else {
                 _err_opt_id = option_id;
-                _err = SocketError::SetOptionError;
+                _err = SocketError::SocketOptionError;
                 is_ok = false;
             }
         }
@@ -1879,6 +2044,7 @@ ListenFailed:
         _sys_errno = getLastSystemError();
         mapErrorNum(_sys_errno);
         if (_sys_errno == 0) _err = SocketError::SetOptionError;
+        updateSocketState();
     }
 
     void Net::Socket::copeSuccess() {
@@ -1901,6 +2067,32 @@ ListenFailed:
         }
         _err_opt_id = 0;
         return true;
+    }
+
+    void Net::Socket::updateSocketState() {
+        switch (_err) {
+            case SocketError::SocketClosed:
+            case SocketError::ConnectionReset:
+            case SocketError::ConnectionAborted:
+            case SocketError::ConnectionTimeout:
+            case SocketError::NetworkUnreachable:
+            case SocketError::HostUnreachable:
+            case SocketError::NetworkDown:
+                _state = SocketState::Closed;
+                break;
+            default:
+                break;
+        }
+    }
+
+    bool Net::Socket::isConnectionOriented() const {
+        switch (_type) {
+            case SocketType::TCP:
+            case SocketType::SCTP:
+                return true;
+            default:
+                return false;
+        }
     }
 
     int Net::getLastSystemError(std::string *info) {

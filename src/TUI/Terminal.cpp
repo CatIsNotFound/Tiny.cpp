@@ -43,6 +43,18 @@
 #endif
 #endif
 
+#if defined(TINY_CPP_MY_OS_WINDOWS)
+class InitU8Page {
+public:
+    explicit InitU8Page() {
+        SetConsoleCP(65001);
+        SetConsoleOutputCP(65001);
+    }
+};
+
+static InitU8Page __init_u8_acp__{};
+#endif
+
 namespace Tiny {
 #if defined(TINY_CPP_MY_OS_WINDOWS)
     std::wstring U8Code::string2Wide(const std::string& str, uint32_t codepage) {

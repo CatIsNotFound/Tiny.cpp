@@ -24,7 +24,6 @@ private:
 };
 
 int main(int argc, char *argv[]) {
-    if (strcmp(OS::Name, "windows") == 0) OS::exec("cmd.exe /c chcp 65001");
     Application app;
     app.setEnabledExitByKey(false);
     Label title("[List view Demo]", {0, 0});

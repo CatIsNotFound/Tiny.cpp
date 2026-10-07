@@ -738,3 +738,156 @@ TEST(IntegrationTest, MultipleConnections) {
     client3.close();
     server.close();
 }
+
+// ============================================================================
+// UDP Tests  (覆盖刚刚修复的 recv 路径：max_len 预分配 + keep_local_addr)
+// ============================================================================
+
+TEST(UdpSocketTest, BindToLocalhost) {
+    Socket sock(SocketType::UDP);
+    sock.setLocalAddress("127.0.0.1", 19001);
+    bool result = sock.bind();
+    EXPECT_TRUE(result);
+    EXPECT_EQ(sock.state(), SocketState::Bound);
+    sock.close();
+}
+
+TEST(UdpSocketTest, SendAndReceiveRoundTrip) {
+    // 服务器：bind 一个 UDP socket
+    Socket server(SocketType::UDP);
+    server.setLocalAddress("127.0.0.1", 19002);
+    ASSERT_TRUE(server.bind());
+    server.setOption(SocketOption::ReuseAddr, OptionValue(1));
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // 客户端：sendTo 服务器
+    Socket client(SocketType::UDP);
+    client.setLocalAddress("127.0.0.1", 0);
+    ASSERT_TRUE(client.bind());
+
+    const std::string payload = "Hello UDP Server!";
+    int sent = 0;
+    ASSERT_TRUE(client.sendTo(payload, Address("127.0.0.1", 19002), &sent));
+    EXPECT_EQ(sent, static_cast<int>(payload.size()));
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // 服务器：recv 带 src_addr
+    std::string received;
+    Address from_addr("0.0.0.0", 0);
+    int recv_len = 0;
+    ASSERT_TRUE(server.recv(received, 1024, &recv_len, &from_addr, false));
+    EXPECT_EQ(recv_len, static_cast<int>(payload.size()));
+    EXPECT_EQ(received, payload);
+    EXPECT_TRUE(from_addr.isValid());
+    // 来源端口应该是客户端自动分配的端口，由内核保证在合法范围
+    EXPECT_GT(from_addr.port(), 0);
+
+    // 服务器：sendTo 回客户端
+    const std::string reply = "Hello UDP Client!";
+    ASSERT_TRUE(server.sendTo(reply, from_addr));
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // 客户端：recv 服务器回复
+    std::string reply_recv;
+    int reply_len = 0;
+    ASSERT_TRUE(client.recv(reply_recv, 1024, &reply_len, nullptr, false));
+    EXPECT_EQ(reply_len, static_cast<int>(reply.size()));
+    EXPECT_EQ(reply_recv, reply);
+
+    client.close();
+    server.close();
+}
+
+TEST(UdpSocketTest, ReceiveWithMaxLenPrealloc) {
+    // 验证库层修复：UDP recv 在空 string 上调用也能正常接收数据
+    // （过去因为没预分配导致 recvfrom 拿到 0 字节缓冲区，永远收不到数据）
+    Socket server(SocketType::UDP);
+    server.setLocalAddress("127.0.0.1", 19003);
+    ASSERT_TRUE(server.bind());
+    server.setOption(SocketOption::ReuseAddr, OptionValue(1));
+
+    Socket client(SocketType::UDP);
+    client.setLocalAddress("127.0.0.1", 0);
+    ASSERT_TRUE(client.bind());
+
+    const std::string big_payload(512, 'X');  // 512 字节
+    ASSERT_TRUE(client.sendTo(big_payload, Address("127.0.0.1", 19003)));
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // 关键点：空 string，max_len=1024（大于 payload 长度）
+    std::string received;  // 空！
+    int recv_len = 0;
+    ASSERT_TRUE(server.recv(received, 1024, &recv_len, nullptr, false));
+    EXPECT_EQ(recv_len, static_cast<int>(big_payload.size()));
+    EXPECT_EQ(received, big_payload);
+    // recv 完成后 string 应该刚好是 payload 长度
+    EXPECT_EQ(received.size(), big_payload.size());
+
+    client.close();
+    server.close();
+}
+
+TEST(UdpSocketTest, KeepLocalAddrFalseDoesNotPollute) {
+    // 验证 keep_local_addr=false 时不会把来源地址写进 socket 的 local_addr
+    Socket server(SocketType::UDP);
+    server.setLocalAddress("127.0.0.1", 19004);
+    ASSERT_TRUE(server.bind());
+
+    const auto& local_before = server.localAddress();
+    EXPECT_TRUE(local_before.isValid());
+    EXPECT_EQ(local_before.port(), 19004);
+
+    Socket client(SocketType::UDP);
+    client.setLocalAddress("127.0.0.1", 0);
+    ASSERT_TRUE(client.bind());
+    ASSERT_TRUE(client.sendTo("ping", Address("127.0.0.1", 19004)));
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    std::string received;
+    int recv_len = 0;
+    Address from_addr("0.0.0.0", 0);
+    // keep_local_addr = false
+    ASSERT_TRUE(server.recv(received, 1024, &recv_len, &from_addr, false));
+
+    // 服务器的 local_addr 不应被污染，应保持 bind 时的值
+    const auto& local_after = server.localAddress();
+    EXPECT_TRUE(local_after.isValid());
+    EXPECT_EQ(local_after.port(), 19004);
+
+    client.close();
+    server.close();
+}
+
+TEST(UdpSocketTest, KeepLocalAddrTrueUpdatesLocal) {
+    // 默认 keep_local_addr=true：recv 后服务器 local_addr 会被更新为来源地址
+    // （这就是之前 demo 里 bug 的来源）
+    Socket server(SocketType::UDP);
+    server.setLocalAddress("127.0.0.1", 19005);
+    ASSERT_TRUE(server.bind());
+
+    Socket client(SocketType::UDP);
+    client.setLocalAddress("127.0.0.1", 0);
+    ASSERT_TRUE(client.bind());
+    ASSERT_TRUE(client.sendTo("ping", Address("127.0.0.1", 19005)));
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    std::string received;
+    int recv_len = 0;
+    Address from_addr("0.0.0.0", 0);
+    // keep_local_addr = true（默认值）
+    ASSERT_TRUE(server.recv(received, 1024, &recv_len, &from_addr, true));
+
+    // local_addr 被更新为来源地址（客户端的地址）
+    const auto& local_after = server.localAddress();
+    EXPECT_TRUE(local_after.isValid());
+    EXPECT_EQ(local_after.port(), from_addr.port());
+
+    client.close();
+    server.close();
+}

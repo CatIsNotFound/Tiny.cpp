@@ -165,14 +165,14 @@ namespace Tiny {
         if (!show_options_only) {
             out << "USAGE: " << _argv[0] << " ";
             if (!_default_cmd.empty()) {
-                out << "<" << _default_cmd << "> [Options] ...\r\n";
+                out << "<" << _default_cmd << "> ...\r\n";
             } else {
-                out << "[Options] ...\r\n";
+                out << "...\r\n";
             }
         }
-        out << "OPTIONS:\r\n";
+
         uint32_t long_cmd_length{}, short_cmd_length{};
-        auto printOption = [&long_cmd_length, &short_cmd_length, &out, &max_width] (const Command& cmd) {
+        auto printShortOption = [&long_cmd_length, &short_cmd_length, &out, &max_width] (const Command& cmd) {
             const char* TABS = "    ";
             std::ostringstream s_oss;
             out << TABS << std::right << std::setw(static_cast<int>(long_cmd_length)) << "--" + cmd.option_name;
@@ -200,6 +200,25 @@ namespace Tiny {
                 space = true;
             } while (st < cmd.description.length());
         };
+        auto printFullOption = [&long_cmd_length, &short_cmd_length, &out, &max_width] (const Command& cmd) {
+            const char* TABS = "    ";
+            std::ostringstream s_oss;
+            out << TABS << std::right << std::setw(static_cast<int>(long_cmd_length)) << cmd.option_name;
+            out << "  " << std::setw(static_cast<int>(short_cmd_length)) << ' ';
+            int32_t des_len = static_cast<int>(max_width) - static_cast<int>(long_cmd_length) -
+                              static_cast<int>(short_cmd_length) - 10;
+            int32_t st = 0;
+            bool space{};
+            out << TABS;
+            do {
+                if (space) {
+                    out << std::setw(static_cast<int>(long_cmd_length + short_cmd_length) + 10) << ' ';
+                }
+                out << cmd.description.substr(st, des_len) << "\r\n";
+                st += des_len;
+                space = true;
+            } while (st < cmd.description.length());
+        };
         for (auto& iter : _commands) {
             auto& cmd = iter.second;
             if (cmd.option_name.length() >= long_cmd_length) long_cmd_length = cmd.option_name.length() + 3;
@@ -208,24 +227,31 @@ namespace Tiny {
             if (len >= short_cmd_length)
                 short_cmd_length = len;
         }
-        std::vector<std::pair<std::string, Command>> temp;
-        if (!sort_option_name) {
-            for (auto& iter : _commands) {
-                temp.emplace(temp.begin(), iter);
-            }
-            for (auto& cmd : temp) {
-                printOption(cmd.second);
-            }
-        } else {
-            for (auto& iter : _commands) {
-                temp.emplace_back(iter);
-            }
-            std::sort(temp.begin(), temp.end(), [](const std::pair<std::string, Command>& a,
+        std::vector<std::pair<std::string, Command>> temp_s, temp_f;
+        for (auto& iter : _commands) {
+            if (!iter.second.full_option_only) temp_s.emplace(temp_s.begin(), iter);
+            else temp_f.emplace(temp_f.begin(), iter);
+        }
+        if (sort_option_name) {
+            std::sort(temp_s.begin(), temp_s.end(), [](const std::pair<std::string, Command>& a,
                                                    const std::pair<std::string, Command>& b) {
                 return a.second.option_name < b.second.option_name;
             });
-            for (auto& cmd : temp) {
-                printOption(cmd.second);
+            std::sort(temp_f.begin(), temp_f.end(), [](const std::pair<std::string, Command>& a,
+                                                   const std::pair<std::string, Command>& b) {
+                return a.second.option_name < b.second.option_name;
+            });
+        }
+        if (!temp_f.empty()) {
+            out << "COMMANDS:\r\n";
+            for (auto& cmd : temp_f) {
+                printFullOption(cmd.second);
+            }
+        }
+        if (!temp_s.empty()) {
+            out << "OPTIONS:\r\n";
+            for (auto& cmd : temp_s) {
+                printShortOption(cmd.second);
             }
         }
         return out.str();

@@ -37,14 +37,14 @@ namespace Tiny {
     namespace OS {
 #if defined(_WIN32) || defined(_WIN64)
         constexpr const char* Name("windows");
-#elif defined(__linux__)
-        constexpr const char* Name("linux");
-#elif defined(__APPLE__)
-        constexpr const char* Name("apple");
-#elif defined(__FreeBSD__)
-        constexpr const char* Name("FreeBSD");
 #elif defined(__android__)
         constexpr const char* Name("android");
+#elif defined(__APPLE__)
+        constexpr const char* Name("apple");
+#elif defined(__linux__)
+        constexpr const char* Name("linux");
+#elif defined(__FreeBSD__)
+        constexpr const char* Name("FreeBSD");
 #elif defined(__unix__)
         constexpr const char* Name("unix");
 #else

@@ -717,6 +717,18 @@ namespace Tiny {
         }
     }
 
+    bool OS::File::operator<<(const std::string &data) {
+        return write(data);
+    }
+
+    bool OS::File::operator<<(const char *data) {
+        return write(data);
+    }
+
+    bool OS::File::operator<<(const FileData &data) {
+        return write(data);
+    }
+
     size_t OS::File::fileSize() const {
         return _file_size;
     }

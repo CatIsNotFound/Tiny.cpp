@@ -125,9 +125,10 @@ namespace Tiny {
 
         class Address {
         public:
-            Address() = default;
-            Address(const char* address, uint16_t port, bool use_ipv6 = false);
-            Address(const char* address, PortProtocol protocol_num, bool use_ipv6 = false);
+            explicit Address() = default;
+            explicit Address(bool make_addr, bool use_ipv6 = false);
+            explicit Address(const char* address, uint16_t port, bool use_ipv6 = false);
+            explicit Address(const char* address, PortProtocol protocol_num, bool use_ipv6 = false);
             ~Address();
 
             std::string toString(bool* ok = nullptr) const;
@@ -135,12 +136,15 @@ namespace Tiny {
             void *address() const;
             uint16_t port() const;
             bool isValid() const;
+            bool isSpecified() const;
             bool isIPv6() const;
 
             void setAddress(const char* address, uint16_t port, bool use_ipv6 = false);
             void setAddress(const char* address, PortProtocol port, bool use_ipv6 = false);
+            void setAddress(const Address& address);
             void setPort(uint16_t port);
             void setPort(PortProtocol protocol_num);
+            bool validate();
 
             static Address localHost();
             static Address localHostIPv6();
@@ -163,13 +167,15 @@ namespace Tiny {
             uint16_t _port{UINT16_MAX};
             bool _valid{};
             bool _use_ipv6{};
+            bool _is_specified{};
         };
 
         enum class SocketError : uint8_t {
             Success,
             /// Invalid IP address or protocol.
             InvalidParameter,
-            SetOptionError,
+            SocketOptionError,
+            SetOptionError = 2,
             /// The specified protocol is not supported, or the socket type does not match the protocol.
             ProtoNotSupported,
             SocketIsNotOpened,
@@ -224,10 +230,13 @@ namespace Tiny {
 
         enum class SocketState : uint8_t {
             Unused,
+            Closed,
+            Bound,
+            /// @warning This enum value is never used for parsing network address.
+            /// @deprecated It will be removed in next version.
             ParsingAddress,
             Connecting,
             Connected,
-            Bound,
             Listening,
             Closing,
             Shutdown
@@ -646,13 +655,13 @@ namespace Tiny {
             Socket& operator=(Socket&& other) noexcept;
             ~Socket();
 
-            void setLocalAddress(const char* address, uint16_t port, bool use_ipv6 = false);
-            void setLocalAddress(Address&& address);
-            void setLocalPort(uint16_t port);
-            void setPeerAddress(const char* address, uint16_t port, bool use_ipv6 = false);
-            void setPeerAddress(Address&& address);
-            void setPeerPort(uint16_t port);
-            void setSocketType(SocketType type);
+            bool setLocalAddress(const char *address, uint16_t port, bool use_ipv6 = false);
+            bool setLocalAddress(Address &&address);
+            bool setLocalPort(uint16_t port);
+            bool setPeerAddress(const char *address, uint16_t port, bool use_ipv6 = false);
+            bool setPeerAddress(Address &&address);
+            bool setPeerPort(uint16_t port);
+            bool setSocketType(SocketType type);
             void setCustomSocketType(uint8_t type, uint8_t proto_no);
 
             bool connect(const char* address, uint16_t port);
@@ -674,12 +683,14 @@ namespace Tiny {
 
             bool send(const std::string &message, int *sended_length = nullptr);
             bool send(const NetDatas &data, int *sended_length = nullptr);
-            bool recv(NetDatas& data, size_t max_length, int* received_length = nullptr);
-            bool recv(std::string& message, size_t max_length, int* received_length = nullptr);
+            bool recv(NetDatas& data, size_t max_len, int* recv_len = nullptr, Address *src_addr = nullptr, bool keep_addr = true);
+            bool recv(std::string &msg, size_t max_len, int *recv_len = nullptr, Address *src_addr = nullptr, bool keep_addr = true);
 
             bool sendTo(const std::string &message, const Address& address, int* sended_length = nullptr);
             bool sendTo(const NetDatas &message, const Address& address, int* sended_length = nullptr);
+            API_DEPRECATED("Please use `Tiny::Net::Socket::recv()` function instead, it will be removed in next version!")
             bool recvFrom(std::string& message, size_t max_length, const Address& address, int* received_length = nullptr);
+            API_DEPRECATED("Please use `Tiny::Net::Socket::recv()` function instead, it will be removed in next version!")
             bool recvFrom(NetDatas& data, size_t max_length, const Address& address, int* received_length = nullptr);
 
             void setOption(SocketOption option, OptionValue value, bool *ok = nullptr);
@@ -704,6 +715,8 @@ namespace Tiny {
             void copeFailed();
             void copeSuccess();
             bool setAllOptions();
+            void updateSocketState();
+            bool isConnectionOriented() const;
 
             std::unordered_map<uint32_t, OptionValue> _options{};
             Address _local_addr, _peer_addr{};
