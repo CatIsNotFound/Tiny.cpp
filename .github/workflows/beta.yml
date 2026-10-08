@@ -272,7 +272,7 @@ jobs:
           .\bootstrap-vcpkg.bat
           .\vcpkg integrate install
           .\vcpkg install gtest
-          [Environment]::SetEnvironmentVariable("VCPKG", "C:\mc-vcpkg" "User")
+          [Environment]::SetEnvironmentVariable("VCPKG", "C:\mc-vcpkg", "User")
 
       - name: Compiling project
         shell: pwsh

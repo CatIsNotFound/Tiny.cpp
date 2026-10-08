@@ -31,6 +31,15 @@
 #include <functional>
 #include <cstdint>
 
+#if defined(__clang__) || defined(__GNUC__)
+#   define API_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#elif defined(_MSC_VER)
+#   define API_DEPRECATED(msg) __declspec(deprecated(msg))
+#else
+#   define API_DEPRECATED(msg)
+#endif
+
+
 namespace Tiny {
     class CommandParser {
     public:
@@ -113,7 +122,9 @@ namespace Tiny {
         constIter cend() const;
         bool exist(const std::string& command_name) const;
         const Command& at(const std::string& command_name) const;
+        API_DEPRECATED("This function will not be available since next version, please don't use it!")
         Command& get(const std::string& command_name);
+        API_DEPRECATED("This function will not be available since next version, please don't use it!")
         Command& operator[](const std::string& command_name);
     private:
         ParseError parseUserCommand(int& err_pos, std::vector<std::string> &missing_command_list);
