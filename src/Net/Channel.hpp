@@ -26,15 +26,55 @@
 #ifndef TINY_CPP_NET_CHANNEL_HPP
 #define TINY_CPP_NET_CHANNEL_HPP
 #include "Socket.hpp"
+#include <array>
+#include <functional>
 
 namespace Tiny {
     namespace Net {
+        class EventLoop;
         class Channel {
+            friend class EventLoop;
+        public:
+            enum EventStatus : uint8_t {
+                E_None,
+                E_Read   = 1,
+                E_Write  = 2,
+                E_Error  = 4,
+                E_Closed = 8
+            };
+            explicit Channel(EventLoop& event_loop, Socket* socket);
+            ~Channel();
 
+            void setReadEvent(std::function<void()>&& event);
+            void setWriteEvent(std::function<void()>&& event);
+            void setErrorEvent(std::function<void()>&& event);
+            void setClosedEvent(std::function<void()>&& event);
+            void setEventByID(EventStatus id, std::function<void()>&& event);
+
+            void setReadEnabled(bool enable);
+            void setWriteEnabled(bool enable);
+            void disableAll();
+            void setReadyEventID(EventStatus id);
+
+            bool hasReadEvent() const;
+            bool hasWriteEvent() const;
+            bool hasErrorEvent() const;
+            bool hasClosedEvent() const;
+            EventStatus runningStatus() const;
+            EventStatus readyStatus() const;
+        private:
+            void update();
+            void handleEvents();
+
+            std::function<void()>    _r_ev, _w_ev, _e_ev, _c_ev;
+            EventLoop*   _event_loop;
+            Handle       _handle;
+            EventStatus  _ready_status{}, _running_status{};
         };
     }
 }
 
+#include "EventLoop.hpp"
 #endif //TINY_CPP_NET_CHANNEL_HPP
 
 /*************************************************************************************

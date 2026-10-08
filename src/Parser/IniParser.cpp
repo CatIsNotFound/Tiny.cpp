@@ -138,46 +138,46 @@ static void parseString(std::string& str) {
     }
 }
 
-Tiny::Parser::Parser() {
+Tiny::Ini::Parser::Parser() {
     _ini_map["ungrouped"] = {};
 }
 
-Tiny::Parser::Parser(const std::string &group_name) {
+Tiny::Ini::Parser::Parser(const std::string &group_name) {
     _ini_map[group_name] = {};
     _cur_group = group_name;
 }
 
-Tiny::Parser::~Parser() {}
+Tiny::Ini::Parser::~Parser() {}
 
-Tiny::ParserError Tiny::Parser::parse() {
+Tiny::Ini::ParseError Tiny::Ini::Parser::parse() {
     if (!_ini_map.empty()) _ini_map.clear();
-    if (_context.empty()) return ParserError::Success;
+    if (_context.empty()) return ParseError::Success;
     size_t pos = 0, st_pos = 0;
     do {
         pos = _context.find_first_of('\n', st_pos);
         auto sub_str = _context.substr(st_pos, pos - st_pos);
         auto err = parseContext(sub_str);
-        if (err != ParserError::Success) {
+        if (err != ParseError::Success) {
             _cur_group = "ungrouped";
             return err;
         }
         st_pos = pos + 1;
     } while (pos != std::string::npos && st_pos < _context.length());
     _cur_group = _ini_map.begin()->first;
-    return ParserError::Success;
+    return ParseError::Success;
 }
 
-Tiny::ParserError Tiny::Parser::parse(const char *context, size_t length) {
+Tiny::Ini::ParseError Tiny::Ini::Parser::parse(const char *context, size_t length) {
     _context.assign(context, length);
     return parse();
 }
 
-Tiny::ParserError Tiny::Parser::parse(const std::string &context) {
+Tiny::Ini::ParseError Tiny::Ini::Parser::parse(const std::string &context) {
     _context = context;
     return parse();
 }
 
-std::string Tiny::Parser::dump(bool include_empty_group) {
+std::string Tiny::Ini::Parser::dump(bool include_empty_group) {
     std::ostringstream oss;
     for (auto& i : _ini_map) {
         if (!include_empty_group && i.second.empty()) continue;
@@ -190,18 +190,18 @@ std::string Tiny::Parser::dump(bool include_empty_group) {
     return oss.str();
 }
 
-void Tiny::Parser::setGroup(const std::string &group) {
+void Tiny::Ini::Parser::setGroup(const std::string &group) {
     _cur_group = group.empty() ? "ungrouped" : group;
     if (_ini_map.find(group) == _ini_map.end()) {
         _ini_map[group] = {};
     }
 }
 
-const std::string & Tiny::Parser::currentGroupName() const {
+const std::string & Tiny::Ini::Parser::currentGroupName() const {
     return _cur_group;
 }
 
-void Tiny::Parser::removeGroup(const std::string &group) {
+void Tiny::Ini::Parser::removeGroup(const std::string &group) {
     if (_ini_map.find(group.empty() ? _cur_group : group) != _ini_map.end()) {
         _ini_map.erase(group.empty() ? _cur_group : group);
         if (_ini_map.empty()) {
@@ -213,7 +213,7 @@ void Tiny::Parser::removeGroup(const std::string &group) {
     }
 }
 
-void Tiny::Parser::setValue(const std::string &key, std::string &value) {
+void Tiny::Ini::Parser::setValue(const std::string &key, std::string &value) {
     auto& group = _ini_map[_cur_group];
 
     auto iter = findConf(key);
@@ -224,7 +224,7 @@ void Tiny::Parser::setValue(const std::string &key, std::string &value) {
     }
 }
 
-void Tiny::Parser::unsetValue(const std::string &key) {
+void Tiny::Ini::Parser::unsetValue(const std::string &key) {
     auto& group = _ini_map.at(_cur_group);
     auto iter = std::find_if(group.cbegin(), group.cend(), [&key](const Conf& v) {
         return key == v.first;
@@ -234,7 +234,7 @@ void Tiny::Parser::unsetValue(const std::string &key) {
     }
 }
 
-std::string Tiny::Parser::value(const std::string &key, bool parse_escaped_char, bool *ok) {
+std::string Tiny::Ini::Parser::value(const std::string &key, bool parse_escaped_char, bool *ok) {
     auto iter = findConf(key);
     if (iter) {
         auto value = iter->second;
@@ -248,17 +248,17 @@ std::string Tiny::Parser::value(const std::string &key, bool parse_escaped_char,
     return {};
 }
 
-void Tiny::Parser::clearKeys() {
+void Tiny::Ini::Parser::clearKeys() {
     _ini_map.at(_cur_group).clear();
 }
 
-void Tiny::Parser::clearKeys(const std::string &group) {
+void Tiny::Ini::Parser::clearKeys(const std::string &group) {
     if (_ini_map.find(group) != _ini_map.end()) {
         _ini_map.at(group).clear();
     }
 }
 
-bool Tiny::Parser::isKey(const std::string &key) const {
+bool Tiny::Ini::Parser::isKey(const std::string &key) const {
     auto& group = _ini_map.at(_cur_group);
     auto iter = std::find_if(group.cbegin(), group.cend(), [&key](const Conf& v) {
         return key == v.first;
@@ -266,7 +266,7 @@ bool Tiny::Parser::isKey(const std::string &key) const {
     return iter != group.cend();
 }
 
-std::vector<std::string> Tiny::Parser::keys() const {
+std::vector<std::string> Tiny::Ini::Parser::keys() const {
     std::vector<std::string> ret;
     for (auto& i : _ini_map.at(_cur_group)) {
         ret.push_back(i.first);
@@ -274,7 +274,7 @@ std::vector<std::string> Tiny::Parser::keys() const {
     return ret;
 }
 
-std::vector<std::string> Tiny::Parser::groups() const {
+std::vector<std::string> Tiny::Ini::Parser::groups() const {
     std::vector<std::string> ret;
     for (auto& i : _ini_map) {
         ret.push_back(i.first);
@@ -282,15 +282,15 @@ std::vector<std::string> Tiny::Parser::groups() const {
     return ret;
 }
 
-size_t Tiny::Parser::keysCount() const {
+size_t Tiny::Ini::Parser::keysCount() const {
     return _ini_map.at(_cur_group).size();
 }
 
-size_t Tiny::Parser::groupsCount() const {
+size_t Tiny::Ini::Parser::groupsCount() const {
     return _ini_map.size();
 }
 
-std::string & Tiny::Parser::operator[](const std::string &key) {
+std::string & Tiny::Ini::Parser::operator[](const std::string &key) {
     auto iter = findConf(key);
     if (!iter) {
         _ini_map[_cur_group].emplace_back(key, "");
@@ -299,26 +299,26 @@ std::string & Tiny::Parser::operator[](const std::string &key) {
     return iter->second;
 }
 
-Tiny::ParserError Tiny::Parser::parseContext(std::string& buf) {
+Tiny::Ini::ParseError Tiny::Ini::Parser::parseContext(std::string& buf) {
     strip(buf);
-    if (buf.empty()) return ParserError::Success;
+    if (buf.empty()) return ParseError::Success;
     // If the current context is comment, skip parsing.
-    if (buf[0] == ';' || buf[0] == '#') return ParserError::Success;
+    if (buf[0] == ';' || buf[0] == '#') return ParseError::Success;
 
     size_t key_pos = buf.find_first_of('=');
     bool group_on = (buf.front() == '[');
     bool key_on = (key_pos != std::string::npos);
     if (group_on && key_on) {
         size_t end_of_group_pos = buf.find_last_of(']');
-        if (end_of_group_pos < key_pos) return ParserError::InvalidFormat;
-        return ParserError::InvalidCharacter;
+        if (end_of_group_pos < key_pos) return ParseError::InvalidFormat;
+        return ParseError::InvalidCharacter;
     }
     if (group_on) {
         auto ed_pos = buf.find_last_of(']');
-        if (ed_pos == 0 || ed_pos == std::string::npos) return ParserError::InvalidFormat;
+        if (ed_pos == 0 || ed_pos == std::string::npos) return ParseError::InvalidFormat;
         auto temp = buf.substr(1, ed_pos - 1);
         if (is_include(temp)) {
-            return ParserError::InvalidCharacter;
+            return ParseError::InvalidCharacter;
         }
         _cur_group = temp;
         if (_ini_map.find(_cur_group) == _ini_map.end()) {
@@ -334,17 +334,17 @@ Tiny::ParserError Tiny::Parser::parseContext(std::string& buf) {
         auto key = buf.substr(0, key_pos);
         auto value = buf.substr(key_pos + 1, buf.size() - key_pos);
         strip(key);
-        if (key.empty()) return ParserError::InvalidFormat;
+        if (key.empty()) return ParseError::InvalidFormat;
         strip(value);
-        if (is_include(key) || is_include(value)) return ParserError::InvalidCharacter;
+        if (is_include(key) || is_include(value)) return ParseError::InvalidCharacter;
         _ini_map[_cur_group].emplace_back(key, value);
     } else {
-        return ParserError::InvalidFormat;
+        return ParseError::InvalidFormat;
     }
-    return ParserError::Success;
+    return ParseError::Success;
 }
 
-Tiny::Conf* Tiny::Parser::findConf(const std::string &key) {
+Tiny::Ini::Conf* Tiny::Ini::Parser::findConf(const std::string &key) {
     auto& group = _ini_map.at(_cur_group);
     size_t idx = 0;
     for (; idx < group.size(); ++idx) {

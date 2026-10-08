@@ -705,6 +705,7 @@ namespace Tiny {
 
             uint32_t    errorSocketOptionID() const;
             int         nativeErrorNo() const;
+            Handle      nativeHandle() const;
 
             Socket(const Socket&) = delete;
             Socket& operator=(const Socket&) = delete;

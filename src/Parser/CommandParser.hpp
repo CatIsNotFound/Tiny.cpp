@@ -118,6 +118,7 @@ namespace Tiny {
     private:
         ParseError parseUserCommand(int& err_pos, std::vector<std::string> &missing_command_list);
         bool checkAndRemoveRequiredCommand(std::vector<std::string>& required_cmd_list, const std::string& command_name);
+        std::string makeShortOptions(const std::string& short_options);
         std::unordered_map<std::string, Command> _commands;
         std::vector<Command> _exec_cmd_list;
         std::vector<std::string> _required_cmd_list;

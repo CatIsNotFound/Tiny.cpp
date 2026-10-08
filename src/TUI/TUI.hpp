@@ -172,6 +172,8 @@ namespace Tiny {
             }
         };
 
+        using StyleList = std::vector<Style>;
+
         struct Corner {
             Char left_top{"+"};
             Char left{"|"};
@@ -185,8 +187,6 @@ namespace Tiny {
 
         class Renderer {
         public:
-            using StyleList = std::vector<Style>;
-
             struct Cell {
                 Char data;
                 bool is_dirty;

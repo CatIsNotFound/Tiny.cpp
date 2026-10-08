@@ -2021,6 +2021,10 @@ ListenFailed:
         return _sys_errno;
     }
 
+    Net::Handle Net::Socket::nativeHandle() const {
+        return _handle;
+    }
+
     void Net::Socket::mapErrorNum(int error_code) {
         if (__SocketErrorsMap__.find(error_code) != __SocketErrorsMap__.end()) {
             _err = __SocketErrorsMap__.at(error_code);
@@ -2115,6 +2119,7 @@ ListenFailed:
             _handle = INVALID_SOCKET_VAL;
             return false;
         }
+        return true;
     }
 
     int Net::getLastSystemError(std::string *info) {

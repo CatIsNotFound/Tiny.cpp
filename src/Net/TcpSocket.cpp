@@ -63,7 +63,7 @@ namespace Tiny {
         return ok;
     }
 
-    bool Net::TcpClient::connect(uint32_t timeout_ms = 0) {
+    bool Net::TcpClient::connect(uint32_t timeout_ms) {
         return _tcp_socket.connect(timeout_ms);
     }
 

@@ -29,6 +29,21 @@
 #include <sstream>
 #include <iomanip>
 #include <map>
+#include <cctype>
+
+static std::string strip(const std::string &s) {
+    if (s.empty()) return {};
+    size_t st_pos{}, ed_pos{s.size()};
+    bool found_st{}, found_ed{};
+    for (size_t i = 0; i < s.size(); ++i) {
+        if (st_pos > ed_pos) break;
+        if (isspace(s[i])) st_pos = i; else found_st = true;
+        if (isspace(s[ed_pos - i - 1])) ed_pos = ed_pos - i - 1; else found_ed = true;
+        if (found_st && found_ed) break;
+    }
+    if (!found_st && !found_ed) return {};
+    return s.substr(st_pos + 1, s.size() - ed_pos);
+}
 
 namespace Tiny {
     CommandParser::CommandParser(int argc, char** argv) : _argc(argc), _argv(argv) {}
@@ -39,10 +54,10 @@ namespace Tiny {
         if (exist(command_name)) return false;
         Command command;
         command.option_name = command_name;
-        command.short_options = short_options;
+        command.short_options = makeShortOptions(short_options);
         command.description = description;
         command.has_value = has_value;
-        command.default_value = default_value;
+        command.default_value = strip(default_value);
         command.is_required = is_required;
         if (is_required) {
             _required_cmd_list.push_back(command_name);
@@ -64,7 +79,7 @@ namespace Tiny {
         command.option_name = command_name;
         command.description = description;
         command.has_value = has_value;
-        command.default_value = default_value;
+        command.default_value = strip(default_value);
         command.is_required = is_required;
         if (is_required) {
             _required_cmd_list.push_back(command_name);
@@ -83,10 +98,10 @@ namespace Tiny {
         if (exist(command_name)) return false;
         Command new_cmd;
         new_cmd.option_name = command_name;
-        new_cmd.short_options = short_options;
+        new_cmd.short_options = makeShortOptions(short_options);
         new_cmd.description = description;
         new_cmd.has_value = has_value;
-        new_cmd.default_value = default_value;
+        new_cmd.default_value = strip(default_value);
         new_cmd.is_last_command = true;
         _commands.emplace(command_name, new_cmd);
         return true;
@@ -100,7 +115,7 @@ namespace Tiny {
         new_cmd.description = description;
         new_cmd.full_option_only = true;
         new_cmd.has_value = has_value;
-        new_cmd.default_value = default_value;
+        new_cmd.default_value = strip(default_value);
         new_cmd.is_last_command = true;
         _commands.emplace(command_name, new_cmd);
         return true;
@@ -506,6 +521,24 @@ namespace Tiny {
             }
         }
         return false;
+    }
+
+    std::string CommandParser::makeShortOptions(const std::string &short_options) {
+        std::map<char, uint32_t> dict_count;
+        for (auto& ch : short_options) {
+            if (isalnum(ch) || ch == '?') {
+                if (dict_count.find(ch) != dict_count.end()) {
+                    dict_count[ch] += 1;
+                } else {
+                    dict_count[ch] = 1;
+                }
+            }
+        }
+        std::string ret;
+        for (auto& pair : dict_count) {
+            ret += pair.first;
+        }
+        return ret;
     }
 }
 

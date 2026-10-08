@@ -30,6 +30,14 @@
 #include <unordered_map>
 #include <vector>
 
+#if defined(__clang__) || defined(__GNUC__)
+#   define API_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#elif defined(_MSC_VER)
+#   define API_DEPRECATED(msg) __declspec(deprecated(msg))
+#else
+#   define API_DEPRECATED(msg)
+#endif
+
 namespace Tiny {
     /// @warning In next version, to use IniParser class, you have to use `Tiny::Ini::IniParser` instead.
     namespace Ini {
@@ -92,9 +100,11 @@ namespace Tiny {
     using IniMap = Ini::Map;
     /// @warning Please use `Tiny::Ini::ParseError` instead
     /// @deprecated It will be removed in next version.
+    API_DEPRECATED("Please use `Tiny::Ini::ParseError` instead! It will be removed in next major version.")
     typedef Ini::ParseError IniParserError;
     /// @warning Please use `Tiny::Ini::Parser` instead
     /// @deprecated It will be removed in next version.
+    API_DEPRECATED("Please use `Tiny::Ini::Parser` instead! It will be removed in next major version.")
     typedef Ini::Parser IniParser;
 }
 

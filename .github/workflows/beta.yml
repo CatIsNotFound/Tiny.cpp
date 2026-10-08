@@ -262,12 +262,27 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: ${{ matrix.cmake_arch }}
-          
+
+      - name: Setup vcpkg package
+        shell : pwsh
+        run: |
+          cd C:\
+          git clone https://github.com/microsoft/vcpkg mc-vcpkg
+          cd mc-vcpkg
+          .\bootstrap-vcpkg.bat
+          .\vcpkg integrate install
+          .\vcpkg install gtest
+          [Environment]::SetEnvironmentVariable("VCPKG", "C:\mc-vcpkg" "User")
+
       - name: Compiling project
         shell: pwsh
         run: |
+          echo "Using env: $env:VCPKG"
           New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\MyLibs"
-          cmake -B build -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp" -DCMAKE_BUILD_TYPE=Debug
+          cmake -B build -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp" `
+                         -DCMAKE_BUILD_TYPE=Debug `
+                         -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG/scripts/buildsystems/vcpkg.cmake" `
+                         -DTINY_GTEST_SRC=OFF
           if ($LASTEXITCODE -ne 0) {
               Write-Host "* Failed to configure project!"
               exit 1

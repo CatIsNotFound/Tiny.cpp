@@ -25,10 +25,29 @@
 
 #ifndef TINY_CPP_NET_EVENTLOOP_HPP
 #define TINY_CPP_NET_EVENTLOOP_HPP
+#include "Channel.hpp"
+#include <atomic>
+#include <thread>
 
 namespace Tiny {
     namespace Net {
         class EventLoop {
+            friend class Channel;
+        public:
+            explicit EventLoop();
+            ~EventLoop();
+            void loop();
+
+            bool isLooping() const;
+        private:
+            void addChannel(Channel& channel);
+            void removeChannel(Channel& channel);
+            int  poll(uint32_t timeout_ms = 100);
+            void wakeUp();
+            std::unordered_map<Handle, Channel*> _channel_map;
+            std::vector<Handle> _active_list;
+            std::thread::id _thread_id{};
+            std::atomic<bool> _loop{};
         };
     }
 }

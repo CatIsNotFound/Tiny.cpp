@@ -196,7 +196,7 @@ public:
         std::string data;
         while (true) {
             int recv_count = 0;
-            auto ok = _socket.recvFrom(data, 128, _socket.peerAddress(), &recv_count);
+            auto ok = _socket.recv(data, 128, &recv_count, nullptr, false);
             if (recv_count == 0) break;
             if (!ok) return false;
             size_t ihl{};

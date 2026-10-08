@@ -36,8 +36,8 @@ void drawInfo(TUI::Renderer& renderer) {
     renderer.drawBorder({0, 0}, {2, 60}, {}, {});
     renderer.setStrF({1, 4}, "{:>18c}Host Information", ' ');
 
-    TUI::Renderer::StyleList styles;
-    TUI::Renderer::Style style_1, style_2;
+    TUI::StyleList styles;
+    TUI::Style style_1, style_2;
     style_1.intensity = 2;
     style_1.fg_color = TUI::Color::Blue;
     style_2.intensity = 2;
@@ -59,8 +59,8 @@ void drawInfo(TUI::Renderer& renderer) {
 void updateInfo(TUI::Renderer& renderer, OS::CPU& cpu, OS::Memory& memory, OS::DiskSpace& disk_space) {
     // std::lock_guard<std::mutex> lock_guard(mutex);
     if (need_refresh.load()) {
-        TUI::Renderer::StyleList styles;
-        TUI::Renderer::Style style_1, style_2, style_def;
+        TUI::StyleList styles;
+        TUI::Style style_1, style_2, style_def;
         style_1.intensity = 2;
         style_1.fg_color = TUI::Color::Yellow;
         style_2.intensity = 2;
