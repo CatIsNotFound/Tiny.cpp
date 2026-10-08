@@ -1101,11 +1101,6 @@ namespace Tiny {
         ptr = nullptr;
     }
 
-    Net::Address::Address(bool make_addr, bool use_ipv6) {
-        if (!make_addr) return;
-        validate(use_ipv6 ? "::" : "0.0.0.0", 0, use_ipv6);
-    }
-
     Net::Address::Address(const char *address, uint16_t port, bool use_ipv6) {
         validate(address, port, use_ipv6);
     }
@@ -1230,6 +1225,10 @@ namespace Tiny {
 
     Net::Address Net::Address::localHostIPv6() {
         return Address("::1", 0, true);
+    }
+
+    Net::Address Net::Address::makeAddress(bool use_ipv6) {
+        return Address(use_ipv6 ? "::" : "0.0.0.0", 0, use_ipv6);
     }
 
     std::vector<Net::Address> Net::Address::parseFromHostname(const char *hostname, bool *ok, int *err_cnt) {
@@ -1513,22 +1512,22 @@ namespace Tiny {
         _proto_no = proto_no;
     }
 
-    bool Net::Socket::connect(const char *address, uint16_t port) {
+    bool Net::Socket::connect(const char *address, uint16_t port, uint32_t timeout_ms) {
         _peer_addr.setAddress(address, port);
-        return connect();
+        return connect(timeout_ms);
     }
 
-    bool Net::Socket::connect(const char *address, PortProtocol port) {
+    bool Net::Socket::connect(const char *address, PortProtocol port, uint32_t timeout_ms) {
         _peer_addr.setAddress(address, port);
-        return connect();
+        return connect(timeout_ms);
     }
 
-    bool Net::Socket::connect(Address &&address) {
+    bool Net::Socket::connect(Address &&address, uint32_t timeout_ms) {
         _peer_addr = std::move(address);
-        return connect();
+        return connect(timeout_ms);
     }
 
-    bool Net::Socket::connect() {
+    bool Net::Socket::connect(uint32_t timeout_ms) {
         if (!_peer_addr.isValid()) {
             _err = SocketError::InvalidParameter;
             _sys_errno = 0;
@@ -1550,43 +1549,21 @@ namespace Tiny {
         if (ret == SOCKET_ERROR) {
             copeFailed();
             if (_err == SocketError::ConnectionInProgress || _err == SocketError::ResourceUnavailable) {
-                _state = SocketState::Connecting;
-                fd_set e_sets, w_sets;
-                FD_ZERO(&e_sets);
-                FD_ZERO(&w_sets);
-                FD_SET(_handle, &e_sets);
-                FD_SET(_handle, &w_sets);
-                timeval timeout = {5, 0};
-#ifdef TINY_CPP_MY_OS_WINDOWS
-                int ncnt = 0;
-#else
-                int ncnt = static_cast<int>(_handle) + 1;
-#endif
-                auto err = select(ncnt, nullptr, &w_sets, &e_sets, &timeout);
-                if (err <= 0) {
-                    Socket_Impl::close(_handle);
-                    _state = SocketState::Closed;
-                    _handle = INVALID_SOCKET_VAL;
-                    if (err == 0) _err = SocketError::ConnectionTimeout;
+                if (timeout_ms == 0) {
+                    _state = SocketState::Connecting;
                     return false;
                 }
-                OptionValue val;
-                auto ok = Socket_Impl::getSocketLevelOption(_handle, static_cast<uint32_t>(SocketOption::NativeSocketError), val);
-                if (!ok || val.type != OptionValue::Int || val.var.i != 0) {
-                    _err = __SocketErrorsMap__.at(val.var.i);
-                    Socket_Impl::close(_handle);
-                    _state = SocketState::Closed;
-                    _handle = INVALID_SOCKET_VAL;
-                    return false;
+                const auto ID = static_cast<uint32_t>(SocketOption::NonBlocking);
+                if (_options.find(ID) != _options.end() && _options[ID].var.i) {
+                    return copeConnection(timeout_ms);
                 }
-            } else {
-                Socket_Impl::close(_handle);
-                _state = SocketState::Closed;
-                _handle = INVALID_SOCKET_VAL;
-                return false;
             }
+            Socket_Impl::close(_handle);
+            _state = SocketState::Closed;
+            _handle = INVALID_SOCKET_VAL;
+            return false;
         }
-        Address new_local_addr(true, _local_addr.isIPv6());
+        auto new_local_addr = Address::makeAddress(_local_addr.isIPv6());
         if (Socket_Impl::getsockname(_handle, new_local_addr) == 0) {
             new_local_addr.validate();
             _local_addr = std::move(new_local_addr);
@@ -1714,7 +1691,7 @@ ListenFailed:
         cli_socket._peer_addr = std::move(new_address);
         cli_socket._state = SocketState::Connected;
 
-        Address new_local_addr(true, _local_addr.isIPv6());
+        Address new_local_addr = Address::makeAddress(_local_addr.isIPv6());
         if (Socket_Impl::getsockname(handle, new_local_addr) == 0) {
             new_local_addr.validate();
             cli_socket._local_addr = std::move(new_local_addr);
@@ -1740,6 +1717,7 @@ ListenFailed:
     }
 
     bool Net::Socket::shutdown() {
+        if (_handle == INVALID_SOCKET_VAL) return true;
         _state = SocketState::Closing;
         bool ok = Socket_Impl::shutdown(_handle) == 0;
         if (ok) copeSuccess(); else copeFailed();
@@ -1785,7 +1763,7 @@ ListenFailed:
             _err = SocketError::SocketIsNotOpened;
             return false;
         }
-        Address new_address(true, _local_addr.isIPv6());
+        Address new_address = Address::makeAddress(_local_addr.isIPv6());
         int ok{};
         if (_type == SocketType::UDP) {
             if (max_len > 0) data.resize(max_len + 1);
@@ -1803,15 +1781,17 @@ ListenFailed:
             _state = SocketState::Closed;
             return false;
         }
-        if (_type == SocketType::UDP && keep_addr) {
+        if (_type == SocketType::UDP) {
             if (Socket_Impl::getsockname(_handle, new_address) == 0) {
                 new_address.validate();
-                _local_addr.setAddress(new_address);
             }
-            Address new_peer_addr(true, _peer_addr.isIPv6());
-            if (Socket_Impl::getpeername(_handle, new_peer_addr) == 0) {
-                new_peer_addr.validate();
-                _peer_addr = std::move(new_peer_addr);
+            if (!keep_addr) {
+                _local_addr.setAddress(new_address);
+                Address new_peer_addr = Address::makeAddress(_peer_addr.isIPv6());
+                if (Socket_Impl::getpeername(_handle, new_peer_addr) == 0) {
+                    new_peer_addr.validate();
+                    _peer_addr = std::move(new_peer_addr);
+                }
             }
         }
         if (src_addr) *src_addr = std::move(new_address);
@@ -1826,10 +1806,10 @@ ListenFailed:
             _err = SocketError::SocketIsNotOpened;
             return false;
         }
-        Address new_address(true, _local_addr.isIPv6());
+        Address new_address = Address::makeAddress(_local_addr.isIPv6());
         int ok{};
         if (_type == SocketType::UDP) {
-            if (max_len > 0) msg.resize(max_len + 1);
+            if (max_len > 0) msg.resize(max_len);
             ok = Socket_Impl::recvfrom(_handle, msg);
         } else {
             ok = Socket_Impl::recv(_handle, msg, max_len);
@@ -1844,15 +1824,17 @@ ListenFailed:
             _state = SocketState::Closed;
             return false;
         }
-        if (_type == SocketType::UDP && keep_addr) {
+        if (_type == SocketType::UDP) {
             if (Socket_Impl::getsockname(_handle, new_address) == 0) {
                 new_address.validate();
-                _local_addr.setAddress(new_address);
             }
-            Address new_peer_addr(true, _peer_addr.isIPv6());
-            if (Socket_Impl::getpeername(_handle, new_peer_addr) == 0) {
-                new_peer_addr.validate();
-                _peer_addr = std::move(new_peer_addr);
+            if (!keep_addr) {
+                _local_addr.setAddress(new_address);
+                Address new_peer_addr = Address::makeAddress(_peer_addr.isIPv6());
+                if (Socket_Impl::getpeername(_handle, new_peer_addr) == 0) {
+                    new_peer_addr.validate();
+                    _peer_addr = std::move(new_peer_addr);
+                }
             }
         }
         if (src_addr) *src_addr = std::move(new_address);
@@ -1997,6 +1979,13 @@ ListenFailed:
     }
 
     Net::OptionValue Net::Socket::option(uint32_t option_id, bool *ok) const {
+        if (_handle == INVALID_SOCKET_VAL) {
+            if (ok) *ok = true;
+            if (_options.find(option_id) != _options.end()) {
+                return _options.at(option_id);
+            }
+            return {};
+        }
         if (__SocketSettingsMap__.find(option_id) != __SocketSettingsMap__.end()) {
             auto& setting = __SocketSettingsMap__.at(option_id);
             OptionValue ret;
@@ -2043,7 +2032,7 @@ ListenFailed:
     void Net::Socket::copeFailed() {
         _sys_errno = getLastSystemError();
         mapErrorNum(_sys_errno);
-        if (_sys_errno == 0) _err = SocketError::SetOptionError;
+        if (_sys_errno == 0) _err = SocketError::UnknownError;
         updateSocketState();
     }
 
@@ -2092,6 +2081,39 @@ ListenFailed:
                 return true;
             default:
                 return false;
+        }
+    }
+
+    bool Net::Socket::copeConnection(uint32_t timeout_ms) {
+        fd_set e_sets, w_sets;
+        FD_ZERO(&e_sets);
+        FD_ZERO(&w_sets);
+        FD_SET(_handle, &e_sets);
+        FD_SET(_handle, &w_sets);
+        timeval timeout;
+        timeout.tv_sec = static_cast<long>(timeout_ms / 1000);
+        timeout.tv_usec = static_cast<long>(timeout_ms % 1000 * 1000);
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        int ncnt = 0;
+#else
+        int ncnt = static_cast<int>(_handle) + 1;
+#endif
+        auto err = select(ncnt, nullptr, &w_sets, &e_sets, &timeout);
+        if (err <= 0) {
+            Socket_Impl::close(_handle);
+            _state = SocketState::Closed;
+            _handle = INVALID_SOCKET_VAL;
+            if (err == 0) _err = SocketError::ConnectionTimeout;
+            return false;
+        }
+        OptionValue val;
+        auto ok = Socket_Impl::getSocketLevelOption(_handle, static_cast<uint32_t>(SocketOption::NativeSocketError), val);
+        if (!ok || val.type != OptionValue::Int || val.var.i != 0) {
+            _err = __SocketErrorsMap__.at(val.var.i);
+            Socket_Impl::close(_handle);
+            _state = SocketState::Closed;
+            _handle = INVALID_SOCKET_VAL;
+            return false;
         }
     }
 

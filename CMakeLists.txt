@@ -66,6 +66,10 @@ set(SOURCE_FILES
         src/Net/TcpSocket.hpp
         src/Net/UdpSocket.cpp
         src/Net/UdpSocket.hpp
+        src/Net/EventLoop.cpp
+        src/Net/EventLoop.hpp
+        src/Net/Channel.cpp
+        src/Net/Channel.hpp
 )
 
 if (WIN32)

@@ -43,7 +43,7 @@ namespace Tiny {
             bool setRemotePort(uint16_t port);
             bool setOption(SocketOption option, OptionValue value);
 
-            bool connect();
+            bool connect(uint32_t timeout_ms = 0);
             bool close();
             bool send(const std::string& message);
             bool receive(std::string& message, size_t max_size = 0, int* recv_length = nullptr);

@@ -3,6 +3,7 @@
 using namespace Tiny;
 
 int main() {
+    Tiny::IniParser ini_parser;
     auto start = DT::currentTimestamps();
     std::string s, o;
 #ifdef TINY_CPP_MY_OS_WINDOWS

@@ -185,8 +185,6 @@ namespace Tiny {
 
         class Renderer {
         public:
-            API_DEPRECATED("Please use 'TUI::Style' instead, it will be removed since ver.0.3.0!")
-            typedef TUI::Style Style;
             using StyleList = std::vector<Style>;
 
             struct Cell {
@@ -208,10 +206,6 @@ namespace Tiny {
                     is_dirty = false;
                 }
             };
-
-
-            API_DEPRECATED("Please use 'TUI::Corner' class directly! It will be removed since ver.0.3.0!")
-            typedef TUI::Corner Corner;
 
             static Renderer& self();
             virtual ~Renderer();
@@ -554,9 +548,6 @@ namespace Tiny {
             void setMouseTracingEnabled(bool enabled);
             /// p.s: Use `AbstractWidget::S_XXX` to specified status.
             void setStyle(uint8_t status, const Style& style);
-
-            API_DEPRECATED("The function will be removed since ver.0.3.0!")
-            void draw();
 
             [[nodiscard]] const Position& position() const;
             [[nodiscard]] const Size& size() const;

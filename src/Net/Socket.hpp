@@ -126,7 +126,6 @@ namespace Tiny {
         class Address {
         public:
             explicit Address() = default;
-            explicit Address(bool make_addr, bool use_ipv6 = false);
             explicit Address(const char* address, uint16_t port, bool use_ipv6 = false);
             explicit Address(const char* address, PortProtocol protocol_num, bool use_ipv6 = false);
             ~Address();
@@ -148,6 +147,7 @@ namespace Tiny {
 
             static Address localHost();
             static Address localHostIPv6();
+            static Address makeAddress(bool use_ipv6 = false);
             static std::vector<Address> parseFromHostname(const char *hostname, bool *ok = nullptr, int *err_cnt = nullptr);
             static Address parseFirstHostname(const char* hostname, bool *ok = nullptr);
 
@@ -175,7 +175,6 @@ namespace Tiny {
             /// Invalid IP address or protocol.
             InvalidParameter,
             SocketOptionError,
-            SetOptionError = 2,
             /// The specified protocol is not supported, or the socket type does not match the protocol.
             ProtoNotSupported,
             SocketIsNotOpened,
@@ -337,7 +336,7 @@ namespace Tiny {
             ///
             /// - ValueType:
             ///     - Windows: int (Stored as milliseconds)
-            ///     - Others: The pointer of `timeval`
+            ///     - Others: The pointer of `timeval` (from <unistd.h> header file)7 3
             ///
             /// - Supported: Set/Get
             ///
@@ -664,10 +663,10 @@ namespace Tiny {
             bool setSocketType(SocketType type);
             void setCustomSocketType(uint8_t type, uint8_t proto_no);
 
-            bool connect(const char* address, uint16_t port);
-            bool connect(const char* address, PortProtocol port);
-            bool connect(Address &&address);
-            bool connect();
+            bool connect(const char* address, uint16_t port, uint32_t timeout_ms = 0);
+            bool connect(const char* address, PortProtocol port, uint32_t timeout_ms = 0);
+            bool connect(Address &&address, uint32_t timeout_ms = 0);
+            bool connect(uint32_t timeout_ms = 0);
             bool bind(const char* address, uint16_t port);
             bool bind(const char* address, PortProtocol port);
             bool bind(Address &&address);
@@ -717,6 +716,7 @@ namespace Tiny {
             bool setAllOptions();
             void updateSocketState();
             bool isConnectionOriented() const;
+            bool copeConnection(uint32_t timeout_ms);
 
             std::unordered_map<uint32_t, OptionValue> _options{};
             Address _local_addr, _peer_addr{};

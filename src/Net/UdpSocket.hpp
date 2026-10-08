@@ -23,8 +23,8 @@
  *                                                                                   *
  *************************************************************************************/
 
-#ifndef TINY_UDPSOCKET_HPP
-#define TINY_UDPSOCKET_HPP
+#ifndef TINY_CPP_NET_UDP_SOCKET_HPP
+#define TINY_CPP_NET_UDP_SOCKET_HPP
 #include "Socket.hpp"
 
 namespace Tiny {
@@ -86,7 +86,7 @@ namespace Tiny {
 
 
 
-#endif //TINY_UDPSOCKET_HPP
+#endif //TINY_CPP_NET_UDP_SOCKET_HPP
 
 /*************************************************************************************
  * MIT License                                                                       *

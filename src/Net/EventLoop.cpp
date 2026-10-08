@@ -1,4 +1,4 @@
-/*************************************************************************************
+﻿/*************************************************************************************
  * MIT License                                                                       *
  *                                                                                   *
  * Copyright (c) 2026 CatIsNotFound                                                  *
@@ -23,22 +23,11 @@
  *                                                                                   *
  *************************************************************************************/
 
-#ifndef TINY_HPP
-#define TINY_HPP
+#include "EventLoop.hpp"
 
-#include "OS/File.hpp"
-#include "OS/System.hpp"
-#include "DateTime/DateTime.hpp"
-#include "Events/Events.hpp"
-#include "TUI/Terminal.hpp"
-#include "TUI/TUI.hpp"
-#include "Parser/CommandParser.hpp"
-#include "Parser/IniParser.hpp"
-#include "Net/Socket.hpp"
-#include "Net/Channel.hpp"
-#include "Net/EventLoop.hpp"
+namespace Tiny {
 
-#endif //TINY_HPP
+}
 
 /*************************************************************************************
  * MIT License                                                                       *

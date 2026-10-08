@@ -31,8 +31,7 @@ namespace Tiny {
         initConfig();
     }
 
-    Net::TcpClient::TcpClient(const char *remote_address, uint16_t remote_port, bool use_ipv6)
-            : _tcp_socket() {
+    Net::TcpClient::TcpClient(const char *remote_address, uint16_t remote_port, bool use_ipv6) {
         _tcp_socket.setPeerAddress(remote_address, remote_port, use_ipv6);
         initConfig();
     }
@@ -64,8 +63,8 @@ namespace Tiny {
         return ok;
     }
 
-    bool Net::TcpClient::connect() {
-        return _tcp_socket.connect();
+    bool Net::TcpClient::connect(uint32_t timeout_ms = 0) {
+        return _tcp_socket.connect(timeout_ms);
     }
 
     bool Net::TcpClient::close() {

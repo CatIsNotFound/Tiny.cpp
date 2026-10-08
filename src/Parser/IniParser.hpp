@@ -31,53 +31,71 @@
 #include <vector>
 
 namespace Tiny {
-    using IniConf = std::pair<std::string, std::string>;
-    using IniGroup = std::vector<IniConf>;
-    using IniMap  = std::unordered_map<std::string, IniGroup>;
+    /// @warning In next version, to use IniParser class, you have to use `Tiny::Ini::IniParser` instead.
+    namespace Ini {
+        using Conf = std::pair<std::string, std::string>;
+        using Group = std::vector<Conf>;
+        using Map  = std::unordered_map<std::string, Group>;
 
-    enum class IniParserError : uint8_t {
-        Success,
-        InvalidCharacter,
-        InvalidFormat
-    };
+        enum class ParseError : uint8_t {
+            Success,
+            InvalidCharacter,
+            InvalidFormat
+        };
 
-    class IniParser {
-    public:
-        IniParser();
-        IniParser(const std::string& group_name);
-        ~IniParser();
+        class Parser {
+        public:
+            Parser();
+            Parser(const std::string& group_name);
+            ~Parser();
 
-        IniParserError parse();
-        IniParserError parse(const char* context, size_t length);
-        IniParserError parse(const std::string& context);
-        std::string dump(bool include_empty_group = true);
+            ParseError parse();
+            ParseError parse(const char* context, size_t length);
+            ParseError parse(const std::string& context);
+            std::string dump(bool include_empty_group = true);
 
-        void setGroup(const std::string& group);
-        const std::string& currentGroupName() const;
-        void removeGroup(const std::string& group = {});
+            void setGroup(const std::string& group);
+            const std::string& currentGroupName() const;
+            void removeGroup(const std::string& group = {});
 
-        void setValue(const std::string &key, std::string &value);
-        void unsetValue(const std::string& key);
-        std::string value(const std::string& key, bool parse_escaped_char = true, bool *ok = nullptr);
-        void clearKeys();
-        void clearKeys(const std::string &group);
+            void setValue(const std::string &key, std::string &value);
+            void unsetValue(const std::string& key);
+            std::string value(const std::string& key, bool parse_escaped_char = true, bool *ok = nullptr);
+            void clearKeys();
+            void clearKeys(const std::string &group);
 
-        bool isKey(const std::string& key) const;
-        std::vector<std::string> keys() const;
-        std::vector<std::string> groups() const;
-        size_t keysCount() const;
-        size_t groupsCount() const;
+            bool isKey(const std::string& key) const;
+            std::vector<std::string> keys() const;
+            std::vector<std::string> groups() const;
+            size_t keysCount() const;
+            size_t groupsCount() const;
 
-        std::string& operator[](const std::string& key);
+            std::string& operator[](const std::string& key);
 
-    private:
-        IniParserError parseContext(std::string& buf);
-        IniConf* findConf(const std::string& key);
-        IniMap _ini_map;
-        std::string _context;
-        std::string _cur_group{"ungrouped"};
-    };
+        private:
+            ParseError parseContext(std::string& buf);
+            Conf* findConf(const std::string& key);
+            Map _ini_map;
+            std::string _context;
+            std::string _cur_group{"ungrouped"};
+        };
+    }
 
+    /// @warning Please use `Tiny::Ini::Conf` instead
+    /// @deprecated It will be removed in next version.
+    using IniConf = Ini::Conf;
+    /// @warning Please use `Tiny::Ini::Group` instead
+    /// @deprecated It will be removed in next version.
+    using IniGroup = Ini::Group;
+    /// @warning Please use `Tiny::Ini::Map` instead
+    /// @deprecated It will be removed in next version.
+    using IniMap = Ini::Map;
+    /// @warning Please use `Tiny::Ini::ParseError` instead
+    /// @deprecated It will be removed in next version.
+    typedef Ini::ParseError IniParserError;
+    /// @warning Please use `Tiny::Ini::Parser` instead
+    /// @deprecated It will be removed in next version.
+    typedef Ini::Parser IniParser;
 }
 
 

@@ -1106,10 +1106,6 @@ namespace Tiny {
         _styles[status] = style;
     }
 
-    void TUI::AbstractWidget::draw() {
-        callDrawEvent();
-    }
-
     const TUI::Position & TUI::AbstractWidget::position() const {
         return _pos;
     }
