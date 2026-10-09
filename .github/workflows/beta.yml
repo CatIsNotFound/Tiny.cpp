@@ -272,11 +272,13 @@ jobs:
           .\bootstrap-vcpkg.bat
           .\vcpkg integrate install
           .\vcpkg install gtest
+          $env:VCPKG="C:\mc-vcpkg"
           [Environment]::SetEnvironmentVariable("VCPKG", "C:\mc-vcpkg", "User")
 
       - name: Compiling project
         shell: pwsh
         run: |
+          $env:VCPKG="C:\mc-vcpkg"
           echo "Using env: $env:VCPKG"
           New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\MyLibs"
           cmake -B build -DCMAKE_INSTALL_PREFIX="$env:USERPROFILE\MyLibs\Tiny.cpp" `

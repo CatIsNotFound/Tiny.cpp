@@ -24,9 +24,68 @@
  *************************************************************************************/
 
 #include "EventLoop.hpp"
+#include <algorithm>
 
 namespace Tiny {
+    Net::EventLoop::EventLoop() = default;
 
+    Net::EventLoop::~EventLoop() {
+        if (isLooping()) {
+            /// TODO:
+
+        }
+        for (auto& ch_pair : _channel_map) {
+            auto& ch = ch_pair.second;
+            ch->_event_loop = nullptr;
+        }
+        _channel_map.clear();
+    }
+
+    void Net::EventLoop::setPollDelay(uint32_t ms) {
+        _poll_ms.store(ms);
+    }
+
+    void Net::EventLoop::loop() {
+        while (_loop.load()) {
+            poll(_poll_ms);
+        }
+    }
+
+    bool Net::EventLoop::isLooping() const {
+        return _loop.load();
+    }
+
+    uint32_t Net::EventLoop::pollDelay() const {
+        return _poll_ms.load();
+    }
+
+    void Net::EventLoop::addChannel(Channel &channel) {
+        _channel_map[channel._handle] = &channel;
+    }
+
+    void Net::EventLoop::removeChannel(Channel &channel) {
+        Handle found_handle = 0;
+        for (auto& ch_pair : _channel_map) {
+            if (ch_pair.second == &channel) {
+                found_handle = ch_pair.first;
+                break;
+            }
+        }
+        if (!found_handle) {
+            _channel_map.erase(found_handle);
+        }
+    }
+
+    int Net::EventLoop::poll(uint32_t timeout_ms) {
+        /// TODO:
+
+    }
+
+    void Net::EventLoop::wakeUp() {
+        /// TODO:
+
+
+    }
 }
 
 /*************************************************************************************

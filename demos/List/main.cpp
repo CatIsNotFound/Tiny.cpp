@@ -282,7 +282,7 @@ int main(int argc, char** argv) {
     cmd_parser.addCommand("humanity", "h", "Readability Enhancement.");
     cmd_parser.addCommand("inline", "1", "Only one item is displayed per row.");
     cmd_parser.addCommand("all", "a", "Shown all of the items. (Including hidden items.)");
-    cmd_parser.addCommand("path", "p", "List the specified <Path>", true, {"."}, true, true);
+    cmd_parser.addCommand("path", "p", "List the specified <Path>", true, {"."}, true, true, "Path");
 
     std::vector<std::string> missing;
     auto ok = cmd_parser.exec(nullptr, nullptr, &missing);

@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <sstream>
 #include <iomanip>
+#include <stack>
 #include <map>
 #include <cctype>
 
@@ -37,12 +38,12 @@ static std::string strip(const std::string &s) {
     bool found_st{}, found_ed{};
     for (size_t i = 0; i < s.size(); ++i) {
         if (st_pos > ed_pos) break;
-        if (isspace(s[i])) st_pos = i; else found_st = true;
-        if (isspace(s[ed_pos - i - 1])) ed_pos = ed_pos - i - 1; else found_ed = true;
+        if (!found_st && !isspace(s[i]))              { st_pos = i; found_st = true; }
+        if (!found_ed && !isspace(s[ed_pos - i - 1])) { ed_pos = ed_pos - i - 1; found_ed = true; }
         if (found_st && found_ed) break;
     }
     if (!found_st && !found_ed) return {};
-    return s.substr(st_pos + 1, s.size() - ed_pos);
+    return s.substr(st_pos, ed_pos - st_pos + 1);
 }
 
 namespace Tiny {
@@ -50,42 +51,46 @@ namespace Tiny {
 
     bool CommandParser::addCommand(const std::string &command_name, const std::string &short_options,
                                    const std::string &description, bool has_value, const std::string &default_value,
-                                   bool is_required, bool default_command) {
-        if (exist(command_name)) return false;
+                                   bool is_required, bool default_command, const std::string& placeholder) {
+        _last_cmd_name = makeOptionName(command_name);
+        if (_last_cmd_name.empty() || exist(_last_cmd_name)) return false;
         Command command;
-        command.option_name = command_name;
+        command.option_name = _last_cmd_name;
         command.short_options = makeShortOptions(short_options);
         command.description = description;
         command.has_value = has_value;
         command.default_value = strip(default_value);
         command.is_required = is_required;
+        command.value_placeholder = strip(placeholder);
         if (is_required) {
-            _required_cmd_list.push_back(command_name);
+            _required_cmd_list.push_back(_last_cmd_name);
             if (default_command && _default_cmd.empty()) {
                 command.is_default_command = default_command;
-                _default_cmd = command_name;
+                _default_cmd = _last_cmd_name;
             }
         }
 
-        _commands.emplace(command_name, command);
+        _commands.emplace(_last_cmd_name, command);
         return true;
     }
 
     bool CommandParser::addFullCommand(const std::string &command_name, const std::string &description,
                                        bool has_value, const std::string &default_value,
-                                       bool is_required, bool default_command) {
-        if (exist(command_name)) return false;
+                                       bool is_required, bool default_command, const std::string& placeholder) {
+        _last_cmd_name = makeOptionName(command_name);
+        if (_last_cmd_name.empty() || exist(_last_cmd_name)) return false;
         Command command;
-        command.option_name = command_name;
+        command.option_name = _last_cmd_name;
         command.description = description;
         command.has_value = has_value;
         command.default_value = strip(default_value);
         command.is_required = is_required;
+        command.value_placeholder = strip(placeholder);
         if (is_required) {
-            _required_cmd_list.push_back(command_name);
+            _required_cmd_list.push_back(_last_cmd_name);
             if (default_command && _default_cmd.empty()) {
                 command.is_default_command = default_command;
-                _default_cmd = command_name;
+                _default_cmd = _last_cmd_name;
             }
         }
         command.full_option_only = true;
@@ -94,30 +99,35 @@ namespace Tiny {
     }
 
     bool CommandParser::addLastCommand(const std::string &command_name, const std::string &short_options,
-            const std::string &description, bool has_value, const std::string &default_value) {
-        if (exist(command_name)) return false;
+                                       const std::string &description, bool has_value,
+                                       const std::string &default_value, const std::string& placeholder) {
+        _last_cmd_name = makeOptionName(command_name);
+        if (_last_cmd_name.empty() || exist(_last_cmd_name)) return false;
         Command new_cmd;
-        new_cmd.option_name = command_name;
+        new_cmd.option_name = _last_cmd_name;
         new_cmd.short_options = makeShortOptions(short_options);
         new_cmd.description = description;
         new_cmd.has_value = has_value;
         new_cmd.default_value = strip(default_value);
+        new_cmd.value_placeholder = strip(placeholder);
         new_cmd.is_last_command = true;
-        _commands.emplace(command_name, new_cmd);
+        _commands.emplace(_last_cmd_name, new_cmd);
         return true;
     }
 
     bool CommandParser::addFullLastCommand(const std::string &command_name, const std::string &description,
-            bool has_value, const std::string &default_value) {
-        if (exist(command_name)) return false;
+            bool has_value, const std::string &default_value, const std::string& placeholder) {
+        _last_cmd_name = makeOptionName(command_name);
+        if (_last_cmd_name.empty() || exist(_last_cmd_name)) return false;
         Command new_cmd;
-        new_cmd.option_name = command_name;
+        new_cmd.option_name = _last_cmd_name;
         new_cmd.description = description;
         new_cmd.full_option_only = true;
         new_cmd.has_value = has_value;
         new_cmd.default_value = strip(default_value);
+        new_cmd.value_placeholder = strip(placeholder);
         new_cmd.is_last_command = true;
-        _commands.emplace(command_name, new_cmd);
+        _commands.emplace(_last_cmd_name, new_cmd);
         return true;
     }
 
@@ -175,22 +185,24 @@ namespace Tiny {
         return _exec_cmd_list;
     }
 
-    std::string CommandParser::generateHelpInfo(uint8_t max_width, bool sort_option_name, bool show_options_only) const {
+    std::string CommandParser::generateHelpInfo(uint32_t max_width, bool sort_option_name, bool show_options_only) const {
         std::ostringstream out;
         if (!show_options_only) {
             out << "USAGE: " << _argv[0] << " ";
             if (!_default_cmd.empty()) {
-                out << "<" << _default_cmd << "> ...\r\n";
+                out << "<" << _commands.at(_default_cmd).value_placeholder << "> ...\r\n";
             } else {
                 out << "...\r\n";
             }
         }
 
-        uint32_t long_cmd_length{}, short_cmd_length{};
-        auto printShortOption = [&long_cmd_length, &short_cmd_length, &out, &max_width] (const Command& cmd) {
+        uint32_t long_cmd_length{}, short_cmd_length{}, val_place_holder_length{}, describe_length{};
+        auto printShortOption = [&long_cmd_length, &short_cmd_length, &val_place_holder_length,
+                                 &out, &describe_length, &max_width] (const Command& cmd) {
             const char* TABS = "    ";
+            static std::string placeholder = "VALUE";
             std::ostringstream s_oss;
-            out << TABS << std::right << std::setw(static_cast<int>(long_cmd_length)) << "--" + cmd.option_name;
+            out << TABS << std::left << std::setw(static_cast<int>(long_cmd_length)) << "--" + cmd.option_name;
             if (cmd.short_options.empty()) {
                 out << "  " << std::setw(static_cast<int>(short_cmd_length)) << ' ';
             } else {
@@ -201,47 +213,71 @@ namespace Tiny {
                 }
                 out << std::setw(static_cast<int>(short_cmd_length)) << std::left << s_oss.str();
             }
-            int32_t des_len = static_cast<int>(max_width) - static_cast<int>(long_cmd_length) -
-                              static_cast<int>(short_cmd_length) - 10;
-            int32_t st = 0;
+            if (cmd.has_value) {
+                std::string v_temp;
+                if (cmd.is_required) {
+                    v_temp = "<" + cmd.value_placeholder + ">";
+                } else {
+                    v_temp = "[" + cmd.value_placeholder + "]";
+                }
+                out << std::setw(static_cast<int>(val_place_holder_length)) << v_temp;
+            } else {
+                out << std::setw(static_cast<int>(val_place_holder_length)) << ' ';
+            }
+            // int32_t des_len = static_cast<int>(max_width) - static_cast<int>(long_cmd_length) -
+            //                   static_cast<int>(short_cmd_length) - 10;
+            uint32_t st = 0;
             bool space{};
-            out << TABS;
+            out << "  ";
             do {
                 if (space) {
-                    out << std::setw(static_cast<int>(long_cmd_length + short_cmd_length) + 10) << ' ';
+                    out << std::setw(static_cast<int>(max_width - describe_length)) << ' ';
                 }
-                out << cmd.description.substr(st, des_len) << "\r\n";
-                st += des_len;
+                out << cmd.description.substr(st, describe_length) << "\r\n";
+                st += describe_length;
                 space = true;
             } while (st < cmd.description.length());
         };
-        auto printFullOption = [&long_cmd_length, &short_cmd_length, &out, &max_width] (const Command& cmd) {
+        auto printFullOption = [&long_cmd_length, &short_cmd_length, &out,
+                                &max_width, &val_place_holder_length, &describe_length] (const Command& cmd) {
             const char* TABS = "    ";
             std::ostringstream s_oss;
             out << TABS << std::right << std::setw(static_cast<int>(long_cmd_length)) << cmd.option_name;
-            out << "  " << std::setw(static_cast<int>(short_cmd_length)) << ' ';
-            int32_t des_len = static_cast<int>(max_width) - static_cast<int>(long_cmd_length) -
-                              static_cast<int>(short_cmd_length) - 10;
-            int32_t st = 0;
+            if (cmd.has_value) {
+                if (cmd.is_required) {
+                    auto temp = ("  <") + cmd.value_placeholder + ">    ";
+                    out << temp;
+                } else {
+                    auto temp = ("  [") + cmd.value_placeholder + "]    ";
+                    out << temp;
+                }
+            } else {
+                out << "  " << std::setw(static_cast<int>(short_cmd_length + val_place_holder_length - 2)) << ' ';
+            }
+            uint32_t st = 0;
             bool space{};
             out << TABS;
             do {
                 if (space) {
-                    out << std::setw(static_cast<int>(long_cmd_length + short_cmd_length) + 10) << ' ';
+                    out << std::setw(static_cast<int>(max_width - describe_length)) << ' ';
                 }
-                out << cmd.description.substr(st, des_len) << "\r\n";
-                st += des_len;
+                out << cmd.description.substr(st, describe_length) << "\r\n";
+                st += describe_length;
                 space = true;
             } while (st < cmd.description.length());
         };
         for (auto& iter : _commands) {
             auto& cmd = iter.second;
-            if (cmd.option_name.length() >= long_cmd_length) long_cmd_length = cmd.option_name.length() + 3;
+            if (cmd.option_name.length() >= long_cmd_length) long_cmd_length = cmd.option_name.length() + 2;
             auto len = cmd.short_options.length() * 2;
-            if (!cmd.short_options.empty()) len += cmd.short_options.length() - 1;
+            if (!cmd.short_options.empty()) len += (cmd.short_options.length() - 1) + 1;
+            if (cmd.has_value && cmd.value_placeholder.size() >= val_place_holder_length)
+                val_place_holder_length = cmd.value_placeholder.length();
             if (len >= short_cmd_length)
                 short_cmd_length = len;
         }
+        val_place_holder_length += 2;
+        describe_length = max_width - long_cmd_length - short_cmd_length - val_place_holder_length - 8;
         std::vector<std::pair<std::string, Command>> temp_s, temp_f;
         for (auto& iter : _commands) {
             if (!iter.second.full_option_only) temp_s.emplace(temp_s.begin(), iter);
@@ -272,6 +308,21 @@ namespace Tiny {
         return out.str();
     }
 
+    bool CommandParser::renameCommand(const std::string &command_name, const std::string &new_name) {
+        if (_commands.find(command_name) != _commands.end() && _commands.find(new_name) == _commands.end()) {
+            auto temp = makeOptionName(new_name);
+            if (temp.empty()) return false;
+            _last_cmd_name = temp;
+            _commands[_last_cmd_name] = _commands[command_name];
+            _commands.erase(command_name);
+            return true;
+        }
+        return false;
+    }
+
+    const std::string & CommandParser::lastCommandName() const {
+        return _last_cmd_name;
+    }
 
     size_t CommandParser::size() const {
         return _commands.size();
@@ -537,6 +588,26 @@ namespace Tiny {
         std::string ret;
         for (auto& pair : dict_count) {
             ret += pair.first;
+        }
+        return ret;
+    }
+
+    std::string CommandParser::makeOptionName(const std::string &short_options) {
+        auto ret = strip(short_options);
+        std::stack<int64_t> rm_pos;
+        size_t p = ret.find_first_not_of('-');
+        if (p > 0 && p < ret.size()) {
+            ret.erase(ret.begin(), ret.begin() + p);
+        }
+
+        for (int64_t i = 0; i < ret.size(); ++i) {
+            if (isspace(ret[i])) {
+                rm_pos.push(i);
+            }
+        }
+        while (!rm_pos.empty()) {
+            ret.erase(ret.begin() + rm_pos.top());
+            rm_pos.pop();
         }
         return ret;
     }

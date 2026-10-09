@@ -36,9 +36,11 @@ namespace Tiny {
         public:
             explicit EventLoop();
             ~EventLoop();
+            void setPollDelay(uint32_t ms);
             void loop();
 
             bool isLooping() const;
+            uint32_t pollDelay() const;
         private:
             void addChannel(Channel& channel);
             void removeChannel(Channel& channel);
@@ -47,7 +49,8 @@ namespace Tiny {
             std::unordered_map<Handle, Channel*> _channel_map;
             std::vector<Handle> _active_list;
             std::thread::id _thread_id{};
-            std::atomic<bool> _loop{};
+            std::atomic<bool> _loop{}, _exit_sig{};
+            std::atomic<uint32_t> _poll_ms{100};
         };
     }
 }

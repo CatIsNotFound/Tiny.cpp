@@ -84,7 +84,7 @@ int calcSizeOfPath(const std::string& path, bool humanity, bool shown_all) {
 
 int main(int argc, char* argv[]) {
     CommandParser parser(argc, argv);
-    parser.addCommand("file", "f", "Specify a file or directory", true, {}, true, true);
+    parser.addCommand("file", "f", "Specify a file or directory", true, {}, true, true, "path");
     parser.addCommand("humanity", "h", "Readability Enhancement.");
     parser.addCommand("all", "a", "When specifying a directory, output all files and directories in the directory together.");
     parser.addLastCommand("help", "?", "Display this help.");

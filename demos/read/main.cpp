@@ -118,12 +118,12 @@ int readFile(const std::string& file_name, uint64_t offset, uint64_t count, uint
 
 int main(int argc, char *argv[]) {
     CommandParser parser(argc, argv);
-    parser.addCommand("file", "f", "Specified the file path to read.", true, {}, true, true);
+    parser.addCommand("file", "f", "Specified the file path to read.", true, {}, true, true, "PATH");
     parser.addCommand("line", "n", "Show line number while reading file.");
-    parser.addCommand("offset", "so", "Output content after skipping `n` lines.", true, "0");
-    parser.addCommand("limit", "lc", "The total number of lines to read.", true, "0");
-    parser.addCommand("offset-bytes", "SO", "Output content after skipping `n` byte(s).", true, "0");
-    parser.addCommand("limit-bytes", "LC", "The total number of bytes to read.", true, "0");
+    parser.addCommand("offset", "so", "Output content after skipping `n` lines.", true, "0", false, false, "n");
+    parser.addCommand("limit", "lc", "The total number of lines to read.", true, "0", false, false, "n");
+    parser.addCommand("offset-bytes", "SO", "Output content after skipping `n` byte(s).", true, "0", false, false, "n");
+    parser.addCommand("limit-bytes", "LC", "The total number of bytes to read.", true, "0", false, false, "n");
     parser.addCommand("no-empty-line", "N", "No Output empty line when output content.");
     parser.addLastCommand("help", "h?", "Display this help information.");
     parser.addLastCommand("version", "v", "Display version information.");

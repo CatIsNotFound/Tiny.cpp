@@ -237,13 +237,13 @@ int server_mode(uint8_t type, uint16_t port) {
 
 int main(int argc, char **argv) {
     CommandParser cmd_parser(argc, argv);
-    cmd_parser.addCommand("port", "p", "Specified the port number.", true, "0", true);
+    cmd_parser.addCommand("port", "p", "Specified the port number.", true, "0", true, false, "port");
     cmd_parser.addCommand("udp", "u", "Used as UDP.");
     cmd_parser.addCommand("tcp", "t", "Used as TCP.");
     cmd_parser.addFullCommand("listen", "Listening current local host as server.");
-    cmd_parser.addFullCommand("connect", "Connect to a remote host.", true, "127.0.0.1");
+    cmd_parser.addFullCommand("connect", "Connect to a remote host.", true, "127.0.0.1", true, false, "host");
     cmd_parser.addLastCommand("help", "h?", "Display the help information.");
-    cmd_parser.addLastCommand("version", "v", "Display the version information.");
+    cmd_parser.addLastCommand("version", "", "Display the version information.");
 
     int n;
     std::vector<std::string> missing;

@@ -55,6 +55,7 @@ namespace Tiny {
             bool is_last_command{false};
             std::string value{};
             std::string default_value{};
+            std::string value_placeholder{"VAL"};
 
             Command() = default;
             Command(const Command& other) = default;
@@ -99,22 +100,27 @@ namespace Tiny {
         ~CommandParser() = default;
         bool addCommand(const std::string& command_name, const std::string& short_options, const std::string& description = {},
                  bool has_value = false, const std::string& default_value = {},
-                 bool is_required = false, bool default_command = false);
+                 bool is_required = false, bool default_command = false, const std::string& placeholder = "VAL");
         bool addFullCommand(const std::string& command_name, const std::string& description, 
                  bool has_value = false, const std::string& default_value = {},
-                 bool is_required = false, bool default_command = false);
+                 bool is_required = false, bool default_command = false, const std::string& placeholder = "VAL");
         bool addLastCommand(const std::string& command_name, const std::string& short_options, const std::string& description = {},
-                 bool has_value = false, const std::string& default_value = {});
+                 bool has_value = false, const std::string& default_value = {},
+                 const std::string& placeholder = "VAL");
         bool addFullLastCommand(const std::string& command_name, const std::string& description = {},
-                 bool has_value = false, const std::string& default_value = {});
+                 bool has_value = false, const std::string& default_value = {},
+                 const std::string& placeholder = "VAL");
         bool remove(const std::string& command_name);
         void clear();
         ParseError exec(int* parsed_command_count = nullptr,
                         int* err_arg_n = nullptr,
                         std::vector<std::string>* missing_command_list = nullptr);
         const std::vector<Command>& execCommandList() const;
-        std::string generateHelpInfo(uint8_t max_width = 64, bool sort_option_name = false, bool show_options_only = false) const;
+        std::string generateHelpInfo(uint32_t max_width = 64, bool sort_option_name = false,
+                                     bool show_options_only = false) const;
 
+        bool renameCommand(const std::string &command_name, const std::string &new_name);
+        const std::string& lastCommandName() const;
         size_t size() const;
         iter begin();
         iter end();
@@ -130,10 +136,11 @@ namespace Tiny {
         ParseError parseUserCommand(int& err_pos, std::vector<std::string> &missing_command_list);
         bool checkAndRemoveRequiredCommand(std::vector<std::string>& required_cmd_list, const std::string& command_name);
         std::string makeShortOptions(const std::string& short_options);
+        std::string makeOptionName(const std::string& short_options);
         std::unordered_map<std::string, Command> _commands;
         std::vector<Command> _exec_cmd_list;
         std::vector<std::string> _required_cmd_list;
-        std::string _default_cmd;
+        std::string _default_cmd, _last_cmd_name{};
         char** _argv;
         int _argc;
     };

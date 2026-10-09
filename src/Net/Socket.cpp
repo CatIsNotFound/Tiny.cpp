@@ -769,11 +769,17 @@ namespace Tiny {
 
         int recv(Net::Handle socket, Net::NetDatas& datas, size_t max_len) {
             if (max_len > 0) datas.resize(max_len);
+            Net::NetDatas temp(max_len > 0 ? max_len : datas.size(), '\0');
 #ifdef TINY_CPP_MY_OS_WINDOWS
-            return ::recv(socket, &datas[0], datas.size(), 0);
+            int ret = ::recv(socket, &temp[0], temp.size(), 0);
 #else
-            return ::recv(socket, &datas[0], datas.size(), MSG_NOSIGNAL);
+            int ret = ::recv(socket, &temp[0], temp.size(), MSG_NOSIGNAL);
 #endif
+            if (ret > 0) {
+                datas.resize(ret);
+                datas.assign(&temp[0], &temp[ret]);
+            }
+            return ret;
         }
 
         int recv(Net::Handle socket, std::string& datas, size_t max_len) {
@@ -790,26 +796,46 @@ namespace Tiny {
             return ret;
         }
 
-        int recvfrom(Net::Handle socket, Net::NetDatas& datas, Net::Address* src = nullptr, int flag = 0) {
+        int recvfrom(Net::Handle socket, Net::NetDatas& datas, size_t max_len, Net::Address* src = nullptr, int flag = 0) {
+            Net::NetDatas temp(max_len > 0 ? max_len : datas.size(), '\0');
             if (src) {
                 SOCK_LEN_T sz = src->isIPv6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
-                int ret = ::recvfrom(socket, &datas[0], datas.size(), flag,
+                int ret = ::recvfrom(socket, &temp[0], temp.size(), flag,
                                 static_cast<sockaddr*>(src->address()), &sz);
                 src->validate();
+                if (ret > 0) {
+                    datas.resize(ret);
+                    datas.assign(&temp[0], &temp[ret]);
+                }
                 return ret;
             }
-            return ::recvfrom(socket, &datas[0], datas.size(), flag, nullptr, nullptr);
+            int ret = ::recvfrom(socket, &temp[0], temp.size(), flag, nullptr, nullptr);
+            if (ret > 0) {
+                datas.resize(ret);
+                datas.assign(&temp[0], &temp[ret]);
+            }
+            return ret;
         }
 
-        int recvfrom(Net::Handle socket, std::string& datas, Net::Address* src = nullptr, int flag = 0) {
+        int recvfrom(Net::Handle socket, std::string& datas, size_t max_len, Net::Address* src = nullptr, int flag = 0) {
+            std::string temp(max_len > 0 ? max_len : datas.size(), '\0');
             if (src) {
                 SOCK_LEN_T sz = src->isIPv6() ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
-                int ret = ::recvfrom(socket, &datas[0], datas.size(), flag,
+                int ret = ::recvfrom(socket, &temp[0], temp.size(), flag,
                                 static_cast<sockaddr*>(src->address()), &sz);
                 src->validate();
+                if (ret > 0) {
+                    datas.resize(ret);
+                    datas.assign(&temp[0], &temp[ret]);
+                }
                 return ret;
             }
-            return ::recvfrom(socket, &datas[0], datas.size(), flag, nullptr, nullptr);
+            int ret = ::recvfrom(socket, &temp[0], temp.size(), flag, nullptr, nullptr);
+            if (ret > 0) {
+                datas.resize(ret);
+                datas.assign(&temp[0], &temp[ret]);
+            }
+            return ret;
         }
 
         int getsockname(Net::Handle socket, Net::Address &addr) {
@@ -1390,8 +1416,8 @@ namespace Tiny {
     }
 
     Net::Socket::Socket(SocketType type, uint8_t msg_type, uint8_t proto_no)
-        : _local_addr("0.0.0.0", 0), _peer_addr("0.0.0.0", 0), _handle(INVALID_SOCKET_VAL), _type(type),
-          _err(), _state(), _msg_type(msg_type), _proto_no(proto_no) {}
+        : _local_addr(Address::makeAddress()), _peer_addr(Address::makeAddress()),
+          _handle(INVALID_SOCKET_VAL), _type(type), _err(), _state(), _msg_type(msg_type), _proto_no(proto_no) {}
 
     Net::Socket::Socket(Socket &&other) noexcept {
         _handle = other._handle;
@@ -1766,8 +1792,7 @@ ListenFailed:
         Address new_address = Address::makeAddress(_local_addr.isIPv6());
         int ok{};
         if (_type == SocketType::UDP) {
-            if (max_len > 0) data.resize(max_len + 1);
-            ok = Socket_Impl::recvfrom(_handle, data);
+            ok = Socket_Impl::recvfrom(_handle, data, max_len);
         } else {
             ok = Socket_Impl::recv(_handle, data, max_len);
         }
@@ -1809,8 +1834,7 @@ ListenFailed:
         Address new_address = Address::makeAddress(_local_addr.isIPv6());
         int ok{};
         if (_type == SocketType::UDP) {
-            if (max_len > 0) msg.resize(max_len);
-            ok = Socket_Impl::recvfrom(_handle, msg);
+            ok = Socket_Impl::recvfrom(_handle, msg, max_len);
         } else {
             ok = Socket_Impl::recv(_handle, msg, max_len);
         }
@@ -1901,7 +1925,7 @@ ListenFailed:
             }
         }
         if (max_length > 0) message.resize(max_length);
-        auto len = Socket_Impl::recvfrom(_handle, message);
+        auto len = Socket_Impl::recvfrom(_handle, message, 0);
         if (len < 0) {
             copeFailed();
             return false;
@@ -1928,7 +1952,7 @@ ListenFailed:
             }
         }
         if (max_length > 0) data.resize(max_length);
-        auto len = Socket_Impl::recvfrom(_handle, data);
+        auto len = Socket_Impl::recvfrom(_handle, data, 0);
         if (len < 0) {
             copeFailed();
             return false;
