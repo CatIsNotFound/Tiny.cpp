@@ -30,7 +30,6 @@ using namespace Tiny;
 int main(int argc, char *argv[]) {
     auto st = DT::currentTimestamps();
     TUI::Terminal::printLine("Running process...");
-    TUI::Terminal::printFormat("PID {} is detached.\r\n", pid);
     OS::SubProcess sub_process(false, false);
 #ifdef TINY_CPP_MY_OS_WINDOWS
     sub_process.exec(".\\assets\\keep_cmd.bat");
