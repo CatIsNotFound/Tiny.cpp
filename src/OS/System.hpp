@@ -159,8 +159,8 @@ namespace Tiny {
             static bool mkDir(const std::string& path);
             static bool mkFile(const Path& path, const std::vector<uint8_t>& data = {});
             static bool mkFile(const std::string& path, const std::vector<uint8_t>& data = {});
-            static bool mkFile(const Path& path, const std::string& data = {});
-            static bool mkFile(const std::string& path, const std::string& data = {});
+            static bool mkFile(const Path& path, const std::string& data);
+            static bool mkFile(const std::string& path, const std::string& data);
             static bool mkLink(const std::string& path, const std::string& link_dest);
             static bool mkLink(const std::string& path, const Path& link_dest);
             static bool cpFile(const Path& src, const Path& dest);
