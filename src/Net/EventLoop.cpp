@@ -79,11 +79,12 @@ namespace Tiny {
     int Net::EventLoop::poll(uint32_t timeout_ms) {
         /// TODO:
 
+
+        return 0;
     }
 
     void Net::EventLoop::wakeUp() {
         /// TODO:
-
 
     }
 }

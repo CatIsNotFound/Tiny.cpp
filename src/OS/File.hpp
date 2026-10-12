@@ -261,9 +261,14 @@ namespace Tiny {
             void moveToEnd();
             void moveTo(int64_t pos);
 
-            bool operator<<(const std::string& data);
-            bool operator<<(const char* data);
-            bool operator<<(const FileData& data);
+            File& operator<<(const std::string& data);
+            File& operator<<(const char* data);
+            File& operator<<(const FileData& data);
+            File& operator>(std::string& data);
+            File& operator>(char& data);
+            File& operator>(uint8_t& data);
+            File& operator>>(std::string& data);
+            File& operator>>(FileData& data);
 
             size_t fileSize() const;
             std::string path() const;

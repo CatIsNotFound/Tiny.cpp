@@ -29,6 +29,7 @@
 #include <vector>
 #include <functional>
 #include <unordered_map>
+#include <memory>
 
 #include "File.hpp"
 
@@ -116,7 +117,39 @@ namespace Tiny {
         void lastSystemError(std::string& info, int* err_code = nullptr);
         bool isAdmin();
 
-        int exec(const std::string& command, size_t timeout_ms = 0, std::string* output = nullptr, std::string* error = nullptr);
+        class SubProcess {
+        public:
+            explicit SubProcess(bool catch_mode = true, bool use_pipe2 = true);
+            explicit SubProcess(const std::string& execute_path, bool catch_mode = true, bool use_pipe2 = true);
+            ~SubProcess();
+
+            bool run(const std::string &programme);
+            bool exec(const std::string& command);
+
+            int wait();
+            int stop(size_t timeout_ms = 5000);
+            void terminate();
+            void kill();
+
+            size_t pid() const;
+            bool   running() const;
+            int    exitCode() const;
+            std::string catchOutput(int64_t timeout_ms = 0, bool* ok = nullptr) const;
+            std::string catchError(int64_t timeout_ms = 0, bool* ok = nullptr) const;
+            bool catchAll(std::string& output, std::string& error, int64_t timeout_ms = 0) const;
+            std::string lastOutput(bool *ok = nullptr) const;
+            std::string lastError(bool *ok = nullptr) const;
+            std::string output(bool *ok = nullptr) const;
+            std::string errorOutput(bool *ok = nullptr) const;
+        private:
+            class __SUBPROCESS_PIMPL__;
+            std::unique_ptr<__SUBPROCESS_PIMPL__> _pimpl;
+        };
+
+        int  exec(const std::string& command, size_t timeout_ms = 0,
+                  std::string* output = nullptr, std::string* error = nullptr);
+        bool detach(const std::string &programme, size_t* pid = nullptr);
+        bool kill(size_t pid, bool force = false);
 
         class FileSystem {
         public:
@@ -126,8 +159,8 @@ namespace Tiny {
             static bool mkDir(const std::string& path);
             static bool mkFile(const Path& path, const std::vector<uint8_t>& data = {});
             static bool mkFile(const std::string& path, const std::vector<uint8_t>& data = {});
-            static bool mkFile(const Path& path, const std::string& data);
-            static bool mkFile(const std::string& path, const std::string& data);
+            static bool mkFile(const Path& path, const std::string& data = {});
+            static bool mkFile(const std::string& path, const std::string& data = {});
             static bool mkLink(const std::string& path, const std::string& link_dest);
             static bool mkLink(const std::string& path, const Path& link_dest);
             static bool cpFile(const Path& src, const Path& dest);

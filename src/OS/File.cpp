@@ -717,16 +717,52 @@ namespace Tiny {
         }
     }
 
-    bool OS::File::operator<<(const std::string &data) {
-        return write(data);
+    OS::File& OS::File::operator<<(const std::string &data) {
+        write(data);
+        return *this;
     }
 
-    bool OS::File::operator<<(const char *data) {
-        return write(data);
+    OS::File& OS::File::operator<<(const char *data) {
+        write(data);
+        return *this;
     }
 
-    bool OS::File::operator<<(const FileData &data) {
-        return write(data);
+    OS::File& OS::File::operator<<(const FileData &data) {
+        write(data);
+        return *this;
+    }
+
+    OS::File& OS::File::operator>(std::string &data) {
+        data.clear();
+        while (!isEOF()) {
+            auto buf = readText(1);
+            if (buf[0] == ' ' || buf[0] == '\n' || buf[0] == '\r' 
+                || buf[0] == '\t' || buf[0] == '\0' || buf == "\r\n") break;
+            data += buf;
+        }
+        return *this;
+    }
+
+    OS::File& OS::File::operator>(char &data) {
+        auto buf = readText(1);
+        data = (!buf.empty()) ? buf[0] : '\0';
+        return *this;
+    }
+
+    OS::File& OS::File::operator>(uint8_t &data) {
+        auto buf = read(1);
+        data = (!buf.empty()) ? buf[0] : 0;
+        return *this;
+    }
+
+    OS::File& OS::File::operator>>(std::string &data) {
+        data = readAllText();
+        return *this;
+    }
+
+    OS::File& OS::File::operator>>(FileData &data) {
+        data = readAll();
+        return *this;
     }
 
     size_t OS::File::fileSize() const {

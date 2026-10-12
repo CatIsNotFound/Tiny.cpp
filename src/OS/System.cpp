@@ -26,11 +26,15 @@
 #include "System.hpp"
 
 #include <stdexcept>
+#include <atomic>
 #include <thread>
+#include <mutex>
 #include <sstream>
+#include <condition_variable>
 
 #ifdef TINY_CPP_MY_OS_WINDOWS
 #include <windows.h>
+#include <process.h>
 #include <fileapi.h>
 #include <shlobj.h>
 #include <pdh.h>
@@ -86,6 +90,17 @@ namespace {
         WideCharToMultiByte(codepage, 0, w_str.data(), w_str.size(),
             &str[0], len, nullptr, nullptr);
         return str;
+    }
+
+    size_t G_PID{0};
+
+    BOOL CALLBACK EnumWinEvent(HWND hwnd, LPARAM lParam) {
+        DWORD my_pid{};
+        GetWindowThreadProcessId(hwnd, &my_pid);
+        if (my_pid == G_PID && IsWindowVisible(hwnd)) {
+            SendMessage(hwnd, WM_CLOSE, 0, 0L);
+        }
+        return true;
     }
 }
 #endif
@@ -159,6 +174,13 @@ struct CPU_Stat {
 #endif
 #endif
 
+static void copeWithMaxStrWhenAddStr(std::string& dest, const std::string& addition) {
+    if (dest.size() + addition.size() >= dest.max_size()) {
+        dest.clear();
+    }
+    dest += addition;
+}
+
 static int64_t getTicks() {
 #ifdef TINY_CPP_MY_OS_WINDOWS
     SYSTEMTIME sys{};
@@ -210,6 +232,467 @@ static std::vector<char*> makeArgv(const std::string& cmd) {
     argv.push_back(nullptr);
     return argv;
 }
+
+class MySubTask {
+public:
+    MySubTask(const std::string& command, bool use_shell) : _command(command), _use_shell(use_shell) {}
+    ~MySubTask() {
+        if (!_detach_mode && _has_started) {
+            terminate();
+            wait(5000);
+            kill();
+            clean();
+        }
+    }
+
+    /// @brief Start the subtask with optional output and error pipes.
+    /// @param use_output_pipe Enable output pipe to capture standard output.
+    /// @param use_error_pipe  Enable error pipe to capture standard error.
+    /// @retval `0`: Successfully started the subtask.
+    /// @retval `-1`: Failed to start the subtask. Need to called `OS::lastSystemError()` to get the error code.
+    int start(bool use_output_pipe = false, bool use_error_pipe = false) {
+        if (!_detach_mode) {
+            _use_output_pipe = use_output_pipe;
+            _use_error_pipe = use_error_pipe;
+        }
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        if (_sub_process != INVALID_HANDLE_VALUE) return -1;
+        auto exec_cmd = string2Wide(_command);
+        HANDLE pipes_out[2]{}, pipes_err[2];
+
+        SECURITY_ATTRIBUTES sa{};
+        sa.nLength = sizeof(SECURITY_ATTRIBUTES);
+        sa.bInheritHandle = true;
+        sa.lpSecurityDescriptor = nullptr;
+
+        if (_use_output_pipe) {
+            if (!CreatePipe(&pipes_out[0], &pipes_out[1], &sa, 4096)) return -1;
+            SetHandleInformation(pipes_out[0], HANDLE_FLAG_INHERIT, 0);
+        }
+
+        if (_use_error_pipe) {
+            if (!CreatePipe(&pipes_err[0], &pipes_err[1], &sa, 4096)) {
+                if (_use_output_pipe) {
+                    CloseHandle(pipes_out[0]);
+                    CloseHandle(pipes_out[1]);
+                }
+                return -1;
+            }
+            SetHandleInformation(pipes_err[0], HANDLE_FLAG_INHERIT, 0);
+        }
+
+        _jobs = CreateJobObjectW(nullptr, nullptr);
+        if (!_jobs) {
+            if (_use_output_pipe) {
+                CloseHandle(pipes_out[0]);
+                CloseHandle(pipes_out[1]);
+            }
+            if (_use_error_pipe) {
+                CloseHandle(pipes_err[0]);
+                CloseHandle(pipes_err[1]);
+            }
+            return -1;
+        }
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION jeli{};
+        jeli.BasicLimitInformation.LimitFlags = _detach_mode ? 0 : JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        SetInformationJobObject(_jobs, JobObjectExtendedLimitInformation, &jeli, sizeof(jeli));
+
+        STARTUPINFOW startup{};
+        startup.cb = sizeof(startup);
+        startup.hStdOutput = _use_output_pipe ? pipes_out[1] : GetStdHandle(STD_OUTPUT_HANDLE);
+        startup.hStdError = _use_error_pipe ? pipes_err[1] : GetStdHandle(STD_ERROR_HANDLE);
+        startup.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+        startup.dwFlags |= STARTF_USESTDHANDLES;
+
+        PROCESS_INFORMATION proc_info{};
+        DWORD create_flag = CREATE_NEW_PROCESS_GROUP | CREATE_SUSPENDED;
+        if (_detach_mode) {
+            create_flag |= DETACHED_PROCESS;
+        }
+
+        auto ok = CreateProcessW(
+            nullptr,
+            &exec_cmd[0],
+            nullptr,
+            nullptr,
+            true,
+            create_flag,
+            nullptr,
+            nullptr,
+            &startup,
+            &proc_info
+        );
+
+        if (!ok) {
+            if (_use_output_pipe) {
+                CloseHandle(pipes_out[0]);
+                CloseHandle(pipes_out[1]);
+            }
+            if (_use_error_pipe) {
+                CloseHandle(pipes_err[0]);
+                CloseHandle(pipes_err[1]);
+            }
+            return -1;      /// No such Programme file or not the executable file.
+        }
+
+        AssignProcessToJobObject(_jobs, proc_info.hProcess);
+        ResumeThread(proc_info.hThread);
+        CloseHandle(proc_info.hThread);
+
+        _get_pid = true;
+        _pid = proc_info.dwProcessId;
+        _sub_process = proc_info.hProcess;
+
+        if (_use_output_pipe) {
+            CloseHandle(pipes_out[1]);
+            _pipe_output = pipes_out[0];
+        }
+        if (_use_error_pipe) {
+            CloseHandle(pipes_err[1]);
+            _pipe_error = pipes_err[0];
+        }
+        _has_started = true;
+        if (_detach_mode) {
+            CloseHandle(_pipe_output);
+            CloseHandle(_pipe_error);
+            CloseHandle(_sub_process);
+            CloseHandle(_jobs);
+        }
+#else
+        int pipes_out[2]{-1, -1};
+        int pipes_err[2]{-1, -1};
+        if (_use_output_pipe && pipe_2(pipes_out, O_CLOEXEC) == -1) return -1;
+        if (_use_error_pipe && pipe_2(pipes_err, O_CLOEXEC) == -1) {
+            if (_use_output_pipe) {
+                close(pipes_out[0]);
+                close(pipes_out[1]);
+            }
+            return -1;
+        }
+        auto _real_pid = fork();
+        if (_real_pid < 0) {
+            if (_use_output_pipe) {
+                close(pipes_out[0]);
+                close(pipes_out[1]);
+            }
+            if (_use_error_pipe) {
+                close(pipes_err[0]);
+                close(pipes_err[1]);
+            }
+            return -1;
+        } else if (_real_pid == 0) {
+            if (_use_output_pipe) {
+                dup2(pipes_out[1], STDOUT_FILENO);
+                close(pipes_out[0]);
+                close(pipes_out[1]);
+            }
+            if (_use_error_pipe) {
+                dup2(pipes_err[1], STDERR_FILENO);
+                close(pipes_err[0]);
+                close(pipes_err[1]);
+            }
+            setpgid(0, 0);
+            int ret_code{};
+            if (_use_shell) {
+                ret_code = execlp("sh", "sh", "-c", _command.c_str(), nullptr);
+            } else {
+                size_t pos = _command.find_first_of(' ');
+                if (pos == std::string::npos) {
+                    ret_code = execl(_command.c_str(), nullptr);
+                } else {
+                    std::string cmd = _command.substr(0, pos);
+                    auto args = makeArgv(_command);
+                    ret_code = execv(cmd.c_str(), args.data());
+                    for (auto a : args) {
+                        if (a) free(a);
+                    }
+                }
+            }
+            setpgid(0, 0);
+            _exit(127);
+            return ret_code != -1;
+        } else {
+            _get_pid = true;
+            _pid = _real_pid;
+            _has_started = true;
+            if (_detach_mode) {
+                close(pipes_out[0]);
+                close(pipes_out[1]);
+                close(pipes_err[0]);
+                close(pipes_err[1]);
+                return 0;
+            }
+            if (_use_output_pipe) {
+                close(pipes_out[1]);
+                _pipe_output = pipes_out[0];
+            }
+            if (_use_error_pipe) {
+                close(pipes_err[1]);
+                _pipe_error = pipes_err[0];
+            }
+        }
+#endif
+        return 0;
+    }
+
+    void setDetachModeEnabled(bool enable) {
+        if (_has_started) return;
+        _detach_mode = enable;
+    }
+
+    bool detachModeEnabled() const {
+        return _detach_mode;
+    }
+
+    bool readOutputPipe(std::string& dest) {
+        if (!_use_output_pipe || !_has_started || _detach_mode) return false;
+        dest.clear();
+        bool is_read{}, has_output{};
+        while (true) {
+            is_read = drain(_pipe_output, dest);
+            if (!has_output && is_read) has_output = true;
+            if (!is_read) break;
+        }
+        return has_output;
+    }
+
+    bool readErrorPipe(std::string& dest) {
+        if (!_use_error_pipe || !_has_started || _detach_mode) return false;
+        dest.clear();
+        bool is_read{}, has_output{};
+        while (true) {
+            is_read = drain(_pipe_error, dest);
+            if (!has_output && is_read) has_output = true;
+            if (!is_read) break;
+        }
+        return has_output;
+    }
+
+    bool isRunning() {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        if (_sub_process == INVALID_HANDLE_VALUE) return false;
+        DWORD ret_code{};
+        GetExitCodeProcess(_sub_process, &ret_code);
+        return ret_code == STILL_ACTIVE;
+#else
+        if (!_has_started || _detach_mode || _is_exited) return false;
+        pid_t ret_pid{-1};
+        int rt_code{};
+        do {
+            ret_pid = waitpid(_pid, &rt_code, WNOHANG);
+        } while (ret_pid == -1 && errno == EINTR);
+        if (ret_pid == 0) {
+            return true;
+        } else if (ret_pid == _pid) {
+            updateReturnCode(rt_code);
+            return false;
+        }
+        _is_exited = true;
+        return false;
+#endif
+    }
+
+    /// @brief Wait for the subtask to finish execution or until the specified timeout.
+    /// @param timeout_ms Specify the timeout in milliseconds. If set to `0`, it will wait indefinitely.
+    /// @retval `-1`: The subtask has not started or is in detach mode.
+    /// @retval `0`: The subtask is still running after the timeout.
+    /// @retval `1`: The subtask has finished execution within the timeout.
+    int8_t wait(int64_t timeout_ms) {
+        if (_detach_mode || !_has_started) return -1;
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        if (_sub_process == INVALID_HANDLE_VALUE) return -1;
+        DWORD ret = WaitForSingleObject(_sub_process, timeout_ms > 0 ? timeout_ms : INFINITE);
+        if (ret == WAIT_OBJECT_0) {
+            return 1;
+        }
+        if (ret == WAIT_TIMEOUT) {
+            return 0;
+        }
+        return -1;
+#else
+        if (_is_exited) return 1;
+        int status{-1};
+        if (timeout_ms == 0) {
+            while (true) {
+                auto ret_pid = waitpid(_pid, &status, 0);
+                if (ret_pid == _pid) {
+                    updateReturnCode(status);
+                    return 1;
+                } else if (ret_pid == -1 && errno == EINTR) {
+                    continue;
+                }
+                _is_exited = true;
+                return 1;
+            }
+        }
+        pid_t exit_pid{-1};
+        int64_t st = getTicks(), ed = 0;
+        bool is_timedout{};
+        while (true) {
+            exit_pid = waitpid(_pid, &status, WNOHANG);
+            ed = getTicks();
+            is_timedout = (timeout_ms > 0 && ed - st >= timeout_ms);
+            if (exit_pid == _pid) {
+                updateReturnCode(status);
+                return 1;
+            } else if (is_timedout) {
+                _ret_code = 259;
+                return 0;
+            }
+            if (exit_pid == -1 && errno != EINTR) {
+                _is_exited = true;
+                return 1;
+            }
+            usleep(1000);
+        }
+#endif
+    }
+
+    void terminate() {
+        if (!_has_started || _detach_mode) return;
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        if (_sub_process == INVALID_HANDLE_VALUE || !isRunning()) return;
+        GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, _pid);
+        closeAllWindows(_pid);
+#else
+        if (_pid > 0 && !_is_exited) {
+            killpg(_pid, SIGTERM);
+            _ret_code = 127;
+        }
+#endif
+    }
+
+    void kill() {
+        if (!_has_started || _detach_mode) return;
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        if (_jobs != INVALID_HANDLE_VALUE) {
+            TerminateJobObject(_jobs, 255);
+            return;
+        }
+        if (_sub_process != INVALID_HANDLE_VALUE) {
+            TerminateProcess(_sub_process, 255);
+        }
+#else
+        if (_pid > 0 && !_is_exited) {
+            killpg(_pid, SIGKILL);
+            _ret_code = 255;
+        }
+#endif
+    }
+
+    /// @brief  Get the current exit code.
+    /// @retval `-1` : The task is not started.
+    /// @retval `0`  : The task is exited normally.
+    /// @retval `127`: The task is terminated by signal or not found.
+    /// @retval `255`: The task is killed.
+    /// @retval `259`: The task is still running.
+    int exitCode(int64_t timeout_ms = 1000) {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        if (_sub_process == INVALID_HANDLE_VALUE) return -1;
+        DWORD exit_code{};
+        GetExitCodeProcess(_sub_process, &exit_code);
+        return static_cast<int>(exit_code);
+#else
+        if (!_has_started) return -1;
+        if (timeout_ms == 0) {
+            if (!_is_exited && isRunning()) {
+                return 259;
+            }
+        } else {
+            wait(timeout_ms);
+        }
+        return _ret_code;
+#endif
+    }
+
+    size_t pid() {
+        if (_get_pid) {
+            _get_pid = false;
+            return _pid;
+        }
+        return 0;
+    }
+
+    void clean() {
+        _pid = 0;
+        _get_pid = false;
+        _has_started = false;
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        if (_pipe_error != INVALID_HANDLE_VALUE) CloseHandle(_pipe_error);
+        if (_pipe_output != INVALID_HANDLE_VALUE) CloseHandle(_pipe_output);
+        if (_sub_process != INVALID_HANDLE_VALUE) CloseHandle(_sub_process);
+        if (_jobs != INVALID_HANDLE_VALUE) CloseHandle(_jobs);
+#else
+        if (_pipe_output != -1) close(_pipe_output);
+        if (_pipe_error != -1)  close(_pipe_error);
+        _is_exited = false;
+        _ret_code = -1;
+#endif
+    }
+
+private:
+    std::string _command{};
+    size_t _pid{};
+    bool _use_shell{}, _use_output_pipe{}, _use_error_pipe{}, _get_pid{}, _detach_mode{}, _has_started{};
+#ifdef TINY_CPP_MY_OS_WINDOWS
+    HANDLE _pipe_output{INVALID_HANDLE_VALUE}, _pipe_error{INVALID_HANDLE_VALUE};
+    HANDLE _jobs{INVALID_HANDLE_VALUE}, _sub_process{INVALID_HANDLE_VALUE};
+
+    static bool drain(HANDLE h, std::string& dest) {
+        bool ret{};
+        DWORD avail = 0;
+        char buf[1024];
+        while (PeekNamedPipe(h, nullptr, 0, nullptr, &avail, nullptr)) {
+            if (avail == 0) break;
+            DWORD rb = 0;
+            if (!ReadFile(h, buf, sizeof(buf), &rb, nullptr) || rb == 0) break;
+            if (!ret) ret = true;
+            dest.append(buf, rb);
+        }
+        return ret;
+    }
+
+    static bool closeAllWindows(size_t pid) {
+        G_PID = pid;
+        return EnumWindows(EnumWinEvent, 0);
+    }
+#else
+    int _pipe_output{-1}, _pipe_error{-1};
+    mutable int _ret_code{-1};
+    mutable bool _is_exited{};
+
+    static bool drain(int fd, std::string& dest) {
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
+        FD_SET(fd, &read_fds);
+        timeval timeout{};
+        auto ret = select(fd + 1, &read_fds, nullptr, nullptr, &timeout);
+        if (ret <= 0) return false;
+        ssize_t read_bytes{};
+        char bytes[1024];
+        bool has_data{}; 
+        do {
+            read_bytes = read(fd, bytes, sizeof(bytes));
+            if (read_bytes > 0) {
+                dest.append(bytes, read_bytes);
+                has_data = true;
+            }
+            if (read_bytes == 0) break;
+            ret = select(fd + 1, &read_fds, nullptr, nullptr, &timeout);
+        } while (ret > 0);
+        return has_data;
+    }
+
+    void updateReturnCode(int status) {
+        _is_exited = true;
+        if (WIFEXITED(status)) {
+            _ret_code = WEXITSTATUS(status);
+        } else if (WIFSIGNALED(status)) {
+            _ret_code = 255;
+        }
+    }
+#endif
+};
 
 static int execImpl(const std::string& cmd, std::string* output, 
                     std::string* error, size_t timeout_ms) {
@@ -1055,12 +1538,527 @@ namespace Tiny {
 #endif
     }
 
+    namespace OS {
+        class SubProcess::__SUBPROCESS_PIMPL__ {
+        public:
+            explicit __SUBPROCESS_PIMPL__() = default;
+            ~__SUBPROCESS_PIMPL__() {
+                if (_running.load()) {
+                    sendSignal(9);
+                }
+                _use_thread.store(false);
+                _run_var.notify_all();
+                if (_sub_thread.joinable()) _sub_thread.join();
+            }
+
+            bool setListenStreamEnabled(bool enable) {
+                if (_running.load()) return false;
+                _enable_listen_stream.store(enable);
+                return true;
+            }
+
+            bool setOutputPipeEnabled(bool enable) {
+                if (_running.load()) return false;
+                _use_output_pipe = enable;
+                return true;
+            }
+
+            bool setErrorPipeEnabled(bool enable) {
+                if (_running.load()) return false;
+                _use_error_pipe = enable;
+                return true;
+            }
+
+            void setTerminateTimeout(uint32_t timeout) {
+                std::lock_guard<std::mutex> lock(_rw_mutex);
+                _timer_enable.store(true);
+                _start_ts.store(getTicks());
+                _timeout_ms.store(timeout);
+            }
+
+            bool run(const std::string &command, bool use_shell = false) {
+                if (_running.load()) return false;
+                _use_shell = use_shell;
+                if (_use_shell) {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+                    _command = "cmd /c " + command;
+#else
+                    _command = "sh -c \"" + command + "\"";
+#endif
+                } else {
+                    _command = command;
+                }
+                _running.store(true);
+                if (!_use_thread.load()) {
+                    _use_thread.store(true);
+                    _sub_thread = std::thread(&__SUBPROCESS_PIMPL__::loop, this);
+                } else {
+                    std::unique_lock<std::mutex> lock(_mutex);
+                    _run_var.notify_all();
+                }
+                std::unique_lock<std::mutex> lock(_rw_mutex);
+                _started_var.wait(lock, [this] { return _notify_pid.load() || !_running.load(); });
+                _notify_pid.store(false);
+                return true;
+            }
+
+            int wait() {
+                std::unique_lock<std::mutex> lock(_wait_done_mutex);
+                _wait_done_var.wait(lock, [&] { return !_running.load(); });
+                return _ret_code.load();
+            }
+
+            void stop() {
+                sendSignal(15);
+            }
+
+            bool sendSignal(int signum) {
+                if (!_running.load() || _sent_signal.load()) return false;
+                std::lock_guard<std::mutex> lock(_rw_mutex);
+                _signal.store(signum);
+                _sent_signal.store(true);
+                return true;
+            }
+
+            size_t pid() {
+                if (!_running.load()) return 0;
+                return _pid.load();
+            }
+
+            int returnCode() const {
+                return _ret_code.load();
+            }
+
+            bool running() const {
+                return _running.load();
+            }
+
+            bool isSentSignal() const {
+                return _sent_signal.load();
+            }
+
+            bool isListenStreamEnabled() const {
+                return _enable_listen_stream.load();
+            }
+
+            bool listenOutput(int64_t timeout_ms = 0, std::string* dest = nullptr) {
+                if (!_enable_listen_stream.load()) return false;
+                auto st = getTicks();
+                int64_t ed{};
+                do {
+                    ed = getTicks();
+                    if (_notify_output.load()) {
+                        std::lock_guard<std::mutex> lock(_rw_mutex);
+                        _notify_output.store(false);
+                        if (dest) *dest = _cur_output;
+                        return true;
+                    }
+                } while (timeout_ms > 0 && ed - st < timeout_ms);
+                return false;
+            }
+
+            bool listenError(int64_t timeout_ms = 0, std::string* dest = nullptr) {
+                if (!_enable_listen_stream.load()) return false;
+                auto st = getTicks();
+                int64_t ed{};
+                do {
+                    ed = getTicks();
+                    if (_notify_error.load()) {
+                        std::lock_guard<std::mutex> lock(_rw_mutex);
+                        _notify_error.store(false);
+                        if (dest) *dest = _cur_error;
+                        return true;
+                    }
+                } while (timeout_ms > 0 && ed - st < timeout_ms);
+                return false;
+            }
+
+            bool listenAll(int64_t timeout_ms, std::string* output, std::string* error) {
+                if (!_enable_listen_stream.load() || !output || !error) return false;
+                auto st = getTicks();
+                int64_t ed{};
+                bool is_get{};
+                do {
+                    ed = getTicks();
+                    if (_notify_output.load()) {
+                        std::lock_guard<std::mutex> lock(_rw_mutex);
+                        _notify_output.store(false);
+                        if (output) {
+                            *output = _cur_output;
+                            is_get = true;
+                        }
+                    }
+                    if (_notify_error.load()) {
+                        std::lock_guard<std::mutex> lock(_rw_mutex);
+                        _notify_error.store(false);
+                        if (error) {
+                            *error = _cur_error;
+                            is_get = true;
+                        }
+                    }
+                    if (is_get) return true;
+                } while (timeout_ms > 0 && ed - st < timeout_ms);
+                return false;
+            }
+
+            bool currentOutput(std::string* dest) const {
+                if (_enable_listen_stream && _use_output_pipe && dest) {
+                    *dest = _cur_output;
+                    return true;
+                }
+                return false;
+            }
+
+            bool currentError(std::string* dest) const {
+                if (_enable_listen_stream && _use_error_pipe && dest) {
+                    *dest = _cur_error;
+                    return true;
+                }
+                return false;
+            }
+
+            bool output(std::string* dest) const {
+                if (_use_output_pipe && dest) {
+                    *dest = _output;
+                    return true;
+                }
+                return false;
+            }
+
+            bool error(std::string* dest) const {
+                if (_use_error_pipe && dest) {
+                    *dest = _error;
+                    return true;
+                }
+                return false;
+            }
+
+            __SUBPROCESS_PIMPL__(const __SUBPROCESS_PIMPL__&) = delete;
+            __SUBPROCESS_PIMPL__(__SUBPROCESS_PIMPL__&&) = delete;
+            __SUBPROCESS_PIMPL__& operator=(const __SUBPROCESS_PIMPL__&) = delete;
+            __SUBPROCESS_PIMPL__& operator=(__SUBPROCESS_PIMPL__&&) = delete;
+        private:
+            void loop() {
+                while (_use_thread.load()) {
+                    {
+                        std::unique_lock<std::mutex> lock(_mutex);
+                        _run_var.wait(lock, [this] {
+                            return _running.load() || !_use_thread.load();
+                        });
+                        if (!_use_thread.load()) {
+                            break;
+                        }
+                    }
+                    {
+                        std::lock_guard<std::mutex> lock(_mutex);
+                        _ret_code.store(runCommand());
+                        _running.store(false);
+                        _pid.store(0);
+                    }
+                    {
+                        std::lock_guard<std::mutex> lock(_wait_done_mutex);
+                        _wait_done_var.notify_all();
+                    }
+                }
+            }
+
+            int runCommand() {
+                MySubTask my_sub_task(_command, _use_shell);
+                int ret = my_sub_task.start(_use_output_pipe, _use_error_pipe);
+                if (ret != 0) return ret;
+                {
+                    std::unique_lock<std::mutex> lock(_rw_mutex);
+                    _notify_pid.store(true);
+                    _pid.store(my_sub_task.pid());
+                    _started_var.notify_all();
+                }
+                bool kill_signal{}, terminate_signal{}, timed_out{};
+                while (my_sub_task.isRunning()) {
+                    if (_use_output_pipe || _use_error_pipe) {
+                        std::unique_lock<std::mutex> lock(_rw_mutex);
+                        std::string dest;
+                        if (my_sub_task.readOutputPipe(dest)) {
+                            if (_enable_listen_stream) {
+                                if (_notify_output.load()) {
+                                    copeWithMaxStrWhenAddStr(_cur_output, dest);
+                                } else {
+                                    _cur_output = dest;
+                                    _notify_output.store(true);
+                                }
+                                copeWithMaxStrWhenAddStr(_output, _cur_output);
+                            } else {
+                                copeWithMaxStrWhenAddStr(_output, dest);
+                            }
+                        }
+                        if (my_sub_task.readErrorPipe(dest)) {
+                            if (_enable_listen_stream) {
+                                if (_notify_error.load()) {
+                                    copeWithMaxStrWhenAddStr(_cur_error, dest);
+                                } else {
+                                    _cur_error = dest;
+                                    _notify_error.store(true);
+                                }
+                                copeWithMaxStrWhenAddStr(_error, _cur_error);
+                            } else {
+                                copeWithMaxStrWhenAddStr(_error, dest);
+                            }
+                        }
+                    }
+                    if (_sent_signal.load()) {
+                        auto sig = _signal.load();
+                        if (sig == 9) {
+                            kill_signal = true;
+                        } else if (sig == 15) {
+                            terminate_signal = true;
+                        }
+                        std::lock_guard<std::mutex> lock(_rw_mutex);
+                        _sent_signal.store(false);
+                        _signal.store(0);
+                    }
+                    if (_timer_enable.load()) {
+                        auto now = getTicks();
+                        auto timeout_ms = _timeout_ms.load();
+                        if (timeout_ms > 0 && now - _start_ts.load() >= timeout_ms) {
+                            timed_out = true;
+                        }
+                    }
+                    if (terminate_signal || timed_out) {
+                        my_sub_task.terminate();
+                        kill_signal = my_sub_task.wait(1000) != 1;
+                        if (!kill_signal) break;
+                    }
+
+                    if (kill_signal) {
+                        my_sub_task.kill();
+                        break;
+                    }
+                }
+
+                if (_use_output_pipe || _use_error_pipe) {
+                    std::lock_guard<std::mutex> lock(_rw_mutex);
+                    std::string dest;
+                    while (my_sub_task.readOutputPipe(dest)) {
+                        if (_enable_listen_stream) {
+                            if (_notify_output.load()) {
+                                copeWithMaxStrWhenAddStr(_cur_output, dest);
+                            } else {
+                                _cur_output = dest;
+                                _notify_output.store(true);
+                            }
+                            copeWithMaxStrWhenAddStr(_output, _cur_output);
+                        } else {
+                            copeWithMaxStrWhenAddStr(_output, dest);
+                        }
+                    }
+                    while (my_sub_task.readErrorPipe(dest)) {
+                        if (_enable_listen_stream) {
+                            if (_notify_error.load()) {
+                                copeWithMaxStrWhenAddStr(_cur_error, dest);
+                            } else {
+                                _cur_error = dest;
+                                _notify_error.store(true);
+                            }
+                            copeWithMaxStrWhenAddStr(_error, _cur_error);
+                        } else {
+                            copeWithMaxStrWhenAddStr(_error, dest);
+                        }
+                    }
+                }
+
+                int ret_code = my_sub_task.exitCode();
+                my_sub_task.clean();
+                return ret_code;
+            }
+
+            std::string _cur_output{}, _cur_error{}, _command{}, _output{}, _error{};
+            std::thread _sub_thread{};
+            std::atomic<size_t> _pid{};
+            std::atomic<int64_t> _start_ts{};
+            std::atomic<uint32_t> _timeout_ms{};
+            bool _use_output_pipe{}, _use_error_pipe{};
+            std::atomic<bool> _running{}, _sent_signal{}, _timer_enable{}, _use_shell{}, _use_thread{};
+            std::atomic<int> _ret_code{}, _signal{};
+            std::atomic<bool> _notify_pid{}, _notify_output{},_notify_error{}, _enable_listen_stream{};
+            std::mutex _mutex{}, _rw_mutex{}, _wait_done_mutex{};
+            std::condition_variable _run_var{}, _wait_done_var{}, _started_var{};
+        };
+    }
+
+    OS::SubProcess::SubProcess(bool catch_mode, bool use_pipe2) {
+        _pimpl.reset(new __SUBPROCESS_PIMPL__());
+        _pimpl->setListenStreamEnabled(catch_mode);
+        _pimpl->setOutputPipeEnabled(use_pipe2);
+        _pimpl->setErrorPipeEnabled(use_pipe2);
+    }
+
+    OS::SubProcess::SubProcess(const std::string &execute_path, bool catch_mode, bool use_pipe2) {
+        _pimpl.reset(new __SUBPROCESS_PIMPL__());
+        _pimpl->setListenStreamEnabled(catch_mode);
+        _pimpl->setOutputPipeEnabled(use_pipe2);
+        _pimpl->setErrorPipeEnabled(use_pipe2);
+        _pimpl->run(execute_path, false);
+    }
+
+    OS::SubProcess::~SubProcess() {
+        stop();
+    }
+
+    bool OS::SubProcess::run(const std::string &programme) {
+        auto new_cmd = programme;
+        return _pimpl->run(new_cmd);
+    }
+
+    bool OS::SubProcess::exec(const std::string &command) {
+        return _pimpl->run(command, true);
+    }
+
+    int OS::SubProcess::wait() {
+        return _pimpl->wait();
+    }
+
+    int OS::SubProcess::stop(size_t timeout_ms) {
+        _pimpl->setTerminateTimeout(timeout_ms);
+        return _pimpl->wait();
+    }
+
+    void OS::SubProcess::terminate() {
+        _pimpl->stop();
+    }
+
+    void OS::SubProcess::kill() {
+        _pimpl->sendSignal(9);
+    }
+
+    size_t OS::SubProcess::pid() const {
+        return _pimpl->pid();
+    }
+
+    bool OS::SubProcess::running() const {
+        return _pimpl->running();
+    }
+
+    int OS::SubProcess::exitCode() const {
+        return _pimpl->returnCode();
+    }
+
+    std::string OS::SubProcess::catchOutput(int64_t timeout_ms, bool* ok) const {
+        if (!_pimpl->isListenStreamEnabled()) return {};
+        std::string dest;
+        bool ret = _pimpl->listenOutput(timeout_ms, &dest);
+        if (ok) *ok = ret;
+        return dest;
+    }
+
+    std::string OS::SubProcess::catchError(int64_t timeout_ms, bool* ok) const {
+        if (!_pimpl->isListenStreamEnabled()) return {};
+        std::string dest;
+        bool ret = _pimpl->listenError(timeout_ms, &dest);
+        if (ok) *ok = ret;
+        return dest;
+    }
+
+    bool OS::SubProcess::catchAll(std::string &output, std::string &error, int64_t timeout_ms) const {
+        return _pimpl->listenAll(timeout_ms, &output, &error);
+    }
+
+    std::string OS::SubProcess::lastOutput(bool *ok) const {
+        if (!_pimpl->isListenStreamEnabled()) return {};
+        std::string dest;
+        if (ok) *ok = _pimpl->currentOutput(&dest);
+        else _pimpl->currentOutput(&dest);
+        return dest;
+    }
+
+    std::string OS::SubProcess::lastError(bool *ok) const {
+        if (!_pimpl->isListenStreamEnabled()) return {};
+        std::string dest;
+        if (ok) *ok = _pimpl->currentError(&dest);
+        else _pimpl->currentError(&dest);
+        return dest;
+    }
+
+    std::string OS::SubProcess::output(bool *ok) const {
+        std::string dest;
+        if (ok) *ok = _pimpl->output(&dest);
+        else _pimpl->output(&dest);
+        return dest;
+    }
+
+    std::string OS::SubProcess::errorOutput(bool *ok) const {
+        std::string dest;
+        if (ok) *ok = _pimpl->error(&dest);
+        else _pimpl->error(&dest);
+        return dest;
+    }
 
     int OS::exec(const std::string &command, size_t timeout_ms, std::string* output, std::string* error) {
         if (output) output->clear();
         if (error) error->clear();
         if (command.empty()) return -1;
-        return execImpl(command, output, error, timeout_ms);
+        auto st = getTicks();
+        int64_t ed{};
+        MySubTask my_sub_task(command, true);
+        int ret = my_sub_task.start(output != nullptr, error != nullptr);
+        if (ret != 0) return ret;
+        std::string dest;
+        do {
+            ed = getTicks();
+            if (output && my_sub_task.readOutputPipe(dest)) {
+                copeWithMaxStrWhenAddStr(*output, dest);
+            }
+            if (error && my_sub_task.readErrorPipe(dest)) {
+                copeWithMaxStrWhenAddStr(*error, dest);
+            }
+        } while ((timeout_ms == 0 || ed - st < timeout_ms) && my_sub_task.isRunning());
+        if (timeout_ms > 0) {
+            my_sub_task.kill();
+        }
+        if (output) {
+            while (my_sub_task.readOutputPipe(dest)) {
+                copeWithMaxStrWhenAddStr(*output, dest);
+            }
+        }
+        if (error) {
+            while (my_sub_task.readErrorPipe(dest)) {
+                copeWithMaxStrWhenAddStr(*error, dest);
+            }
+        }
+        int ret_code = my_sub_task.exitCode();
+        my_sub_task.clean();
+        return ret_code;
+    }
+
+    bool OS::detach(const std::string &programme, size_t* pid) {
+        MySubTask my_sub_task(programme, false);
+        my_sub_task.setDetachModeEnabled(true);
+        int ret = my_sub_task.start() == 0;
+        if (pid) *pid = my_sub_task.pid();
+        return ret;
+    }
+
+    bool OS::kill(size_t pid, bool force) {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        if (!force) {
+            if (!GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid)) {
+                return false;
+            }
+            G_PID = pid;
+            return EnumWindows(EnumWinEvent, 0);
+        }
+        auto hnd = OpenProcess(PROCESS_ALL_ACCESS, false, pid);
+        if (hnd == INVALID_HANDLE_VALUE) return false;
+        auto ret = TerminateProcess(hnd, 255);
+        CloseHandle(hnd);
+        return ret;
+#else
+        int ret{};
+        if (!force) {
+            ret = ::kill(pid, 15);
+        } else {
+            ret = ::kill(pid, 9);
+        }
+        return ret == 0;
+#endif
     }
 
     bool OS::FileSystem::chDir(const Path &path) {
