@@ -37,8 +37,8 @@ addModule(read  MY_MODULE
         read/main.cpp
 )
 
-addModule(nc  MY_MODULE
-        nc/main.cpp
+addModule(stat  MY_MODULE
+        stat/main.cpp
 )
 
 #addModule(Edit  MY_MODULE

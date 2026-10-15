@@ -37,7 +37,10 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <pwd.h>
+#include <grp.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #define SPLASH '/'
 #define SPLASH_STR "/"
 #endif
@@ -80,6 +83,14 @@ namespace {
 #endif
 
 namespace Tiny {
+    struct OS::Path::IDs {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        uint8_t uid[SECURITY_MAX_SID_SIZE]{}, gid[SECURITY_MAX_SID_SIZE]{};
+#else
+        size_t uid{}, gid{};
+#endif
+    };
+
     OS::Path::Path(std::string path) : _path(std::move(path)), _type() {
         checkPath();
     }
@@ -120,6 +131,10 @@ namespace Tiny {
 
     void OS::Path::setPath(const Path &path) {
         _path = path._path;
+        checkPath();
+    }
+
+    void OS::Path::reset() {
         checkPath();
     }
 
@@ -181,6 +196,10 @@ namespace Tiny {
         return _file_size;
     }
 
+    size_t OS::Path::nodeID() const {
+        return _node_id;
+    }
+
     int64_t OS::Path::lastAccessTime() const {
         return _last_access_time;
     }
@@ -203,6 +222,22 @@ namespace Tiny {
 
     OS::Permission OS::Path::otherPermission() const {
         return _permission[2];
+    }
+
+    std::string OS::Path::userName(bool *ok) const {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        return getNameByID(_ids->uid, ok);
+#else
+        return getUserNameByID(_ids->uid, ok);
+#endif
+    }
+
+    std::string OS::Path::groupName(bool *ok) const {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+        return getNameByID(_ids->gid, ok);
+#else
+        return getGroupNameByID(_ids->uid, ok);
+#endif
     }
 
     OS::Path &OS::Path::operator/(const std::string &path) {
@@ -265,12 +300,24 @@ namespace Tiny {
             _short_file_name.clear();
             return;
         }
+        if (!_ids) _ids.reset(new IDs());
 #ifdef TINY_CPP_MY_OS_WINDOWS
         auto my_path = convertPath(_path);
-        WIN32_FILE_ATTRIBUTE_DATA file_info{};
         auto w_path = string2Wide(my_path);
-        auto suc = GetFileAttributesExW(w_path.c_str(), GetFileExInfoStandard, reinterpret_cast<LPVOID>(&file_info));
-        if (!suc) return;
+        auto handle = CreateFileW(
+            w_path.c_str(),
+            GENERIC_READ,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            nullptr,
+            OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS,
+            nullptr
+        );
+        if (handle == INVALID_HANDLE_VALUE) return;
+        BY_HANDLE_FILE_INFORMATION file_info;
+        auto is_success = GetFileInformationByHandle(handle, &file_info);
+        CloseHandle(handle);
+        if (!is_success) return;
         bool is_dir = (file_info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
         bool is_device = (file_info.dwFileAttributes & FILE_ATTRIBUTE_DEVICE);
         bool is_link = (file_info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT);
@@ -290,6 +337,10 @@ namespace Tiny {
         ull.LowPart = file_info.nFileSizeLow;
         ull.HighPart = file_info.nFileSizeHigh;
         _file_size = ull.QuadPart;
+        ULARGE_INTEGER ull2;
+        ull2.LowPart = file_info.nFileIndexLow;
+        ull2.HighPart = file_info.nFileIndexHigh;
+        _node_id = ull2.QuadPart;
         PSID owner_sid{}, group_sid{};
         PACL dacl{};
         PSECURITY_DESCRIPTOR security_descriptor{};
@@ -315,6 +366,8 @@ namespace Tiny {
             getEffectivePerm(owner_sid, _permission[0]);
             getEffectivePerm(group_sid, _permission[1]);
 
+            CopySid(sizeof(_ids->uid), _ids->uid, owner_sid);
+            CopySid(sizeof(_ids->gid), _ids->gid, group_sid);
             PSID other_sid{};
             SID_IDENTIFIER_AUTHORITY worldAuth = SECURITY_WORLD_SID_AUTHORITY;
             if (AllocateAndInitializeSid(&worldAuth, 1, SECURITY_WORLD_RID,
@@ -341,7 +394,7 @@ namespace Tiny {
             free(new_path);
         } else return;
         struct stat file_stat;
-        if (stat(_path.c_str(), &file_stat) == -1) return;
+        if (lstat(_path.c_str(), &file_stat) == -1) return;
         if (S_ISDIR(file_stat.st_mode)) {
             _type = FileType::Directory;
         } else if (S_ISREG(file_stat.st_mode)) {
@@ -355,6 +408,9 @@ namespace Tiny {
         } else {
             _type = FileType::Unknown;
         }
+        _node_id = static_cast<size_t>(file_stat.st_ino);
+        _ids->uid = file_stat.st_uid;
+        _ids->gid = file_stat.st_gid;
 #ifdef __linux__
         _last_access_time = file_stat.st_atim.tv_sec * 1000 + (file_stat.st_atim.tv_nsec / 1000);
         _last_write_time = file_stat.st_mtim.tv_sec * 1000 + (file_stat.st_mtim.tv_nsec / 1000);
@@ -383,6 +439,14 @@ namespace Tiny {
 
         if (_path.size() > 1 && _path.back() == '/') _path.pop_back();
         _short_file_name = _path.substr(_path.find_last_of(SPLASH) + 1);
+#endif
+    }
+
+    void OS::Path::updateByNodeID() {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+
+#else
+
 #endif
     }
 
@@ -434,6 +498,57 @@ namespace Tiny {
 #endif
         return type;
     }
+
+#ifdef TINY_CPP_MY_OS_WINDOWS
+    std::string OS::Path::getNameByID(uint8_t *sid, bool* ok) {
+        if (!isValidSID(sid)) {
+            if (ok) *ok = false;
+            return {};
+        }
+        DWORD sid_len = sizeof(sid);
+        WCHAR user_name[256];
+        DWORD user_name_len = sizeof(user_name) / sizeof(user_name[0]);
+        WCHAR com_name[256];
+        DWORD com_name_len = sizeof(com_name) / sizeof(com_name[0]);
+        SID_NAME_USE use_type;
+        if (LookupAccountSidW(nullptr, sid, user_name, &user_name_len, com_name, &com_name_len, &use_type)) {
+            if (ok) *ok = true;
+            return wide2String(user_name);
+        }
+        if (ok) *ok = false;
+        return {};
+    }
+
+    bool OS::Path::isValidSID(uint8_t *sid) {
+        return (sid && IsValidSid(sid));
+    }
+#else
+    std::string OS::Path::getUserNameByID(size_t id, bool* ok) {
+        passwd user_info;
+        passwd* res{};
+        char buf[2048];
+        auto ret = getpwuid_r(id, &user_info, buf, sizeof(buf), &res);
+        if (ret == 0 && res) {
+            if (ok) *ok = true;
+            return {res->pw_name};
+        }
+        if (ok) *ok = false;
+        return {};
+    }
+
+    std::string OS::Path::getGroupNameByID(size_t id, bool* ok) {
+        group user_info;
+        group* res{};
+        char buf[2048];
+        auto ret = getgrgid_r(id, &user_info, buf, sizeof(buf), &res);
+        if (ret == 0 && res) {
+            if (ok) *ok = true;
+            return {res->gr_name};
+        }
+        if (ok) *ok = false;
+        return {};
+    }
+#endif
 
     OS::File::File(const std::string &path, uint8_t open_mode) : _path(path), _open_mode(open_mode) {
         setup(open_mode);

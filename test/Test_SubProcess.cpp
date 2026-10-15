@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
 #ifdef TINY_CPP_MY_OS_WINDOWS
     sub_process.exec(".\\assets\\keep_cmd.bat");
 #else
-    sub_process.exec("./assets/keep_cmd.bat");
+    sub_process.exec("./assets/keep_bash");
 #endif
     TUI::Terminal::printLine("Sended command.");
     TUI::Terminal::printFormat("Now using on pid {}...\r\n", sub_process.pid());
@@ -43,9 +43,9 @@ int main(int argc, char *argv[]) {
     TUI::Terminal::printFormat("Usage times: {}ms\r\n", ed - st);
     st = DT::currentTimestamps();
 #ifdef TINY_CPP_MY_OS_WINDOWS
-    OS::exec("powershell -C .\\assets\\keep_cmd.bat", 5000);
+    OS::Process::exec("powershell -C .\\assets\\keep_cmd.bat", 5000);
 #else
-    OS::exec("sh -c ./assets/keep_cmd", 5000);
+    OS::Process::exec("sh -c ./assets/keep_bash", 5000);
 #endif
     TUI::Terminal::printFormat("Usage times: {}ms.\r\n", DT::currentTimestamps() - st);
     return 0;

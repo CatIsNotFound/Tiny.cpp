@@ -117,39 +117,49 @@ namespace Tiny {
         void lastSystemError(std::string& info, int* err_code = nullptr);
         bool isAdmin();
 
-        class SubProcess {
-        public:
-            explicit SubProcess(bool catch_mode = true, bool use_pipe2 = true);
-            explicit SubProcess(const std::string& execute_path, bool catch_mode = true, bool use_pipe2 = true);
-            ~SubProcess();
+        namespace Process {
+            class Child {
+            public:
+                explicit Child(bool catch_mode = true, bool use_pipe2 = true);
+                explicit Child(const std::string& execute_path, bool catch_mode = true, bool use_pipe2 = true);
+                ~Child();
 
-            bool run(const std::string &programme);
-            bool exec(const std::string& command);
+                bool run(const std::string &programme);
+                bool exec(const std::string& command);
 
-            int wait();
-            int stop(size_t timeout_ms = 5000);
-            void terminate();
-            void kill();
+                int wait();
+                int stop(size_t timeout_ms = 5000);
+                void terminate();
+                void kill();
 
-            size_t pid() const;
-            bool   running() const;
-            int    exitCode() const;
-            std::string catchOutput(int64_t timeout_ms = 0, bool* ok = nullptr) const;
-            std::string catchError(int64_t timeout_ms = 0, bool* ok = nullptr) const;
-            bool catchAll(std::string& output, std::string& error, int64_t timeout_ms = 0) const;
-            std::string lastOutput(bool *ok = nullptr) const;
-            std::string lastError(bool *ok = nullptr) const;
-            std::string output(bool *ok = nullptr) const;
-            std::string errorOutput(bool *ok = nullptr) const;
-        private:
-            class __SUBPROCESS_PIMPL__;
-            std::unique_ptr<__SUBPROCESS_PIMPL__> _pimpl;
-        };
+                size_t pid() const;
+                bool   running() const;
+                int    exitCode() const;
+                std::string catchOutput(int64_t timeout_ms = 0, bool* ok = nullptr) const;
+                std::string catchError(int64_t timeout_ms = 0, bool* ok = nullptr) const;
+                bool catchAll(std::string& output, std::string& error, int64_t timeout_ms = 0) const;
+                std::string lastOutput(bool *ok = nullptr) const;
+                std::string lastError(bool *ok = nullptr) const;
+                std::string output(bool *ok = nullptr) const;
+                std::string errorOutput(bool *ok = nullptr) const;
+            private:
+                class __SUBPROCESS_PIMPL__;
+                std::unique_ptr<__SUBPROCESS_PIMPL__> _pimpl;
+            };
 
-        int  exec(const std::string& command, size_t timeout_ms = 0,
+            int  exec(const std::string& command, size_t timeout_ms = 0,
                   std::string* output = nullptr, std::string* error = nullptr);
-        bool detach(const std::string &programme, size_t* pid = nullptr);
-        bool kill(size_t pid, bool force = false);
+            bool detach(const std::string &programme, size_t* pid = nullptr);
+            bool kill(size_t pid, bool force = false);
+        }
+
+        using SubProcess = Process::Child;
+
+        API_DEPRECATED("Please use `Tiny::OS::Process::exec()` function instead! It will be removed in next version.")
+        inline int  exec(const std::string& command, size_t timeout_ms = 0,
+                         std::string* output = nullptr, std::string* error = nullptr) {
+            return Process::exec(command, timeout_ms, output, error);
+        }
 
         class FileSystem {
         public:
@@ -199,6 +209,39 @@ namespace Tiny {
             static LayerMap listAllPaths(const Path &path, uint8_t current_recursion, uint8_t recursion_count,
                                          bool &stop_all,
                                          const std::function<bool(const Path&, bool&)>& found_event = {});
+        };
+
+        class FileSnapShot {
+        public:
+            explicit FileSnapShot() = default;
+            ~FileSnapShot() = default;
+
+            void addPath(Path* path);
+            void addPath(Path& path);
+            void removePath(const std::string& path);
+            void removePath(Path* path);
+            void removePath(Path& path);
+            void clearAll();
+
+            bool check(std::vector<std::string>& result, uint32_t check_count = 1, uint32_t check_delay_ms = 1);
+
+            FileSnapShot(const FileSnapShot&) = delete;
+            FileSnapShot(FileSnapShot&&) = delete;
+            FileSnapShot& operator=(const FileSnapShot&) = delete;
+            FileSnapShot& operator=(FileSnapShot&&) = delete;
+        private:
+            void capture();
+            void compare();
+            void endCapture();
+
+            struct Result {
+                bool meta_is_different{};
+                uint32_t last_crc32{};
+                uint32_t cur_crc32{};
+            };
+
+            std::vector<Path*> _last_paths_snapshot;
+            std::unordered_map<Path*, Result> _result_map;
         };
     }
 }

@@ -25,10 +25,11 @@
 
 #ifndef TINY_CPP_OS_FILE_HPP
 #define TINY_CPP_OS_FILE_HPP
-#include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 #include <array>
+#include <cstdint>
 #include <cmath>
 
 /*******************************************************************************************
@@ -44,6 +45,14 @@
     #elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
         #define TINY_CPP_MY_OS_UNIX
     #endif
+#endif
+
+#if defined(__clang__) || defined(__GNUC__)
+#   define API_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#elif defined(_MSC_VER)
+#   define API_DEPRECATED(msg) __declspec(deprecated(msg))
+#else
+#   define API_DEPRECATED(msg)
 #endif
 
 namespace Tiny {
@@ -178,6 +187,7 @@ namespace Tiny {
 
             void setPath(const std::string& path);
             void setPath(const Path& path);
+            void reset();
             void unset();
             const std::string& path() const;
             std::string extensionName() const;
@@ -191,6 +201,7 @@ namespace Tiny {
             bool isSymbolLink() const;
             FileType fileType() const;
             size_t fileSize() const;
+            size_t nodeID() const;
 
             int64_t lastAccessTime() const;
             int64_t lastWriteTime() const;
@@ -199,6 +210,9 @@ namespace Tiny {
             Permission userPermission() const;
             Permission groupPermission() const;
             Permission otherPermission() const;
+
+            std::string userName(bool *ok = nullptr) const;
+            std::string groupName(bool *ok = nullptr) const;
 
             Path& operator/(const std::string& path);
             Path& join(const std::string& path);
@@ -211,7 +225,16 @@ namespace Tiny {
             static bool isSymbolLink(const std::string& path);
         private:
             void checkPath();
+            void updateByNodeID();
             static FileType checkPath(const std::string &path);
+
+#ifdef TINY_CPP_MY_OS_WINDOWS
+            static std::string getNameByID(uint8_t* sid, bool *ok);
+            static bool isValidSID(uint8_t* sid);
+#else
+            static std::string getUserNameByID(size_t id, bool *ok);
+            static std::string getGroupNameByID(size_t id, bool *ok);
+#endif
 
             std::string _path;
             std::string _short_file_name{};
@@ -221,6 +244,10 @@ namespace Tiny {
             int64_t _last_write_time{};
             int64_t _last_create_time{};
             size_t _file_size{};
+            size_t _node_id{};
+
+            struct IDs;
+            std::unique_ptr<IDs> _ids;
         };
 
         using FileData = std::vector<uint8_t>;

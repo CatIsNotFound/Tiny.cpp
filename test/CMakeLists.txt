@@ -71,6 +71,10 @@ addModule(TestSubProcess MY_MODULE_WITHOUT_GTEST
         Test_SubProcess.cpp
 )
 
+addModule(TestNone MY_MODULE_WITHOUT_GTEST
+        Test_None.cpp
+)
+
 
 foreach (MODULE IN ITEMS ${MY_MODULE})
     set_target_properties(${MODULE} PROPERTIES
