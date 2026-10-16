@@ -213,6 +213,16 @@ namespace Tiny {
 
         class FileSnapShot {
         public:
+            enum Trigger : uint8_t {
+                Context      = 1,
+                Filename     = 2,
+                Permission   = 4,
+                Timestamp    = 8,
+                Owner        = 16,
+                MetaData     = Filename | Permission | Timestamp | Owner,
+                All
+            };
+
             explicit FileSnapShot() = default;
             ~FileSnapShot() = default;
 
@@ -222,8 +232,10 @@ namespace Tiny {
             void removePath(Path* path);
             void removePath(Path& path);
             void clearAll();
+            void setTrigger(Trigger trigger);
 
-            bool check(std::vector<std::string>& result, uint32_t check_count = 1, uint32_t check_delay_ms = 1);
+            bool check(std::vector<std::string>& result, uint32_t check_count = 1, uint32_t check_delay_ms = 1000);
+            uint8_t trigger() const;
 
             FileSnapShot(const FileSnapShot&) = delete;
             FileSnapShot(FileSnapShot&&) = delete;
@@ -240,6 +252,7 @@ namespace Tiny {
                 uint32_t cur_crc32{};
             };
 
+            uint8_t _trigger{};
             std::vector<Path*> _last_paths_snapshot;
             std::unordered_map<Path*, Result> _result_map;
         };

@@ -135,7 +135,14 @@ namespace Tiny {
     }
 
     void OS::Path::reset() {
-        checkPath();
+        if (!updateByNodeID()) {
+            auto type = checkPath(_path);
+            if (type == FileType::Unknown) {
+                unset();
+                return;
+            }
+            checkPath();
+        }
     }
 
     void OS::Path::unset() {
@@ -412,13 +419,13 @@ namespace Tiny {
         _ids->uid = file_stat.st_uid;
         _ids->gid = file_stat.st_gid;
 #ifdef __linux__
-        _last_access_time = file_stat.st_atim.tv_sec * 1000 + (file_stat.st_atim.tv_nsec / 1000);
-        _last_write_time = file_stat.st_mtim.tv_sec * 1000 + (file_stat.st_mtim.tv_nsec / 1000);
-        _last_create_time = file_stat.st_ctim.tv_sec * 1000 + (file_stat.st_ctim.tv_nsec / 1000);
+        _last_access_time = file_stat.st_atim.tv_sec * 1000 + (file_stat.st_atim.tv_nsec / 1000000);
+        _last_write_time = file_stat.st_mtim.tv_sec * 1000 + (file_stat.st_mtim.tv_nsec / 1000000);
+        _last_create_time = file_stat.st_ctim.tv_sec * 1000 + (file_stat.st_ctim.tv_nsec / 1000000);
 #else
-        _last_access_time = file_stat.st_atimespec.tv_sec * 1000 + (file_stat.st_atimespec.tv_nsec / 1000);
-        _last_write_time = file_stat.st_mtimespec.tv_sec * 1000 + (file_stat.st_mtimespec.tv_nsec / 1000);
-        _last_create_time = file_stat.st_ctimespec.tv_sec * 1000 + (file_stat.st_ctimespec.tv_nsec / 1000);
+        _last_access_time = file_stat.st_atimespec.tv_sec * 1000 + (file_stat.st_atimespec.tv_nsec / 1000000);
+        _last_write_time = file_stat.st_mtimespec.tv_sec * 1000 + (file_stat.st_mtimespec.tv_nsec / 1000000);
+        _last_create_time = file_stat.st_ctimespec.tv_sec * 1000 + (file_stat.st_ctimespec.tv_nsec / 1000000);
 #endif
         _file_size = file_stat.st_size;
         uint8_t perm = 0;
@@ -442,11 +449,54 @@ namespace Tiny {
 #endif
     }
 
-    void OS::Path::updateByNodeID() {
+    bool OS::Path::updateByNodeID() {
+        std::string upper_path = _path;
+        auto pos = _path.find_last_of(SPLASH);
+        if (pos >= _path.size() - 1) upper_path = _path.substr(0, pos);
 #ifdef TINY_CPP_MY_OS_WINDOWS
-
+        WIN32_FIND_DATAW files;
+        auto w_str = string2Wide(upper_path);
+        auto iter = FindFirstFileW(w_str.c_str(), &files);
+        bool ok{};
+        if (iter == INVALID_HANDLE_VALUE) return false;
+        do {
+            BY_HANDLE_FILE_INFORMATION info;
+            if (!GetFileInformationByHandle(iter, &info)) continue;
+            ULARGE_INTEGER ull;
+            ull.LowPart = info.nFileIndexLow;
+            ull.HighPart = info.nFileIndexHigh;
+            if (_node_id == ull.LowPart) {
+                ok = true;
+                upper_path = wide2String(files.cFileName);
+                break;
+            }
+        } while (FindNextFileW(iter, &files));
+        if (ok) {
+            _path = upper_path;
+            checkPath();
+        }
+        return ok;
 #else
-
+        auto search_dir = opendir(upper_path.c_str());
+        std::string new_path;
+        bool ok{};
+        if (search_dir) {
+            dirent* file{};
+            do {
+                file = readdir(search_dir);
+                if (file->d_ino == _node_id) {
+                    new_path = file->d_name;
+                    ok = true;
+                    break;
+                }
+            } while (true);
+            closedir(search_dir);
+        }
+        if (ok) {
+            _path = new_path;
+            checkPath();
+        }
+        return ok;
 #endif
     }
 

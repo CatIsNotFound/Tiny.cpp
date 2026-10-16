@@ -2568,19 +2568,22 @@ namespace Tiny {
         _last_paths_snapshot.clear();
     }
 
-    bool OS::FileSnapShot::check(std::vector<std::string> &result, uint32_t check_count, uint32_t check_delay_ms) {
+    void OS::FileSnapShot::setTrigger(Trigger trigger) {
+        _trigger = trigger;
+    }
 
+    bool OS::FileSnapShot::check(std::vector<std::string> &result, uint32_t check_count, uint32_t check_delay_ms) {
+        capture();
         return false;
+    }
+
+    uint8_t OS::FileSnapShot::trigger() const {
+        return _trigger;
     }
 
     void OS::FileSnapShot::capture() {
         for (auto& path: _last_paths_snapshot) {
-            if (path->fileType() == FileType::Directory) {
-                auto files_set = FileSystem::listPath(*path, 0);
 
-            } else {
-
-            }
         }
     }
 

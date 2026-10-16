@@ -225,7 +225,7 @@ namespace Tiny {
             static bool isSymbolLink(const std::string& path);
         private:
             void checkPath();
-            void updateByNodeID();
+            bool updateByNodeID();
             static FileType checkPath(const std::string &path);
 
 #ifdef TINY_CPP_MY_OS_WINDOWS

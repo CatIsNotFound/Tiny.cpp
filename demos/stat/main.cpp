@@ -54,7 +54,7 @@ void getPermission(const OS::Path& path, std::string& result) {
     result[8] = oth & OS::P_Execute ? 'x' : '-';
 }
 
-int printFileStat(const std::string& path, bool recursive_all_path) {
+int printFileStat(const std::string& path, bool recursive_all_path, bool readable) {
     Path my_path(path);
     if (!my_path.isValid()) {
         Terminal::printError("stat: Invalid path: '{}'\r\n", path);
@@ -97,25 +97,37 @@ int printFileStat(const std::string& path, bool recursive_all_path) {
     std::string result{};
     getPermission(my_path, result);
     Terminal::printFormat("Permission: {}\r\n", result);
-    DataUnit res_unit{};
-    if (shown_detail) {
-        auto size = OS::autoConvertDataSize(p_size, res_unit);
-        Terminal::printFormat("Size: {:>6.2f}{} ({} file(s), {} dir(s))\r\n", size, OS::dataUnitName(res_unit), f_count, d_count);
+    if (readable) {
+        DataUnit res_unit{};
+        if (shown_detail) {
+            auto size = OS::autoConvertDataSize(p_size, res_unit);
+            Terminal::printFormat("Size: {:>6.2f}{} ({} file(s), {} dir(s))\r\n", size, OS::dataUnitName(res_unit), f_count, d_count);
+        } else {
+            auto size = OS::autoConvertDataSize(my_path.fileSize(), res_unit);
+            Terminal::printFormat("Size: {:>6.2f}{}\r\n", size, OS::dataUnitName(res_unit));
+        }
+        DT::DateTime creat_date(my_path.lastCreateTime()), modify_date(my_path.lastWriteTime()), access_date(my_path.lastAccessTime());
+        Terminal::printFormat("\r\nCreate time: {}\r\n", creat_date.formatString("yyyy/MM/dd HH:mm:ss"));
+        Terminal::printFormat("Update time: {}\r\n", modify_date.formatString("yyyy/MM/dd HH:mm:ss"));
+        Terminal::printFormat("Access time: {}\r\n", access_date.formatString("yyyy/MM/dd HH:mm:ss"));
     } else {
-        auto size = OS::autoConvertDataSize(my_path.fileSize(), res_unit);
-        Terminal::printFormat("Size: {:>6.2f}{}\r\n", size, OS::dataUnitName(res_unit));
+        if (shown_detail) {
+            Terminal::printFormat("Size: {} ({} file(s), {} dir(s))\r\n", p_size, f_count, d_count);
+        } else {
+            Terminal::printFormat("Size: {:>6.2f}\r\n", my_path.fileSize());
+        }
+        Terminal::printFormat("\r\nCreate time: {}\r\n", my_path.lastCreateTime());
+        Terminal::printFormat("Update time: {}\r\n", my_path.lastWriteTime());
+        Terminal::printFormat("Access time: {}\r\n", my_path.lastAccessTime());
     }
-    DT::DateTime creat_date(my_path.lastCreateTime()), modify_date(my_path.lastWriteTime()), access_date(my_path.lastAccessTime());
-    Terminal::printFormat("\r\nCreate time: {}\r\n", creat_date.formatString("yyyy/MM/dd HH:mm:ss"));
-    Terminal::printFormat("Update time: {}\r\n", modify_date.formatString("yyyy/MM/dd HH:mm:ss"));
-    Terminal::printFormat("Access time: {}\r\n", access_date.formatString("yyyy/MM/dd HH:mm:ss"));
     return 0;
 }
 
 int main(int argc, char *argv[]) {
     CommandParser parser(argc, argv);
     parser.addCommand("path", "p", "Specify the path to display.", true, {}, true, true, "PATH");
-    parser.addCommand("recursive", "Rr", "Recursive the path if this path is directory.");
+    parser.addCommand("recursive", "r", "Recursive the path if this path is directory.");
+    parser.addCommand("readable", "R", "Show readable data size and datetime.");
     parser.addLastCommand("help", "h?", "Display this help");
     parser.addLastCommand("version", "v", "Display version information");
     int e{};
@@ -135,7 +147,7 @@ int main(int argc, char *argv[]) {
     }
     auto exec_list = parser.execCommandList();
     std::string check_path{};
-    bool is_recv{};
+    bool is_recv{}, readable{};
     for (auto& command: exec_list) {
         if (command.option_name == "help") {
             Terminal::printLine(parser.generateHelpInfo(Terminal::screenSize().width));
@@ -147,15 +159,16 @@ int main(int argc, char *argv[]) {
         }
         if (command.option_name == "path") {
             check_path = command.value;
-        }
-        if (command.option_name == "recursive") {
+        } else if (command.option_name == "recursive") {
             is_recv = true;
+        } else if (command.option_name == "readable") {
+            readable = true;
         }
     }
 
     signal(SIGINT, exitsig);
     signal(SIGTERM, exitsig);
-    return printFileStat(check_path, is_recv);
+    return printFileStat(check_path, is_recv, readable);
 }
 
 
