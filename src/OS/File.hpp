@@ -178,7 +178,7 @@ namespace Tiny {
         class Path {
             friend class File;
         public:
-            Path(std::string  path);
+            Path(std::string path);
             Path(const Path& path);
             Path(Path&& path) noexcept;
             Path& operator=(const Path& path);
@@ -187,7 +187,8 @@ namespace Tiny {
 
             void setPath(const std::string& path);
             void setPath(const Path& path);
-            void reset();
+
+            bool reset();
             void unset();
             const std::string& path() const;
             std::string extensionName() const;
@@ -211,8 +212,10 @@ namespace Tiny {
             Permission groupPermission() const;
             Permission otherPermission() const;
 
-            std::string userName(bool *ok = nullptr) const;
+            std::string ownerName(bool *ok = nullptr) const;
             std::string groupName(bool *ok = nullptr) const;
+
+            size_t uniqueID() const;
 
             Path& operator/(const std::string& path);
             Path& join(const std::string& path);
@@ -248,6 +251,7 @@ namespace Tiny {
 
             struct IDs;
             std::unique_ptr<IDs> _ids;
+            size_t _path_id{};
         };
 
         using FileData = std::vector<uint8_t>;
@@ -260,6 +264,12 @@ namespace Tiny {
         };
         class File {
         public:
+            enum class Where : uint8_t {
+                Begin,
+                Current,
+                End
+            };
+
             File(const std::string& path, uint8_t open_mode = Unknown);
             File(Path  path, uint8_t open_mode = Unknown);
             File(File&& file) noexcept;
@@ -286,7 +296,7 @@ namespace Tiny {
             bool isEOF() const;
             void moveToStart();
             void moveToEnd();
-            void moveTo(int64_t pos);
+            void moveTo(int64_t move_distance, Where where = Where::Begin);
 
             File& operator<<(const std::string& data);
             File& operator<<(const char* data);

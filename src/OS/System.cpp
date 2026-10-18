@@ -2573,7 +2573,8 @@ namespace Tiny {
     }
 
     bool OS::FileSnapShot::check(std::vector<std::string> &result, uint32_t check_count, uint32_t check_delay_ms) {
-        capture();
+        if (_result_map.empty()) init();
+
         return false;
     }
 
@@ -2581,17 +2582,86 @@ namespace Tiny {
         return _trigger;
     }
 
-    void OS::FileSnapShot::capture() {
-        for (auto& path: _last_paths_snapshot) {
-
+    void OS::FileSnapShot::init() {
+        for (auto path: _last_paths_snapshot) {
+            Result result;
+            result.before = makeSnapShot(*path);
+            _result_map[path->uniqueID()] = result;
         }
     }
 
     void OS::FileSnapShot::compare() {
-
+        for (auto & path: _last_paths_snapshot) {
+            path->reset();
+            _result_map[path->uniqueID()].after = makeSnapShot(*path);
+            auto& res = _result_map[path->uniqueID()];
+            if ((_trigger & Filename) && (res.before.meta_data._path != res.after.meta_data._path)) {
+                res.trigger |= Filename;
+            } else if ((_trigger & Permission) && (res.before.meta_data._permission != res.after.meta_data._permission)) {
+                res.trigger |= Permission;
+            } else if (_trigger & Timestamp) {
+                bool b1 = res.before.meta_data._last_write_time != res.after.meta_data._last_write_time;
+                bool b2 = res.before.meta_data._last_create_time != res.after.meta_data._last_create_time;
+                if (b1 || b2) {
+                    res.trigger |= Timestamp;
+                }
+            } else if (_trigger & Owner) {
+                bool b1 = res.before.meta_data.owner != res.after.meta_data.owner;
+                bool b2 = res.before.meta_data.group != res.after.meta_data.group;
+                if (b1 || b2) {
+                    res.trigger |= Owner;
+                }
+            } else if (_trigger & Context) {
+                bool ok1{}, ok2{};
+                if (res.before.detect_file) {
+                    if (res.before.files_crc32 == res.after.files_crc32) {
+                        _trigger |= Context;
+                    }
+                }
+            }
+        }
     }
 
     void OS::FileSnapShot::endCapture() {
+        for (auto & path: _last_paths_snapshot) {
+            _result_map[path->uniqueID()].before = _result_map[path->uniqueID()].after;
+            _result_map[path->uniqueID()].after = {};
+        }
+    }
 
+    OS::FileSnapShot::Snapshot OS::FileSnapShot::makeSnapShot(const Path &path) {
+        Snapshot result;
+        auto& meta = result.meta_data;
+        meta._path = path.path();
+        meta._type = path.fileType();
+        meta._permission[0] = path.userPermission();
+        meta._permission[1] = path.groupPermission();
+        meta._permission[2] = path.otherPermission();
+        meta._last_access_time = path.lastAccessTime();
+        meta._last_write_time = path.lastWriteTime();
+        meta._last_create_time = path.lastCreateTime();
+        meta._node_id = path.nodeID();
+        meta._file_size = path.fileSize();
+        meta.owner = path.ownerName();
+        meta.group = path.groupName();
+        if (path.isDirectory()) {
+            result.detect_file = false;
+        } else if (!path.isValid()) {
+            result.detect_file = true;
+            if (_trigger & Context) {
+                File file(path, ReadOnly);
+                if (file.isOpen()) {
+                    if (path.fileSize() <= 2048) {
+                        auto datas = file.read(2048);
+                        result.files_crc32.before.cur_crc32 = CRC32Utils::calc(datas.data(), datas.size());
+                    } else {
+                        auto bg = file.read(2048);
+                        file.moveTo(-2048, File::Where::End);
+                    }
+                    file.close();
+                }
+            }
+        }
+        return result;
     }
 }

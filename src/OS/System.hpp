@@ -214,13 +214,14 @@ namespace Tiny {
         class FileSnapShot {
         public:
             enum Trigger : uint8_t {
-                Context      = 1,
-                Filename     = 2,
-                Permission   = 4,
-                Timestamp    = 8,
-                Owner        = 16,
-                MetaData     = Filename | Permission | Timestamp | Owner,
-                All
+                None         = 0,
+                Filename     = 1,
+                Permission   = 2,
+                Timestamp    = 4,
+                Owner        = 8,
+                Metadata     = 15,
+                Context      = 16,
+                All          = 31
             };
 
             explicit FileSnapShot() = default;
@@ -242,19 +243,56 @@ namespace Tiny {
             FileSnapShot& operator=(const FileSnapShot&) = delete;
             FileSnapShot& operator=(FileSnapShot&&) = delete;
         private:
-            void capture();
+            void init();
             void compare();
             void endCapture();
 
-            struct Result {
-                bool meta_is_different{};
+            struct CRC32_Cmp {
                 uint32_t last_crc32{};
                 uint32_t cur_crc32{};
+                bool operator==(const CRC32_Cmp &other) const {
+                    return last_crc32 == other.last_crc32 && cur_crc32 == other.cur_crc32;
+                }
+                bool operator!=(const CRC32_Cmp &other) const {
+                    return last_crc32 != other.last_crc32 || cur_crc32 != other.cur_crc32;
+                }
             };
+            struct FMetaData {
+                std::string _path{};
+                FileType    _type{};
+                std::array<::Tiny::OS::Permission, 3> _permission{};
+                int64_t _last_access_time{};
+                int64_t _last_write_time{};
+                int64_t _last_create_time{};
+                size_t _file_size{};
+                size_t _node_id{};
+                std::string owner{}, group{};
+            };
+            struct Snapshot {
+                FMetaData meta_data{};
+                bool detect_file{};
+                struct Files_CRC32 {
+                    CRC32_Cmp before{};
+                    CRC32_Cmp after{};
+                    bool operator==(const Files_CRC32 &other) const {
+                        return before == other.before && after == other.after;
+                    }
+                    bool operator!=(const Files_CRC32 &other) const {
+                        return before != other.before || after != other.after;
+                    }
+                } files_crc32{};
+            };
+
+            struct Result {
+                Snapshot before, after;
+                uint8_t trigger{};
+            };
+
+            Snapshot makeSnapShot(const Path& path);
 
             uint8_t _trigger{};
             std::vector<Path*> _last_paths_snapshot;
-            std::unordered_map<Path*, Result> _result_map;
+            std::unordered_map<uint64_t, Result> _result_map;
         };
     }
 }

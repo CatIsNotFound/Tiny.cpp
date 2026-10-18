@@ -24,6 +24,7 @@
  *************************************************************************************/
 
 #include "File.hpp"
+#include <random>
 
 #ifdef TINY_CPP_MY_OS_WINDOWS
 #include <windows.h>
@@ -82,6 +83,13 @@ namespace {
 }
 #endif
 
+static uint64_t random64() {
+    static std::random_device rm_dev;
+    static std::mt19937_64 mt64(rm_dev());
+    static std::uniform_int_distribution<uint64_t> dist;
+    return dist(mt64);
+}
+
 namespace Tiny {
     struct OS::Path::IDs {
 #ifdef TINY_CPP_MY_OS_WINDOWS
@@ -93,19 +101,20 @@ namespace Tiny {
 
     OS::Path::Path(std::string path) : _path(std::move(path)), _type() {
         checkPath();
+        _path_id = random64();
     }
 
-    OS::Path::Path(const Path &path) : _path(path._path),
-                                       _short_file_name(path._short_file_name),
-                                       _type(path._type) {
+    OS::Path::Path(const Path &path) : _path(path._path) {
         checkPath();
+        _path_id = random64();
     }
 
     OS::Path::Path(Path &&path) noexcept : _path(std::move(path._path)),
-                                           _short_file_name(std::move(path._short_file_name)), 
-                                           _type(std::move(path._type)) {
-        checkPath();
-    }
+            _short_file_name(std::move(path._short_file_name)), _type(path._type),
+            _permission(path._permission), _last_access_time(path._last_access_time),
+            _last_write_time(path._last_write_time), _last_create_time(path._last_create_time),
+            _file_size(path._file_size), _node_id(path._node_id), _ids(std::move(path._ids)),
+            _path_id(random64()) {}
 
     OS::Path& OS::Path::operator=(const Path &path) {
         _path = path._path;
@@ -115,10 +124,15 @@ namespace Tiny {
 
     OS::Path& OS::Path::operator=(Path &&path) noexcept {
         _path = path._path;
-        path._type = FileType::Unknown;
-        path._path.clear();
-        path._short_file_name.clear();
-        checkPath();
+        _short_file_name = std::move(path._short_file_name);
+        _type = path._type;
+        _permission = path._permission;
+        _last_access_time = path._last_access_time;
+        _last_write_time = path._last_write_time;
+        _last_create_time = path._last_create_time;
+        _file_size = path._file_size;
+        _node_id = path._node_id;
+        _ids = std::move(path._ids);
         return *this;
     }
 
@@ -134,15 +148,14 @@ namespace Tiny {
         checkPath();
     }
 
-    void OS::Path::reset() {
-        if (!updateByNodeID()) {
-            auto type = checkPath(_path);
-            if (type == FileType::Unknown) {
-                unset();
-                return;
-            }
-            checkPath();
+    bool OS::Path::reset() {
+        auto type = checkPath(_path);
+        if (type == FileType::Unknown) {
+            unset();
+            return updateByNodeID();
         }
+        checkPath();
+        return isValid();
     }
 
     void OS::Path::unset() {
@@ -231,7 +244,7 @@ namespace Tiny {
         return _permission[2];
     }
 
-    std::string OS::Path::userName(bool *ok) const {
+    std::string OS::Path::ownerName(bool *ok) const {
 #ifdef TINY_CPP_MY_OS_WINDOWS
         return getNameByID(_ids->uid, ok);
 #else
@@ -245,6 +258,10 @@ namespace Tiny {
 #else
         return getGroupNameByID(_ids->uid, ok);
 #endif
+    }
+
+    size_t OS::Path::uniqueID() const {
+        return _path_id;
     }
 
     OS::Path &OS::Path::operator/(const std::string &path) {
@@ -671,7 +688,9 @@ namespace Tiny {
         FileData out(length + 1);
 #ifdef TINY_CPP_MY_OS_WINDOWS
         DWORD bytes_read;
-        SetFilePointer(_handler, _position, nullptr, FILE_BEGIN);
+        LARGE_INTEGER new_pos;
+        new_pos.QuadPart = static_cast<int64_t>(_position);
+        SetFilePointerEx(_handler, new_pos, nullptr, FILE_BEGIN);
         auto ok = ReadFile(_handler, out.data(), length, &bytes_read, nullptr);
         if (ok) _position += bytes_read;
 #elif defined(TINY_CPP_MY_OS_UNIX)
@@ -704,7 +723,9 @@ namespace Tiny {
         std::string out(length, 0);
 #ifdef TINY_CPP_MY_OS_WINDOWS
         DWORD bytes_read;
-        SetFilePointer(_handler, _position, nullptr, FILE_BEGIN);
+        LARGE_INTEGER new_pos;
+        new_pos.QuadPart = static_cast<int64_t>(_position);
+        SetFilePointerEx(_handler, new_pos, nullptr, FILE_BEGIN);
         auto ok = ReadFile(_handler, &out[0], length, &bytes_read, nullptr);
         if (ok) _position += bytes_read;
 #elif defined(TINY_CPP_MY_OS_UNIX)
@@ -722,7 +743,9 @@ namespace Tiny {
         size_t cur_len = 0;
 #ifdef TINY_CPP_MY_OS_WINDOWS
         DWORD bytes_read;
-        SetFilePointer(_handler, _position, nullptr, FILE_BEGIN);
+        LARGE_INTEGER new_pos;
+        new_pos.QuadPart = static_cast<int64_t>(_position);
+        SetFilePointerEx(_handler, new_pos, nullptr, FILE_BEGIN);
         do {
             auto ok = ReadFile(_handler, &ch, 1, &bytes_read, nullptr);
             if (ok && bytes_read > 0) {
@@ -873,12 +896,20 @@ namespace Tiny {
         _position = _file_size;
     }
 
-    void OS::File::moveTo(int64_t pos) {
-        if (pos < 0) {
-            auto new_pos = _file_size + pos;
-            _position = new_pos >= _file_size ? 0 : new_pos;
-        } else {
-            _position = pos >= _file_size ? _file_size : pos;
+    void OS::File::moveTo(int64_t move_distance, Where where) {
+        size_t new_pos{};
+        switch (where) {
+            case Where::Begin:
+                _position = (move_distance <= 0 ? 0 : (move_distance >= _file_size ? _file_size : move_distance));
+                break;
+            case Where::Current:
+                new_pos = _position + move_distance;
+                _position = (new_pos <= 0 ? 0 : (new_pos >= _file_size ? _file_size : new_pos));
+                break;
+            case Where::End:
+                new_pos = _file_size + move_distance;
+                _position = (new_pos <= 0 ? 0 : (new_pos >= _file_size ? 0 : new_pos));
+                break;
         }
     }
 
@@ -948,7 +979,6 @@ namespace Tiny {
 #elif defined(TINY_CPP_MY_OS_UNIX)
         _handler = -1;
 #endif
-        _position = 0;
         _open_mode = Unknown;
     }
 
@@ -997,7 +1027,7 @@ namespace Tiny {
 #endif
         _path.setPath(_path.path());
         _file_size = _path.fileSize();
-        _position = (IO & Append) ? _file_size : 0;
+        if (IO & Append) moveToEnd();
         return true;
     }
 }

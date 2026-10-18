@@ -93,7 +93,7 @@ int printFileStat(const std::string& path, bool recursive_all_path, bool readabl
     Terminal::printFormat("Path: {}\r\n", my_path.path());
     Terminal::printFormat("NodeID: {}\r\n", my_path.nodeID());
     Terminal::printFormat("Type: {:<14s}\r\n", OS::fileTypeName(my_path.fileType()));
-    Terminal::printFormat("Owner | Group: {} | {}\r\n", my_path.userName(), my_path.groupName());
+    Terminal::printFormat("Owner | Group: {} | {}\r\n", my_path.ownerName(), my_path.groupName());
     std::string result{};
     getPermission(my_path, result);
     Terminal::printFormat("Permission: {}\r\n", result);
