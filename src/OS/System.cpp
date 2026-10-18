@@ -2572,10 +2572,38 @@ namespace Tiny {
         _trigger = trigger;
     }
 
-    bool OS::FileSnapShot::check(std::vector<std::string> &result, uint32_t check_count, uint32_t check_delay_ms) {
+    bool OS::FileSnapShot::check(uint32_t check_count, uint32_t check_delay_ms, std::vector<uint64_t> *result) {
         if (_result_map.empty()) init();
+        if (result && !result->empty()) result->clear();
+        size_t found = 0;
+        auto func = [this, &result, &found]() {
+            compare();
+            bool ok{};
+            for (auto& pair: _result_map) {
+                if (pair.second.trigger) {
+                    if (result && std::find(result->begin(), result->end(), pair.first) == result->end()) {
+                        result->emplace_back(pair.first);
+                    }
+                    found++;
+                    if (!ok) ok = true;
+                }
+            }
+            endCapture();
+            return ok;
+        };
 
-        return false;
+        int64_t st = getTicks(), ed = 0;
+        while (true) {
+            if (!check_count) break;
+            ed = getTicks();
+            if (ed - st > check_delay_ms) {
+                if (func()) break;
+                check_count--;
+                st = getTicks();
+            }
+        }
+
+        return found > 0;
     }
 
     uint8_t OS::FileSnapShot::trigger() const {
@@ -2597,21 +2625,25 @@ namespace Tiny {
             auto& res = _result_map[path->uniqueID()];
             if ((_trigger & Filename) && (res.before.meta_data._path != res.after.meta_data._path)) {
                 res.trigger |= Filename;
-            } else if ((_trigger & Permission) && (res.before.meta_data._permission != res.after.meta_data._permission)) {
+            }
+            if ((_trigger & Permission) && (res.before.meta_data._permission != res.after.meta_data._permission)) {
                 res.trigger |= Permission;
-            } else if (_trigger & Timestamp) {
+            }
+            if (_trigger & Timestamp) {
                 bool b1 = res.before.meta_data._last_write_time != res.after.meta_data._last_write_time;
                 bool b2 = res.before.meta_data._last_create_time != res.after.meta_data._last_create_time;
                 if (b1 || b2) {
                     res.trigger |= Timestamp;
                 }
-            } else if (_trigger & Owner) {
+            }
+            if (_trigger & Owner) {
                 bool b1 = res.before.meta_data.owner != res.after.meta_data.owner;
                 bool b2 = res.before.meta_data.group != res.after.meta_data.group;
                 if (b1 || b2) {
                     res.trigger |= Owner;
                 }
-            } else if (_trigger & Context) {
+            }
+            if (_trigger & Context) {
                 bool ok1{}, ok2{};
                 if (res.before.detect_file) {
                     if (res.before.files_crc32 == res.after.files_crc32) {
@@ -2626,6 +2658,7 @@ namespace Tiny {
         for (auto & path: _last_paths_snapshot) {
             _result_map[path->uniqueID()].before = _result_map[path->uniqueID()].after;
             _result_map[path->uniqueID()].after = {};
+            _result_map[path->uniqueID()].trigger = 0;
         }
     }
 
@@ -2646,7 +2679,7 @@ namespace Tiny {
         meta.group = path.groupName();
         if (path.isDirectory()) {
             result.detect_file = false;
-        } else if (!path.isValid()) {
+        } else if (path.isValid()) {
             result.detect_file = true;
             if (_trigger & Context) {
                 File file(path, ReadOnly);

@@ -235,7 +235,7 @@ namespace Tiny {
             void clearAll();
             void setTrigger(Trigger trigger);
 
-            bool check(std::vector<std::string>& result, uint32_t check_count = 1, uint32_t check_delay_ms = 1000);
+            bool check(uint32_t check_count = 1, uint32_t check_delay_ms = 1000, std::vector<uint64_t> *result = nullptr);
             uint8_t trigger() const;
 
             FileSnapShot(const FileSnapShot&) = delete;

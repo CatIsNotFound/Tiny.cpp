@@ -151,8 +151,9 @@ namespace Tiny {
     bool OS::Path::reset() {
         auto type = checkPath(_path);
         if (type == FileType::Unknown) {
-            unset();
-            return updateByNodeID();
+            bool ok = updateByNodeID();
+            if (!ok) unset();
+            return ok;
         }
         checkPath();
         return isValid();
@@ -162,6 +163,15 @@ namespace Tiny {
         _path.clear();
         _short_file_name.clear();
         _type = FileType::Unknown;
+        _permission[0] = P_None;
+        _permission[1] = P_None;
+        _permission[2] = P_None;
+        _file_size = 0;
+        _node_id = 0;
+        _last_access_time = 0;
+        _last_create_time = 0;
+        _last_write_time = 0;
+        _ids.reset();
     }
 
     const std::string & OS::Path::path() const {
@@ -467,27 +477,44 @@ namespace Tiny {
     }
 
     bool OS::Path::updateByNodeID() {
-        std::string upper_path = _path;
+        std::string upper_path;
         auto pos = _path.find_last_of(SPLASH);
-        if (pos >= _path.size() - 1) upper_path = _path.substr(0, pos);
+        upper_path = _path.substr(0, pos);
 #ifdef TINY_CPP_MY_OS_WINDOWS
         WIN32_FIND_DATAW files;
         auto w_str = string2Wide(upper_path);
-        auto iter = FindFirstFileW(w_str.c_str(), &files);
+        wchar_t find_string[MAX_PATH];
+        wsprintfW(find_string, L"%s\\*", w_str.c_str());
+        auto iter = FindFirstFileW(find_string, &files);
         bool ok{};
         if (iter == INVALID_HANDLE_VALUE) return false;
         do {
             BY_HANDLE_FILE_INFORMATION info;
-            if (!GetFileInformationByHandle(iter, &info)) continue;
+            wchar_t file_name[MAX_PATH];
+            wsprintfW(file_name, L"%s\\%s", w_str.c_str(), files.cFileName);
+            HANDLE hnd = CreateFileW(
+                file_name,
+                GENERIC_READ,
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                nullptr,
+                OPEN_EXISTING,
+                FILE_FLAG_BACKUP_SEMANTICS,
+                nullptr
+            );
+            if (hnd == INVALID_HANDLE_VALUE || !GetFileInformationByHandle(hnd, &info)) continue;
+            CloseHandle(hnd);
             ULARGE_INTEGER ull;
             ull.LowPart = info.nFileIndexLow;
             ull.HighPart = info.nFileIndexHigh;
-            if (_node_id == ull.LowPart) {
+            if (_node_id == ull.QuadPart) {
                 ok = true;
-                upper_path = wide2String(files.cFileName);
+                memset(file_name, 0, sizeof(file_name));
+                wsprintfW(file_name, L"%s\\%s", w_str.c_str(), files.cFileName);
+                upper_path = wide2String(file_name);
                 break;
             }
         } while (FindNextFileW(iter, &files));
+        FindClose(iter);
         if (ok) {
             _path = upper_path;
             checkPath();
