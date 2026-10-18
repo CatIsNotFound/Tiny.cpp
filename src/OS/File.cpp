@@ -255,6 +255,10 @@ namespace Tiny {
     }
 
     std::string OS::Path::ownerName(bool *ok) const {
+        if (!_ids) {
+            if (ok) *ok = false;
+            return {};
+        }
 #ifdef TINY_CPP_MY_OS_WINDOWS
         return getNameByID(_ids->uid, ok);
 #else
@@ -263,6 +267,10 @@ namespace Tiny {
     }
 
     std::string OS::Path::groupName(bool *ok) const {
+        if (!_ids) {
+            if (ok) *ok = false;
+            return {};
+        }
 #ifdef TINY_CPP_MY_OS_WINDOWS
         return getNameByID(_ids->gid, ok);
 #else
@@ -528,6 +536,7 @@ namespace Tiny {
             dirent* file{};
             do {
                 file = readdir(search_dir);
+                if (!file) break;
                 if (file->d_ino == _node_id) {
                     new_path = file->d_name;
                     ok = true;

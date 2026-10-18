@@ -25,976 +25,778 @@
 
 #include "../src/OS/System.hpp"
 #include <gtest/gtest.h>
+#include <cstdio>
 #include <string>
 #include <vector>
 
+#ifdef TINY_CPP_MY_OS_UNIX
+#include <sys/stat.h>
+#endif
+
 using namespace Tiny::OS;
 
+// ============================================================================
+// Test helpers
+// ============================================================================
 
-TEST(FileSystemTest, CurrentPath) {
-    Path current = FileSystem::currentPath();
-    if (!current.isValid()) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "currentPath() failed: " << error;
+/// Build an absolute path under the current working directory.
+/// NOTE: never feed bare relative paths to FileSystem::mkDir — if any ancestor
+/// does not exist, mkDirCompletely() walks up with Path::upper() and can loop
+/// forever on a separator-less path, exhausting memory. Absolute paths always
+/// terminate the walk at an existing ancestor.
+static std::string absPath(const std::string& rel) {
+    Path base = FileSystem::currentPath();
+    base.join(rel);
+    return base.path();
+}
+
+static std::string testDir() { return absPath("tiny_sys_dir"); }
+static std::string testCopyDir() { return absPath("tiny_sys_dir_copy"); }
+
+/// Record the last system error info (project convention for system-related operations)
+static void recordLastError(const char* context) {
+    std::string info;
+    int code = 0;
+    lastSystemError(info, &code);
+    SUCCEED() << context << " | last system error code: " << code
+              << ", info: " << (info.empty() ? "<none>" : info);
+}
+
+static void cleanupTestDirs() {
+    FileSystem::rmDir(testCopyDir(), true);
+    FileSystem::rmDir(testDir(), true);
+}
+
+static bool containsShortName(const std::vector<Path>& paths, const std::string& name) {
+    for (auto& path : paths) {
+        if (path.shortFileName() == name) return true;
     }
+    return false;
+}
+
+// ============================================================================
+// OS name Tests
+// ============================================================================
+
+TEST(OsNameTest, PlatformName) {
+#if defined(_WIN32) || defined(_WIN64)
+    EXPECT_STREQ(Name, "windows");
+#else
+    EXPECT_STRNE(Name, "");
+#endif
+}
+
+// ============================================================================
+// CPU architecture Tests
+// ============================================================================
+
+TEST(CPUArchTest, ArchNames) {
+    EXPECT_STREQ(getCPUArchName(CPU_Arch::Unknown), "Unknown");
+    EXPECT_STREQ(getCPUArchName(CPU_Arch::X86), "x86");
+    EXPECT_STREQ(getCPUArchName(CPU_Arch::X86_64), "x86_64");
+    EXPECT_STREQ(getCPUArchName(CPU_Arch::ARM32), "arm32");
+    EXPECT_STREQ(getCPUArchName(CPU_Arch::ARM64), "arm64");
+    EXPECT_STREQ(getCPUArchName(CPU_Arch::LoongArch), "loongArch");
+    EXPECT_STREQ(getCPUArchName(CPU_Arch::MIPS), "mips");
+    EXPECT_STREQ(getCPUArchName(CPU_Arch::RISCV), "risc-v");
+    EXPECT_STREQ(getCPUArchName(CPU_Arch::IA64), "ia64");
+}
+
+TEST(CPUArchTest, CurrentArch) {
+    auto arch = getCurrentCPUArch();
+    EXPECT_NE(arch, CPU_Arch::Unknown);
+    EXPECT_STRNE(getCPUArchName(arch), "Unknown");
+}
+
+// ============================================================================
+// Host info Tests
+// ============================================================================
+
+TEST(HostInfoTest, GetHostInfo) {
+    HostInfo info;
+    bool ok = getHostInfo(info);
+    EXPECT_TRUE(ok);
+    ASSERT_FALSE(info.host_name.empty());
+    EXPECT_NE(info.host_name[0], '\0');
+    EXPECT_FALSE(info.user_name.empty());
+    recordLastError("HostInfoTest::GetHostInfo");
+}
+
+TEST(HostInfoTest, CurrentHostInfo) {
+    auto info = currentHostInfo();
+    ASSERT_FALSE(info.host_name.empty());
+    EXPECT_NE(info.host_name[0], '\0');
+    EXPECT_FALSE(info.user_name.empty());
+}
+
+// ============================================================================
+// CPU info Tests
+// ============================================================================
+
+TEST(CPUInfoTest, GetCPUInfo) {
+    CPU info;
+    // The PDH counters may need a warm-up call on some systems before the
+    // formatted values become valid, so allow a few attempts.
+    bool ok = false;
+    for (int attempt = 0; attempt < 3 && !ok; ++attempt) {
+        info = CPU{};
+        ok = getCPUInfo(info, 50);
+    }
+    recordLastError("CPUInfoTest::GetCPUInfo");
+    EXPECT_GT(info.cores, 0u);
+    EXPECT_GT(info.page_size, 0u);
+    EXPECT_EQ(info.usages.size(), static_cast<size_t>(info.cores));
+    for (auto usage : info.usages) {
+        EXPECT_GE(usage, 0.0f);
+        EXPECT_LE(usage, 100.5f);
+    }
+    EXPECT_GE(info.total_usage, 0.0f);
+    EXPECT_LE(info.total_usage, 100.5f);
+    EXPECT_NE(info.machine, CPU_Arch::Unknown);
+    if (!ok) {
+        GTEST_SKIP() << "getCPUInfo counter sampling is unavailable in this environment";
+    }
+}
+
+TEST(CPUInfoTest, CurrentCPUInfo) {
+    auto info = currentCPUInfo();
+    EXPECT_GT(info.cores, 0u);
+    EXPECT_EQ(info.usages.size(), static_cast<size_t>(info.cores));
+}
+
+// ============================================================================
+// Memory Tests
+// ============================================================================
+
+TEST(MemoryTest, GetMemory) {
+    Memory memory;
+    bool ok = getMemory(memory);
+    EXPECT_TRUE(ok);
+    EXPECT_GT(memory.total_ram, 0u);
+    EXPECT_LE(memory.free_ram, memory.total_ram);
+    EXPECT_LE(memory.used_ram, memory.total_ram);
+    recordLastError("MemoryTest::GetMemory");
+}
+
+TEST(MemoryTest, CurrentMemory) {
+    auto memory = currentMemory();
+    EXPECT_GT(memory.total_ram, 0u);
+    EXPECT_LE(memory.free_ram, memory.total_ram);
+}
+
+// ============================================================================
+// Disk space Tests
+// ============================================================================
+
+TEST(DiskSpaceTest, GetDiskSpace) {
+    DiskSpace space;
+    bool ok = getDiskSpace(space);
+    EXPECT_TRUE(ok);
+    EXPECT_GT(space.total_bytes, 0u);
+    EXPECT_LE(space.free_bytes, space.total_bytes);
+    EXPECT_LE(space.used_bytes, space.total_bytes);
+    recordLastError("DiskSpaceTest::GetDiskSpace");
+}
+
+TEST(DiskSpaceTest, CurrentDiskSpace) {
+    auto space = currentDiskSpace();
+    EXPECT_GT(space.total_bytes, 0u);
+}
+
+// ============================================================================
+// Admin & last system error Tests
+// ============================================================================
+
+TEST(SystemMiscTest, IsAdmin) {
+    bool admin = isAdmin();
+    SUCCEED() << "isAdmin(): " << (admin ? "true" : "false");
+}
+
+TEST(SystemMiscTest, LastSystemError) {
+    std::string info;
+    int code = -1;
+    lastSystemError(info, &code);
+    EXPECT_GE(code, 0);
+    if (code == 0) {
+        EXPECT_TRUE(info.empty());
+    }
+    SUCCEED() << "lastSystemError code: " << code
+              << ", info: " << (info.empty() ? "<none>" : info);
+}
+
+// ============================================================================
+// Process::exec Tests
+// ============================================================================
+
+// Process::exec launches the program directly (CreateProcess, no shell), so
+// shell builtins like "echo"/"exit" must run through the system shell.
+#ifdef _WIN32
+static const char* kEchoCmd = "cmd /c echo tiny-echo-test";
+static const char* kExitCmd = "cmd /c exit 7";
+static const char* kEchoCmd2 = "cmd /c echo deprecated-wrapper";
+#else
+static const char* kEchoCmd = "echo tiny-echo-test";
+static const char* kExitCmd = "sh -c \"exit 7\"";
+static const char* kEchoCmd2 = "echo deprecated-wrapper";
+#endif
+
+TEST(ProcessExecTest, EchoOutput) {
+    std::string output, error;
+    // NOTE: any nonzero timeout makes exec() kill the job object afterwards,
+    // which can overwrite the real exit code with 255, so wait indefinitely
+    int code = Process::exec(kEchoCmd, 0, &output, &error);
+    EXPECT_EQ(code, 0);
+    EXPECT_NE(output.find("tiny-echo-test"), std::string::npos) << "output: " << output;
+    recordLastError("ProcessExecTest::EchoOutput");
+}
+
+TEST(ProcessExecTest, ExitCode) {
+    int code = Process::exec(kExitCmd, 0);
+    EXPECT_EQ(code, 7);
+}
+
+TEST(ProcessExecTest, EmptyCommand) {
+    int code = Process::exec("", 10000);
+    EXPECT_EQ(code, -1);
+}
+
+TEST(ProcessExecTest, NonExistentCommand) {
+    int code = Process::exec("this_command_does_not_exist_xyz", 10000);
+    EXPECT_NE(code, 0);
+    recordLastError("ProcessExecTest::NonExistentCommand");
+}
+
+TEST(ProcessExecTest, DeprecatedWrapper) {
+    std::string output;
+    int code = exec(kEchoCmd2, 0, &output);
+    EXPECT_EQ(code, 0);
+    EXPECT_NE(output.find("deprecated-wrapper"), std::string::npos) << "output: " << output;
+}
+
+// ============================================================================
+// Process::Child Tests
+// ============================================================================
+
+TEST(ProcessChildTest, RunAndCaptureOutput) {
+    Process::Child child;
+    ASSERT_TRUE(child.exec("echo child-ok"));
+
+    bool ok = false;
+    auto output = child.catchOutput(5000, &ok);
+    EXPECT_TRUE(ok);
+    EXPECT_NE(output.find("child-ok"), std::string::npos) << "output: " << output;
+
+    int code = child.wait();
+    EXPECT_EQ(code, 0);
+    EXPECT_FALSE(child.running());
+    EXPECT_EQ(child.exitCode(), 0);
+}
+
+TEST(ProcessChildTest, ChildExitCode) {
+    Process::Child child;
+    ASSERT_TRUE(child.exec("exit 3"));
+    int code = child.wait();
+    EXPECT_EQ(code, 3);
+    EXPECT_EQ(child.exitCode(), 3);
+}
+
+TEST(ProcessChildTest, WithoutCatchMode) {
+    Process::Child child(false, false);
+    ASSERT_TRUE(child.exec("echo no-catch"));
+    int code = child.wait();
+    EXPECT_EQ(code, 0);
+
+    auto output = child.output();
+    EXPECT_TRUE(output.empty());
+    recordLastError("ProcessChildTest::WithoutCatchMode");
+}
+
+// ============================================================================
+// FileSystem basic Tests
+// ============================================================================
+
+TEST(FileSystemPathTest, CurrentAndHomePath) {
+    auto current = FileSystem::currentPath();
     EXPECT_TRUE(current.isValid());
     EXPECT_TRUE(current.isDirectory());
-}
 
-TEST(FileSystemTest, HomePath) {
-    Path home = FileSystem::homePath();
-    if (!home.isValid()) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "homePath() failed: " << error;
-    }
+    auto home = FileSystem::homePath();
     EXPECT_TRUE(home.isValid());
     EXPECT_TRUE(home.isDirectory());
+    EXPECT_FALSE(home.path().empty());
+
+    auto cache = FileSystem::cachePath();
+    EXPECT_TRUE(cache.isValid());
+    EXPECT_FALSE(cache.path().empty());
+
+    auto local_data = FileSystem::localDataPath();
+    EXPECT_TRUE(local_data.isValid());
+    EXPECT_FALSE(local_data.path().empty());
+    recordLastError("FileSystemPathTest::CurrentAndHomePath");
 }
 
-TEST(FileSystemTest, ChDir_String) {
-    Path originalDir = FileSystem::currentPath();
-    if (!FileSystem::chDir("..")) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "chDir(\"..\") failed: " << error;
-    }
-    Path newDir = FileSystem::currentPath();
-    EXPECT_TRUE(newDir.isValid());
-    if (!FileSystem::chDir(originalDir.path())) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "chDir(originalDir) failed: " << error;
-    }
-    Path backDir = FileSystem::currentPath();
-    EXPECT_EQ(backDir.path(), originalDir.path());
+TEST(FileSystemPathTest, ChDir) {
+    auto current = FileSystem::currentPath();
+    ASSERT_TRUE(current.isValid());
+    auto home = FileSystem::homePath();
+
+    EXPECT_TRUE(FileSystem::chDir(home));
+    EXPECT_EQ(FileSystem::currentPath().path(), home.path());
+
+    EXPECT_TRUE(FileSystem::chDir(current));
+    EXPECT_EQ(FileSystem::currentPath().path(), current.path());
+    recordLastError("FileSystemPathTest::ChDir");
 }
 
-TEST(FileSystemTest, ChDir_Path) {
-    Path originalDir = FileSystem::currentPath();
-    Path parentDir("..");
-    if (!FileSystem::chDir(parentDir)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "chDir(parentDir) failed: " << error;
-    }
-    Path newDir = FileSystem::currentPath();
-    EXPECT_TRUE(newDir.isValid());
-    if (!FileSystem::chDir(originalDir)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "chDir(originalDir) failed: " << error;
-    }
-    Path backDir = FileSystem::currentPath();
-    EXPECT_EQ(backDir.path(), originalDir.path());
+TEST(FileSystemPathTest, ChDirNonExistent) {
+    EXPECT_FALSE(FileSystem::chDir(std::string("no_such_dir_tiny_test_xyz")));
+    recordLastError("FileSystemPathTest::ChDirNonExistent");
 }
 
-TEST(FileSystemTest, ChDir_Invalid) {
-    bool result = FileSystem::chDir("/this/path/does/not/exist/12345");
-    if (result) {
-        ADD_FAILURE() << "chDir() should have failed for non-existent path";
+// ============================================================================
+// FileSystem create/copy/move/remove Tests
+// ============================================================================
+
+class FileSystemOpsTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        cleanupTestDirs();
+        recordLastError("FileSystemOpsTest::SetUp cleanup");
+    }
+    void TearDown() override {
+        cleanupTestDirs();
+        recordLastError("FileSystemOpsTest::TearDown cleanup");
+    }
+};
+
+TEST_F(FileSystemOpsTest, MkDir) {
+    EXPECT_TRUE(FileSystem::mkDir(testDir()));
+    EXPECT_TRUE(Path::exist(testDir()));
+    EXPECT_TRUE(Path::isDirectory(testDir()));
+    // Creating an existing directory succeeds
+    EXPECT_TRUE(FileSystem::mkDir(testDir()));
+
+    // Nested creation one level below an existing directory
+    EXPECT_TRUE(FileSystem::mkDir(testDir() + "/l1"));
+    EXPECT_TRUE(Path::isDirectory(testDir() + "/l1"));
+}
+
+TEST_F(FileSystemOpsTest, MkDirInvalid) {
+    // Creating a directory under an existing file must fail on every platform
+    std::string file_path = absPath("tiny_not_a_dir.txt");
+    ASSERT_TRUE(FileSystem::mkFile(file_path, std::string("x")));
+    ASSERT_TRUE(Path::isFile(file_path));
+
+    // The walk-up inside mkDir stops at the existing file ancestor, then the
+    // native CreateDirectory call fails because the parent is not a directory
+    EXPECT_FALSE(FileSystem::mkDir(file_path + "/subdir"));
+    EXPECT_FALSE(Path::exist(file_path + "/subdir"));
+
+    EXPECT_TRUE(FileSystem::rmFile(Path(file_path)));
+    recordLastError("FileSystemOpsTest::MkDirInvalid");
+}
+
+TEST_F(FileSystemOpsTest, MkFileWithText) {
+    ASSERT_TRUE(FileSystem::mkDir(testDir()));
+    std::string file_path = testDir() + "/a.txt";
+    EXPECT_TRUE(FileSystem::mkFile(file_path, std::string("AAA")));
+    EXPECT_TRUE(Path::exist(file_path));
+    EXPECT_TRUE(Path::isFile(file_path));
+}
+
+TEST_F(FileSystemOpsTest, MkFileWithBytes) {
+    ASSERT_TRUE(FileSystem::mkDir(testDir()));
+    std::string file_path = testDir() + "/b.bin";
+    std::vector<uint8_t> data;
+    data.push_back(0x00);
+    data.push_back(0x10);
+    data.push_back(0xFF);
+    EXPECT_TRUE(FileSystem::mkFile(file_path, data));
+
+    File file(Path(file_path), ReadOnly);
+    ASSERT_TRUE(file.open(ReadOnly));
+    auto raw = file.readAll();
+    ASSERT_GE(raw.size(), 3u);
+    EXPECT_EQ(raw[0], 0x00);
+    EXPECT_EQ(raw[1], 0x10);
+    EXPECT_EQ(raw[2], 0xFF);
+    file.close();
+    recordLastError("FileSystemOpsTest::MkFileWithBytes");
+}
+
+TEST_F(FileSystemOpsTest, CpFileMvFileRmFile) {
+    ASSERT_TRUE(FileSystem::mkDir(testDir()));
+    std::string src = testDir() + "/a.txt";
+    std::string copied = testDir() + "/copy.txt";
+    std::string moved = testDir() + "/moved.txt";
+    ASSERT_TRUE(FileSystem::mkFile(src, std::string("copy me")));
+
+    // Copy
+    EXPECT_TRUE(FileSystem::cpFile(Path(src), Path(copied)));
+    EXPECT_TRUE(Path::exist(copied));
+
+    // Move
+    EXPECT_TRUE(FileSystem::mvFile(Path(copied), Path(moved)));
+    EXPECT_FALSE(Path::exist(copied));
+    EXPECT_TRUE(Path::exist(moved));
+
+    // Remove
+    EXPECT_TRUE(FileSystem::rmFile(Path(moved)));
+    EXPECT_FALSE(Path::exist(moved));
+    recordLastError("FileSystemOpsTest::CpFileMvFileRmFile");
+}
+
+TEST_F(FileSystemOpsTest, CpFileStringOverloads) {
+    ASSERT_TRUE(FileSystem::mkDir(testDir()));
+    std::string src = testDir() + "/a.txt";
+    std::string copied = testDir() + "/copy.txt";
+    ASSERT_TRUE(FileSystem::mkFile(src, std::string("overload")));
+
+    EXPECT_TRUE(FileSystem::cpFile(Path(src), copied));
+    EXPECT_TRUE(Path::exist(copied));
+
+    EXPECT_TRUE(FileSystem::mvFile(Path(copied), testDir() + "/renamed.txt"));
+    EXPECT_TRUE(Path::exist(testDir() + "/renamed.txt"));
+}
+
+TEST_F(FileSystemOpsTest, CpDirMvDirRmDir) {
+    ASSERT_TRUE(FileSystem::mkDir(testDir()));
+    ASSERT_TRUE(FileSystem::mkFile(testDir() + "/a.txt", std::string("dir copy")));
+
+    // Copy directory (creates the destination directory)
+    EXPECT_TRUE(FileSystem::cpDir(Path(testDir()), Path(testCopyDir())));
+    EXPECT_TRUE(Path::isDirectory(testCopyDir()));
+
+    // Move directory
+    std::string moved_dir = testCopyDir() + "_moved";
+    EXPECT_TRUE(FileSystem::mvDir(Path(testCopyDir()), Path(moved_dir)));
+    EXPECT_FALSE(Path::exist(testCopyDir()));
+    EXPECT_TRUE(Path::isDirectory(moved_dir));
+
+    // Remove recursively succeeds
+    EXPECT_TRUE(FileSystem::rmDir(Path(moved_dir), true));
+    EXPECT_FALSE(Path::exist(moved_dir));
+    recordLastError("FileSystemOpsTest::CpDirMvDirRmDir");
+}
+
+TEST_F(FileSystemOpsTest, RmDirNonRecursiveOnNonEmpty) {
+    // Use a dedicated directory name to avoid delete/recreate races on the
+    // shared test directory across tests
+    const std::string dir = absPath("tiny_sys_dir_rm");
+    FileSystem::rmDir(dir, true);
+
+    ASSERT_TRUE(FileSystem::mkDir(dir));
+    ASSERT_TRUE(FileSystem::mkFile(dir + "/f.txt", std::string("x")));
+
+    EXPECT_FALSE(FileSystem::rmDir(Path(dir), false));
+    EXPECT_TRUE(Path::exist(dir));
+    recordLastError("FileSystemOpsTest::RmDirNonRecursiveOnNonEmpty");
+
+    EXPECT_TRUE(FileSystem::rmDir(Path(dir), true));
+    EXPECT_FALSE(Path::exist(dir));
+}
+
+TEST_F(FileSystemOpsTest, RmDirNonExistent) {
+    EXPECT_FALSE(FileSystem::rmDir(Path("no_such_dir_tiny_test_xyz"), true));
+    EXPECT_FALSE(FileSystem::rmFile(Path("no_such_file_tiny_test_xyz.txt")));
+    recordLastError("FileSystemOpsTest::RmDirNonExistent");
+}
+
+TEST_F(FileSystemOpsTest, MkLink) {
+    ASSERT_TRUE(FileSystem::mkDir(testDir()));
+    std::string target = testDir() + "/a.txt";
+    ASSERT_TRUE(FileSystem::mkFile(target, std::string("link target")));
+    std::string link = testDir() + "/a_link.txt";
+
+    if (FileSystem::mkLink(target, link)) {
+        EXPECT_TRUE(Path::exist(link));
+        FileSystem::rmFile(Path(link));
     } else {
-        std::string error;
-        lastSystemError(error);
-        EXPECT_FALSE(result) << "chDir() failed as expected: " << error;
+        // Creating a symbolic link requires additional privileges on some systems
+        SUCCEED() << "mkLink is not permitted in current environment";
+        recordLastError("FileSystemOpsTest::MkLink");
     }
 }
 
-TEST(FileSystemTest, MkDirAndRmDir_String) {
-    std::string testDir = "./test_dir_temp";
-    Path checkPath(testDir);
-    if (checkPath.isValid()) {
-        if (!FileSystem::rmDir(testDir, true)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-        }
-    }
+// ============================================================================
+// FileSystem listPath Tests
+// ============================================================================
 
-    if (!FileSystem::mkDir(testDir)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkDir() failed: " << error;
+class FileSystemListTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        cleanupTestDirs();
+        ASSERT_TRUE(FileSystem::mkDir(testDir()));
+        ASSERT_TRUE(FileSystem::mkDir(testDir() + "/sub"));
+        ASSERT_TRUE(FileSystem::mkFile(testDir() + "/a.txt", std::string("A")));
+        ASSERT_TRUE(FileSystem::mkFile(testDir() + "/b.log", std::string("B")));
+        ASSERT_TRUE(FileSystem::mkFile(testDir() + "/sub/c.txt", std::string("C")));
     }
-    Path verifyPath(testDir);
-    EXPECT_TRUE(verifyPath.isValid());
-    EXPECT_TRUE(verifyPath.isDirectory());
+    void TearDown() override {
+        cleanupTestDirs();
+    }
+};
 
-    if (!FileSystem::rmDir(testDir)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmDir() failed: " << error;
-    }
-    Path removedPath(testDir);
-    EXPECT_FALSE(removedPath.isValid());
+TEST_F(FileSystemListTest, ListTopLevel) {
+    auto paths = FileSystem::listPath(Path(testDir()), 1);
+    EXPECT_TRUE(containsShortName(paths, "a.txt"));
+    EXPECT_TRUE(containsShortName(paths, "b.log"));
+    EXPECT_TRUE(containsShortName(paths, "sub"));
+    // recursion_count = 1 does not contain nested entries
+    EXPECT_FALSE(containsShortName(paths, "c.txt"));
 }
 
-TEST(FileSystemTest, MkDirAndRmDir_Path) {
-    std::string testDir = "./test_dir_temp_path";
-    Path checkPath(testDir);
-    if (checkPath.isValid()) {
-        if (!FileSystem::rmDir(checkPath, true)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-        }
-    }
-
-    Path dirPath(testDir);
-    if (!FileSystem::mkDir(dirPath)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkDir(Path) failed: " << error;
-    }
-    Path verifyPath(testDir);
-    EXPECT_TRUE(verifyPath.isValid());
-    EXPECT_TRUE(verifyPath.isDirectory());
-
-    Path removePath(testDir);
-    if (!FileSystem::rmDir(removePath)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmDir(Path) failed: " << error;
-    }
-    Path removedPath(testDir);
-    EXPECT_FALSE(removedPath.isValid());
+TEST_F(FileSystemListTest, ListRecursive) {
+    auto paths = FileSystem::listPath(Path(testDir()), 2);
+    EXPECT_TRUE(containsShortName(paths, "a.txt"));
+    EXPECT_TRUE(containsShortName(paths, "c.txt"));
 }
 
-TEST(FileSystemTest, MkDir_Existing) {
-    std::string testDir = "./test_existing_dir";
-    Path checkPath(testDir);
-    if (checkPath.isValid()) {
-        if (!FileSystem::rmDir(testDir, true)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-        }
-    }
-
-    if (!FileSystem::mkDir(testDir)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkDir() failed: " << error;
-    }
-
-    // Try to create it again - should fail or succeed depending on implementation
-    bool secondResult = FileSystem::mkDir(testDir);
-    // Either outcome is acceptable, just verify it doesn't crash
-
-    if (!FileSystem::rmDir(testDir, true)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-    }
+TEST_F(FileSystemListTest, ListWithFilter) {
+    auto paths = FileSystem::listPath(Path(testDir()), 1,
+        [](const Path& path) {
+            return path.shortFileName().find(".txt") != std::string::npos;
+        });
+    EXPECT_TRUE(containsShortName(paths, "a.txt"));
+    EXPECT_FALSE(containsShortName(paths, "b.log"));
 }
 
-TEST(FileSystemTest, RmDir_Recursion) {
-    std::string parentDir = "./test_parent_dir";
-    std::string childDir = parentDir + "/child_dir";
-    std::string testFile = parentDir + "/test.txt";
-
-    Path checkPath(parentDir);
-    if (checkPath.isValid()) {
-        if (!FileSystem::rmDir(parentDir, true)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-        }
-    }
-
-    if (!FileSystem::mkDir(parentDir)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkDir(parentDir) failed: " << error;
-    }
-    if (!FileSystem::mkDir(childDir)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkDir(childDir) failed: " << error;
-    }
-    if (!FileSystem::mkFile(testFile, "test content")) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-    if (!FileSystem::rmDir(parentDir, true)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmDir(recursive) failed: " << error;
-    }
-    Path removedPath(parentDir);
-    EXPECT_FALSE(removedPath.isValid());
+TEST_F(FileSystemListTest, ListByString) {
+    auto paths = FileSystem::listPath(testDir(), 1);
+    EXPECT_TRUE(containsShortName(paths, "a.txt"));
 }
 
-TEST(FileSystemTest, MkFileAndRmFile_String_Empty) {
-    std::string testFile = "./test_file_empty.txt";
-    Path checkPath(testFile);
-    if (checkPath.isValid()) {
-        if (!FileSystem::rmFile(testFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
+TEST_F(FileSystemListTest, ListPathEx) {
+    auto layers = FileSystem::listPathEx(Path(testDir()), 1);
+    EXPECT_GT(layers.size(), 0u);
+    bool found = false;
+    auto it = layers.find(1);
+    if (it != layers.end()) {
+        found = containsShortName(it->second, "a.txt");
     }
+    EXPECT_TRUE(found);
 
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-    Path filePath(testFile);
-    EXPECT_TRUE(filePath.isValid());
-    EXPECT_TRUE(filePath.isFile());
-    EXPECT_EQ(filePath.fileSize(), 0);
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-    Path removedPath(testFile);
-    EXPECT_FALSE(removedPath.isValid());
+    // found_event can stop the traversal
+    FileSystem::LayerMap stopped;
+    stopped = FileSystem::listPathEx(Path(testDir()), 2,
+        [](const Path&, bool& stop) {
+            stop = true;
+            return true;
+        });
+    EXPECT_GE(stopped.size(), 1u);
 }
 
-TEST(FileSystemTest, MkFileAndRmFile_Path_Empty) {
-    std::string testFile = "./test_file_empty_path.txt";
-    Path checkPath(testFile);
-    if (checkPath.isValid()) {
-        if (!FileSystem::rmFile(checkPath)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
+// ============================================================================
+// FileSnapShot Tests
+// ============================================================================
 
-    Path filePath(testFile);
-    if (!FileSystem::mkFile(filePath)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile(Path) failed: " << error;
-    }
-    Path verifyPath(testFile);
-    EXPECT_TRUE(verifyPath.isValid());
-    EXPECT_TRUE(verifyPath.isFile());
-
-    Path removePath(testFile);
-    if (!FileSystem::rmFile(removePath)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile(Path) failed: " << error;
-    }
-    Path removedPath(testFile);
-    EXPECT_FALSE(removedPath.isValid());
+// The Trigger enum is a public bitmask contract: Metadata aggregates the five
+// metadata triggers, and All adds Context on top of it.
+TEST(FileSnapShotTriggerTest, BitmaskValues) {
+    EXPECT_EQ(static_cast<uint8_t>(FileSnapShot::None), 0u);
+    EXPECT_EQ(static_cast<uint8_t>(FileSnapShot::Filename), 1u);
+    EXPECT_EQ(static_cast<uint8_t>(FileSnapShot::Filesize), 2u);
+    EXPECT_EQ(static_cast<uint8_t>(FileSnapShot::Permission), 4u);
+    EXPECT_EQ(static_cast<uint8_t>(FileSnapShot::Timestamp), 8u);
+    EXPECT_EQ(static_cast<uint8_t>(FileSnapShot::Owner), 16u);
+    EXPECT_EQ(static_cast<uint8_t>(FileSnapShot::Metadata), 31u);
+    EXPECT_EQ(static_cast<uint8_t>(FileSnapShot::Context), 32u);
+    EXPECT_EQ(static_cast<uint8_t>(FileSnapShot::All), 63u);
 }
 
-TEST(FileSystemTest, MkFile_String_Vector) {
-    std::string testFile = "./test_file_vector.bin";
-    std::vector<uint8_t> data = {0x01, 0x02, 0x03, 0x04, 0x05};
+TEST(FileSnapShotTriggerTest, DefaultAndSetter) {
+    FileSnapShot snap;
+    EXPECT_EQ(snap.trigger(), static_cast<uint8_t>(FileSnapShot::None));
 
-    Path checkPath(testFile);
-    if (checkPath.isValid()) {
-        if (!FileSystem::rmFile(testFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
+    snap.setTrigger(FileSnapShot::Filesize);
+    EXPECT_EQ(snap.trigger(), static_cast<uint8_t>(FileSnapShot::Filesize));
 
-    if (!FileSystem::mkFile(testFile, data)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile(string, vector) failed: " << error;
-    }
-    Path filePath(testFile);
-    EXPECT_TRUE(filePath.isValid());
-    EXPECT_TRUE(filePath.isFile());
-    EXPECT_EQ(filePath.fileSize(), data.size());
+    auto combined = static_cast<FileSnapShot::Trigger>(
+        FileSnapShot::Timestamp | FileSnapShot::Filesize);
+    snap.setTrigger(combined);
+    EXPECT_EQ(snap.trigger(), static_cast<uint8_t>(combined));
 
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-    }
+    snap.setTrigger(FileSnapShot::All);
+    EXPECT_EQ(snap.trigger(), static_cast<uint8_t>(FileSnapShot::All));
 }
 
-TEST(FileSystemTest, MkFile_Path_Vector) {
-    std::string testFile = "./test_file_vector_path.bin";
-    std::vector<uint8_t> data = {0x0A, 0x0B, 0x0C};
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) {
-        if (!FileSystem::rmFile(checkPath)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
+class FileSnapShotTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        FileSystem::rmFile(snapFile());
+        ASSERT_TRUE(FileSystem::mkFile(snapFile(), std::string("snapshot")));
+        ASSERT_TRUE(Path(snapFile()).isValid());
+    }
+    void TearDown() override {
+        FileSystem::rmFile(snapFile());
+        FileSystem::rmDir(snapDir(), true);
     }
 
-    Path filePath(testFile);
-    if (!FileSystem::mkFile(filePath, data)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile(Path, vector) failed: " << error;
+    // mkFile opens with O_EXCL (CREATE_ALWAYS is only exclusive for existing
+    // handles on POSIX), so an existing file must be removed before it can be
+    // recreated with new content.
+    void rewriteFile(const std::string& content) {
+        EXPECT_TRUE(FileSystem::rmFile(snapFile()));
+        EXPECT_TRUE(FileSystem::mkFile(snapFile(), content));
     }
-    Path verifyPath(testFile);
-    EXPECT_TRUE(verifyPath.isValid());
-    EXPECT_EQ(verifyPath.fileSize(), data.size());
 
-    if (!FileSystem::rmFile(filePath)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-    }
+    static std::string snapFile() { return absPath("tiny_snapshot_file.tmp"); }
+    static std::string snapDir() { return absPath("tiny_snapshot_dir"); }
+};
+
+// NOTE on the detection pattern used below: the first check() call captures
+// the baseline ("before") snapshot, the file is then modified, and the second
+// check() call compares against that baseline and reports the change. This is
+// deterministic and needs no background writer threads. check() blocks for
+// roughly check_delay_ms per round.
+
+TEST_F(FileSnapShotTest, CheckWithoutWatchedPath) {
+    FileSnapShot snap;
+    snap.setTrigger(FileSnapShot::All);
+
+    std::vector<uint64_t> result;
+    EXPECT_FALSE(snap.check(1, 20, &result));
+    EXPECT_TRUE(result.empty());
+    recordLastError("FileSnapShotTest::CheckWithoutWatchedPath");
 }
 
-TEST(FileSystemTest, MkFile_String_String) {
-    std::string testFile = "./test_file_string.txt";
-    std::string content = "Hello, World!";
+TEST_F(FileSnapShotTest, AddRemoveAndReAddPath) {
+    Path path(snapFile());
+    FileSnapShot snap;
+    snap.setTrigger(FileSnapShot::Filesize);
 
-    Path checkPath(testFile);
-    if (checkPath.isValid()) {
-        if (!FileSystem::rmFile(testFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
+    // All three removePath overloads drop the watched path again
+    snap.addPath(path);
+    snap.removePath(snapFile());
+    snap.addPath(path);
+    snap.removePath(&path);
+    snap.addPath(path);
+    snap.removePath(path);
+    snap.clearAll();
 
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile(string, string) failed: " << error;
-    }
-    Path filePath(testFile);
-    EXPECT_TRUE(filePath.isValid());
-    EXPECT_TRUE(filePath.isFile());
-    EXPECT_EQ(filePath.fileSize(), content.size());
+    // Nothing is watched anymore, so no change can be reported
+    std::vector<uint64_t> result;
+    EXPECT_FALSE(snap.check(1, 20, &result));
+    EXPECT_TRUE(result.empty());
 
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-    }
+    // Re-adding resumes detection on the same Path object
+    snap.addPath(path);
+    EXPECT_FALSE(snap.check(1, 20, &result));
+    rewriteFile("a considerably longer content for the re-added snapshot path");
+    EXPECT_TRUE(snap.check(1, 20, &result));
+    ASSERT_FALSE(result.empty());
+    EXPECT_EQ(result.front(), path.uniqueID());
 }
 
-TEST(FileSystemTest, MkFile_Path_String) {
-    std::string testFile = "./test_file_string_path.txt";
-    std::string content = "Test content with Path";
+TEST_F(FileSnapShotTest, NoChangeNoTrigger) {
+    Path path(snapFile());
+    FileSnapShot snap;
+    snap.addPath(path);
+    snap.setTrigger(FileSnapShot::All);
 
-    Path checkPath(testFile);
-    if (checkPath.isValid()) {
-        if (!FileSystem::rmFile(checkPath)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
-
-    Path filePath(testFile);
-    if (!FileSystem::mkFile(filePath, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile(Path, string) failed: " << error;
-    }
-    Path verifyPath(testFile);
-    EXPECT_TRUE(verifyPath.isValid());
-    EXPECT_EQ(verifyPath.fileSize(), content.size());
-
-    if (!FileSystem::rmFile(filePath)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-    }
+    // Two polling rounds over an untouched file must not report anything
+    std::vector<uint64_t> result;
+    EXPECT_FALSE(snap.check(2, 30, &result));
+    EXPECT_TRUE(result.empty());
+    recordLastError("FileSnapShotTest::NoChangeNoTrigger");
 }
 
-TEST(FileSystemTest, CpFile_PathPath) {
-    std::string srcFile = "./test_cp_src.txt";
-    std::string destFile = "./test_cp_dest.txt";
-    std::string content = "Test content for copy";
+TEST_F(FileSnapShotTest, DetectFilesizeChange) {
+    Path path(snapFile());
+    FileSnapShot snap;
+    snap.addPath(path);
+    snap.setTrigger(FileSnapShot::Filesize);
 
-    Path checkSrc(srcFile);
-    if (checkSrc.isValid()) {
-        if (!FileSystem::rmFile(srcFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
-    Path checkDest(destFile);
-    if (checkDest.isValid()) {
-        if (!FileSystem::rmFile(destFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
+    std::vector<uint64_t> result;
+    EXPECT_FALSE(snap.check(1, 20, &result));  // baseline capture
+    rewriteFile("a much longer content than the baseline snapshot");
+    EXPECT_TRUE(snap.check(1, 20, &result));
 
-    if (!FileSystem::mkFile(srcFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile(src) failed: " << error;
-    }
-    Path src(srcFile);
-    Path dest(destFile);
-    if (!FileSystem::cpFile(src, dest)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "cpFile(Path, Path) failed: " << error;
-    }
-    if (!FileSystem::cpFile(src, dest)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "FileSystem::cpFile() failed: " << error;
-    }
-    Path verifyDest(destFile);
-    EXPECT_TRUE(verifyDest.isValid());
-    EXPECT_TRUE(verifyDest.isFile());
-    EXPECT_EQ(verifyDest.fileSize(), content.size());
-
-    if (!FileSystem::rmFile(srcFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-    }
-    if (!FileSystem::rmFile(destFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-    }
+    // The result holds the uniqueID() of the triggered watched path
+    ASSERT_FALSE(result.empty());
+    ASSERT_EQ(result.size(), 1u);
+    EXPECT_EQ(result.front(), path.uniqueID());
 }
 
-TEST(FileSystemTest, CpFile_PathString) {
-    std::string srcFile = "./test_cp_src2.txt";
-    std::string destFile = "./test_cp_dest2.txt";
-    std::string content = "Test content for copy 2";
+TEST_F(FileSnapShotTest, DetectTimestampChange) {
+    Path path(snapFile());
+    FileSnapShot snap;
+    snap.addPath(path);
+    snap.setTrigger(FileSnapShot::Timestamp);
 
-    Path checkSrc(srcFile);
-    if (checkSrc.isValid()) {
-        if (!FileSystem::rmFile(srcFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
-    Path checkDest(destFile);
-    if (checkDest.isValid()) {
-        if (!FileSystem::rmFile(destFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
+    std::vector<uint64_t> result;
+    EXPECT_FALSE(snap.check(1, 20, &result));  // baseline capture
+    rewriteFile("rewritten after the baseline, so the write time differs");
+    EXPECT_TRUE(snap.check(1, 20, &result));
 
-    if (!FileSystem::mkFile(srcFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile(src) failed: " << error;
-    }
-    Path src(srcFile);
-    if (!FileSystem::cpFile(src, destFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "cpFile(Path, string) failed: " << error;
-    }
-    if (!FileSystem::cpFile(src, destFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "FileSystem::cpFile() failed: " << error;
-    }
-    Path verifyDest(destFile);
-    EXPECT_TRUE(verifyDest.isValid());
-
-    if (!FileSystem::rmFile(srcFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-    }
-    if (!FileSystem::rmFile(destFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-    }
+    ASSERT_FALSE(result.empty());
+    EXPECT_EQ(result.front(), path.uniqueID());
 }
 
-TEST(FileSystemTest, MvFile_PathPath) {
-    std::string srcFile = "./test_mv_src.txt";
-    std::string destFile = "./test_mv_dest.txt";
-    std::string content = "Test content for move";
+TEST_F(FileSnapShotTest, DetectPermissionChange) {
+#if defined(_WIN32) || defined(_WIN64)
+    GTEST_SKIP() << "POSIX permission bits are not meaningful on Windows";
+#else
+    Path path(snapFile());
+    FileSnapShot snap;
+    snap.addPath(path);
+    snap.setTrigger(FileSnapShot::Permission);
 
-    Path checkSrc(srcFile);
-    if (checkSrc.isValid()) {
-        if (!FileSystem::rmFile(srcFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
-    Path checkDest(destFile);
-    if (checkDest.isValid()) {
-        if (!FileSystem::rmFile(destFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
+    std::vector<uint64_t> result;
+    EXPECT_FALSE(snap.check(1, 20, &result));  // baseline capture
 
-    if (!FileSystem::mkFile(srcFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile(src) failed: " << error;
-    }
-    Path src(srcFile);
-    Path dest(destFile);
-    if (!FileSystem::mvFile(src, dest)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mvFile(Path, Path) failed: " << error;
-    }
+    // Flip the group/other rwx bits so the new mode is guaranteed to differ
+    struct stat st {};
+    ASSERT_EQ(::stat(snapFile().c_str(), &st), 0);
+    ASSERT_EQ(::chmod(snapFile().c_str(), (st.st_mode & 07777) ^ 0077), 0);
 
-    if (Path(srcFile).isValid()) {
-        if (!FileSystem::rmFile(srcFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
-    if (Path(destFile).isValid()) {
-        if (!FileSystem::rmFile(destFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
-}
-
-TEST(FileSystemTest, MvFile_PathString) {
-    std::string srcFile = "./test_mv_src2.txt";
-    std::string destFile = "./test_mv_dest2.txt";
-    std::string content = "Test content for move 2";
-
-    Path checkSrc(srcFile);
-    if (checkSrc.isValid()) {
-        if (!FileSystem::rmFile(srcFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
-    Path checkDest(destFile);
-    if (checkDest.isValid()) {
-        if (!FileSystem::rmFile(destFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
-
-    if (!FileSystem::mkFile(srcFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile(src) failed: " << error;
-    }
-    Path src(srcFile);
-    if (!FileSystem::mvFile(src, destFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mvFile(Path, string) failed: " << error;
-    }
-
-    if (Path(srcFile).isValid()) {
-        if (!FileSystem::rmFile(srcFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
-    if (Path(destFile).isValid()) {
-        if (!FileSystem::rmFile(destFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
-}
-
-TEST(FileSystemTest, CpDir_PathPath) {
-    std::string srcDir = "./test_cpdir_src";
-    std::string destDir = "./test_cpdir_dest";
-
-    Path checkSrc(srcDir);
-    if (checkSrc.isValid()) {
-        if (!FileSystem::rmDir(srcDir, true)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-        }
-    }
-    Path checkDest(destDir);
-    if (checkDest.isValid()) {
-        if (!FileSystem::rmDir(destDir, true)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-        }
-    }
-
-    if (!FileSystem::mkDir(srcDir)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkDir(srcDir) failed: " << error;
-    }
-    if (!FileSystem::mkFile(srcDir + "/test.txt", "test content")) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile(srcDir/test.txt) failed: " << error;
-    }
-    Path src(srcDir);
-    Path dest(destDir);
-    if (!FileSystem::cpDir(src, dest)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "cpDir(Path, Path) failed: " << error;
-    }
-
-    if (Path(srcDir).isValid()) {
-        if (!FileSystem::rmDir(srcDir, true)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-        }
-    }
-    if (Path(destDir).isValid()) {
-        if (!FileSystem::rmDir(destDir, true)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-        }
-    }
-}
-
-TEST(FileSystemTest, CpDir_PathString) {
-    std::string srcDir = "./test_cpdir_src2";
-    std::string destDir = "./test_cpdir_dest2";
-
-    Path checkSrc(srcDir);
-    if (checkSrc.isValid()) {
-        if (!FileSystem::rmDir(srcDir, true)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-        }
-    }
-    Path checkDest(destDir);
-    if (checkDest.isValid()) {
-        if (!FileSystem::rmDir(destDir, true)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-        }
-    }
-
-    if (!FileSystem::mkDir(srcDir)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkDir(srcDir) failed: " << error;
-    }
-    if (!FileSystem::mkFile(srcDir + "/test.txt", "test content")) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile(srcDir/test.txt) failed: " << error;
-    }
-    Path src(srcDir);
-    if (!FileSystem::cpDir(src, destDir)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "cpDir(Path, string) failed: " << error;
-    }
-
-    if (Path(srcDir).isValid()) {
-        if (!FileSystem::rmDir(srcDir, true)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-        }
-    }
-    if (Path(destDir).isValid()) {
-        if (!FileSystem::rmDir(destDir, true)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-        }
-    }
-}
-
-TEST(FileSystemTest, MvDir_PathPath) {
-    std::string srcDir = "./test_mvdir_src";
-    std::string destDir = "./test_mvdir_dest";
-
-    Path checkSrc(srcDir);
-    if (checkSrc.isValid()) {
-        if (!FileSystem::rmDir(srcDir, true)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-        }
-    }
-    Path checkDest(destDir);
-    if (checkDest.isValid()) {
-        if (!FileSystem::rmDir(destDir, true)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-        }
-    }
-
-    if (!FileSystem::mkDir(srcDir)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkDir(srcDir) failed: " << error;
-    }
-    Path src(srcDir);
-    Path dest(destDir);
-    if (!FileSystem::mvDir(src, dest)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mvDir(Path, Path) failed: " << error;
-    }
-
-    if (Path(srcDir).isValid()) {
-        if (!FileSystem::rmDir(srcDir, true)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-        }
-    }
-    if (Path(destDir).isValid()) {
-        if (!FileSystem::rmDir(destDir, true)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-        }
-    }
-}
-
-TEST(FileSystemTest, MvDir_PathString) {
-    std::string srcDir = "./test_mvdir_src2";
-    std::string destDir = "./test_mvdir_dest2";
-
-    Path checkSrc(srcDir);
-    if (checkSrc.isValid()) {
-        if (!FileSystem::rmDir(srcDir, true)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-        }
-    }
-    Path checkDest(destDir);
-    if (checkDest.isValid()) {
-        if (!FileSystem::rmDir(destDir, true)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-        }
-    }
-
-    if (!FileSystem::mkDir(srcDir)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkDir(srcDir) failed: " << error;
-    }
-    Path src(srcDir);
-    if (!FileSystem::mvDir(src, destDir)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mvDir(Path, string) failed: " << error;
-    }
-
-    if (Path(srcDir).isValid()) {
-        if (!FileSystem::rmDir(srcDir, true)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-        }
-    }
-    if (Path(destDir).isValid()) {
-        if (!FileSystem::rmDir(destDir, true)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmDir() cleanup failed: " << error;
-        }
-    }
-}
-
-TEST(FileSystemTest, MkLink_StringString) {
-    std::string targetFile = "./test_link_target.txt";
-    std::string linkFile = "./test_link.lnk";
-    std::string content = "Test content for link";
-
-    Path checkTarget(targetFile);
-    if (checkTarget.isValid()) {
-        if (!FileSystem::rmFile(targetFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
-    Path checkLink(linkFile);
-    if (checkLink.isValid()) {
-        if (!FileSystem::rmFile(linkFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
-
-    if (!FileSystem::mkFile(targetFile, content)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "mkFile(target) failed: " << error;
-    }
-    if (!FileSystem::mkLink(linkFile, targetFile)) {
-#ifdef TINY_CPP_MY_OS_WINDOWS
-        if (isAdmin()) {
+    EXPECT_TRUE(snap.check(1, 20, &result));
+    ASSERT_FALSE(result.empty());
+    EXPECT_EQ(result.front(), path.uniqueID());
+    recordLastError("FileSnapShotTest::DetectPermissionChange");
 #endif
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkLink(string, string) failed: " << error;
-#ifdef TINY_CPP_MY_OS_WINDOWS
-        }
-#endif
-    }
-
-    if (Path(targetFile).isValid()) {
-        if (!FileSystem::rmFile(targetFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
-    if (Path(linkFile).isValid()) {
-        if (!FileSystem::rmFile(linkFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
 }
 
-TEST(FileSystemTest, MkLink_StringPath) {
-    std::string targetFile = "./test_link_target2.txt";
-    std::string linkFile = "./test_link2.lnk";
-    std::string content = "Test content for link 2";
+TEST_F(FileSnapShotTest, DetectFileDeletion) {
+    Path path(snapFile());
+    FileSnapShot snap;
+    snap.addPath(path);
+    snap.setTrigger(FileSnapShot::Filesize);
 
-    Path checkTarget(targetFile);
-    if (checkTarget.isValid()) {
-        if (!FileSystem::rmFile(targetFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
-    Path checkLink(linkFile);
-    if (checkLink.isValid()) {
-        if (!FileSystem::rmFile(linkFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
+    std::vector<uint64_t> result;
+    EXPECT_FALSE(snap.check(1, 20, &result));  // baseline capture
+    EXPECT_TRUE(FileSystem::rmFile(snapFile()));
+    // A deleted file re-stats as "missing": its size drops to 0, which is a
+    // detectable Filesize difference against the baseline
+    EXPECT_TRUE(snap.check(1, 20, &result));
 
-    if (!FileSystem::mkFile(targetFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile(target) failed: " << error;
-    }
-    Path target(targetFile);
-    if (!FileSystem::mkLink(linkFile, target)) {
-#ifdef TINY_CPP_MY_OS_WINDOWS
-        if (isAdmin()) {
-#endif
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "mkLink(string, Path) failed: " << error;
-#ifdef TINY_CPP_MY_OS_WINDOWS
-        }
-#endif
-    }
-
-    if (Path(targetFile).isValid()) {
-        if (!FileSystem::rmFile(targetFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
-    if (Path(linkFile).isValid()) {
-        if (!FileSystem::rmFile(linkFile)) {
-            std::string error;
-            lastSystemError(error);
-            ADD_FAILURE() << "rmFile() cleanup failed: " << error;
-        }
-    }
+    ASSERT_FALSE(result.empty());
+    EXPECT_EQ(result.front(), path.uniqueID());
 }
 
-TEST(FileSystemTest, ListPath_String) {
-    std::vector<Path> paths = FileSystem::listPath(".", 1);
-    if (paths.empty()) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "listPath(string) returned empty: " << error;
-    }
-    EXPECT_FALSE(paths.empty());
+TEST_F(FileSnapShotTest, DetectDirectoryChange) {
+    ASSERT_TRUE(FileSystem::mkDir(snapDir()));
+
+    Path dir_path(snapDir());
+    FileSnapShot snap;
+    snap.addPath(dir_path);
+    snap.setTrigger(FileSnapShot::Timestamp);
+
+    std::vector<uint64_t> result;
+    EXPECT_FALSE(snap.check(1, 20, &result));  // baseline capture
+    // Creating an entry updates the parent directory's modification time
+    ASSERT_TRUE(FileSystem::mkFile(snapDir() + "/new_entry.txt", std::string("x")));
+    EXPECT_TRUE(snap.check(1, 20, &result));
+
+    ASSERT_FALSE(result.empty());
+    EXPECT_EQ(result.front(), dir_path.uniqueID());
+
+    FileSystem::rmDir(snapDir(), true);
 }
 
-TEST(FileSystemTest, ListPath_Path) {
-    Path currentDir(".");
-    std::vector<Path> paths = FileSystem::listPath(currentDir, 1);
-    if (paths.empty()) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "listPath(Path) returned empty: " << error;
-    }
-    EXPECT_FALSE(paths.empty());
-}
-
-TEST(FileSystemTest, ListPath_NoArgs) {
-    std::vector<Path> paths = FileSystem::listPath(1);
-    if (paths.empty()) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "listPath() returned empty: " << error;
-    }
-    EXPECT_FALSE(paths.empty());
-}
-
-TEST(FileSystemTest, ListPath_WithFilter) {
-    auto path = "./test_dir_for_listPath";
-    FileSystem::mkDir(path);
-    auto filter = [](const Path& p) { return p.isDirectory(); };
-    std::vector<Path> paths = FileSystem::listPath(".", 1, filter);
-    if (paths.empty()) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "listPath() with filter returned empty: " << error;
-    }
-    for (const auto& p : paths) {
-        EXPECT_TRUE(p.isDirectory());
-    }
-    FileSystem::rmDir(path);
-}
-
-TEST(FileSystemTest, ListPath_Recursion) {
-    std::vector<Path> paths = FileSystem::listPath(".", 2);
-    if (paths.empty()) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "listPath(recursive) returned empty: " << error;
-    }
-    EXPECT_FALSE(paths.empty());
-}
-
-
+// ============================================================================
+// main
+// ============================================================================
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

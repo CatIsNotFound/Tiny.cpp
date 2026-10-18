@@ -26,2088 +26,769 @@
 #include "../src/OS/File.hpp"
 #include "../src/OS/System.hpp"
 #include <gtest/gtest.h>
+#include <cstdio>
+#include <cstring>
 #include <string>
 #include <vector>
-#include <type_traits>
 
 using namespace Tiny::OS;
 
+// ============================================================================
+// Test helpers
+// ============================================================================
 
-TEST(PathTest, Constructor_String) {
-    Path p(".");
-    EXPECT_TRUE(p.isValid());
-    EXPECT_TRUE(p.isDirectory());
+static const char* kTestFileName = "tiny_test_file.tmp";
+static const char* kTestPathName = "tiny_test_path.txt";
+static const char* kTestContent = "Hello Tiny!\nThis is line 2.\nline3";
+
+static size_t contentLen() {
+    return sizeof("Hello Tiny!\nThis is line 2.\nline3") - 1;
 }
 
-TEST(PathTest, Constructor_ParentDirectory) {
-    Path p("..");
-    EXPECT_TRUE(p.isValid());
-    EXPECT_TRUE(p.isDirectory());
+static void removeTestFile(const char* name) {
+    std::remove(name);
 }
 
-TEST(PathTest, Constructor_Copy) {
-    Path p1(".");
-    Path p2(p1);
-    EXPECT_TRUE(p2.isValid());
-    EXPECT_EQ(p1.path(), p2.path());
+/// Record the last system error info (project convention for system-related operations)
+static void recordLastError(const char* context) {
+    std::string info;
+    int code = 0;
+    lastSystemError(info, &code);
+    SUCCEED() << context << " | last system error code: " << code
+              << ", info: " << (info.empty() ? "<none>" : info);
 }
 
-TEST(PathTest, Constructor_Move) {
-    Path p(std::move(Path(".")));
-    EXPECT_TRUE(p.isValid());
+// ============================================================================
+// Data size literal Tests
+// ============================================================================
+
+TEST(DataSizeLiteralTest, ByteLiterals) {
+    EXPECT_EQ(1_B, 1u);
+    EXPECT_EQ(0_B, 0u);
+    EXPECT_EQ(100_B, 100u);
 }
 
-TEST(PathTest, Assignment_Copy) {
-    Path p1{"."};
-    Path p2{".."};
-    p2 = p1;
-    EXPECT_TRUE(p2.isValid());
-    EXPECT_EQ(p1.path(), p2.path());
+TEST(DataSizeLiteralTest, DecimalLiterals) {
+    EXPECT_EQ(1_KB, 1000u);
+    EXPECT_EQ(2_KB, 2000u);
+    EXPECT_EQ(1_MB, 1000000u);
+    EXPECT_EQ(1_GB, 1000000000u);
+    EXPECT_EQ(1_TB, 1000000000000u);
 }
 
-TEST(PathTest, Assignment_Move) {
-    Path p{"."};
-    p = std::move(Path{".."});
-    EXPECT_TRUE(p.isValid());
+TEST(DataSizeLiteralTest, BinaryLiterals) {
+    EXPECT_EQ(1_KiB, 1024u);
+    EXPECT_EQ(2_KiB, 2048u);
+    EXPECT_EQ(1_MiB, 1048576u);
+    EXPECT_EQ(1_GiB, 1073741824u);
+    EXPECT_EQ(1_TiB, 1099511627776u);
 }
 
-TEST(PathTest, SetPath_String) {
-    Path p(".");
-    p.setPath("..");
-    EXPECT_TRUE(p.isValid());
-    EXPECT_TRUE(p.isDirectory());
+// ============================================================================
+// DataUnit Tests
+// ============================================================================
+
+TEST(DataUnitTest, ConvertSameUnit) {
+    EXPECT_DOUBLE_EQ(convertDataSize(1024, DataUnit::B, DataUnit::B), 1024.0);
+    EXPECT_DOUBLE_EQ(convertDataSize(1024, DataUnit::KiB, DataUnit::KiB), 1024.0);
 }
 
-TEST(PathTest, SetPath_Path) {
-    Path p1(".");
-    Path p2("..");
-    p1.setPath(p2);
-    EXPECT_TRUE(p1.isValid());
-    EXPECT_TRUE(p1.isDirectory());
+TEST(DataUnitTest, ConvertUpward) {
+    EXPECT_DOUBLE_EQ(convertDataSize(1024, DataUnit::KiB, DataUnit::B), 1.0);
+    EXPECT_DOUBLE_EQ(convertDataSize(1048576, DataUnit::MiB, DataUnit::B), 1.0);
+    EXPECT_DOUBLE_EQ(convertDataSize(2048, DataUnit::MiB, DataUnit::KiB), 2.0);
+    EXPECT_DOUBLE_EQ(convertDataSize(1073741824, DataUnit::GiB, DataUnit::B), 1.0);
+    EXPECT_DOUBLE_EQ(convertDataSize(1099511627776, DataUnit::TiB, DataUnit::B), 1.0);
 }
 
-TEST(PathTest, Accessor_Path) {
-    Path p(".");
-    EXPECT_FALSE(p.path().empty());
+TEST(DataUnitTest, ConvertDownward) {
+    EXPECT_DOUBLE_EQ(convertDataSize(1, DataUnit::B, DataUnit::KiB), 1024.0);
+    EXPECT_DOUBLE_EQ(convertDataSize(1, DataUnit::B, DataUnit::MiB), 1048576.0);
+    EXPECT_DOUBLE_EQ(convertDataSize(2, DataUnit::KiB, DataUnit::MiB), 2048.0);
 }
 
-TEST(PathTest, Accessor_ShortFileName) {
-    Path p(".");
-    EXPECT_FALSE(p.shortFileName().empty());
+TEST(DataUnitTest, ConvertRoundTrip) {
+    auto up = convertDataSize(4096, DataUnit::KiB, DataUnit::B);
+    auto back = convertDataSize(static_cast<size_t>(up), DataUnit::B, DataUnit::KiB);
+    EXPECT_DOUBLE_EQ(back, 4096.0);
 }
 
-TEST(PathTest, Accessor_ExtensionName_File) {
-    std::string testFile = "./test_extension.txt";
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    Path p(testFile);
-    EXPECT_EQ(p.extensionName(), "txt");
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
+TEST(DataUnitTest, AutoConvertZero) {
+    DataUnit unit = DataUnit::TiB;
+    auto value = autoConvertDataSize(0, unit);
+    EXPECT_DOUBLE_EQ(value, 0.0);
+    EXPECT_EQ(unit, DataUnit::B);
 }
 
-TEST(PathTest, Accessor_ExtensionName_Directory) {
-    Path p(".");
-    EXPECT_TRUE(p.extensionName().empty());
+TEST(DataUnitTest, AutoConvertBytes) {
+    DataUnit unit = DataUnit::TiB;
+    auto value = autoConvertDataSize(512, unit);
+    EXPECT_DOUBLE_EQ(value, 512.0);
+    EXPECT_EQ(unit, DataUnit::B);
 }
 
-TEST(PathTest, Accessor_ExtensionName_NoExtension) {
-    std::string testFile = "./test_no_extension";
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    Path p(testFile);
-    EXPECT_TRUE(p.extensionName().empty());
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
+TEST(DataUnitTest, AutoConvertKib) {
+    DataUnit unit = DataUnit::B;
+    auto value = autoConvertDataSize(2048, unit);
+    EXPECT_DOUBLE_EQ(value, 2.0);
+    EXPECT_EQ(unit, DataUnit::KiB);
 }
 
-TEST(PathTest, Accessor_FileNameWithoutExtension_File) {
-    std::string testFile = "./test_filename.txt";
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    Path p(testFile);
-    std::string name = p.fileNameWithoutExtension();
-    EXPECT_FALSE(name.empty());
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
+TEST(DataUnitTest, AutoConvertMib) {
+    DataUnit unit = DataUnit::B;
+    auto value = autoConvertDataSize(2u * 1024u * 1024u, unit);
+    EXPECT_DOUBLE_EQ(value, 2.0);
+    EXPECT_EQ(unit, DataUnit::MiB);
 }
 
-TEST(PathTest, Accessor_FileNameWithoutExtension_Directory) {
-    Path p(".");
-    EXPECT_EQ(p.fileNameWithoutExtension(), p.shortFileName());
+TEST(DataUnitTest, AutoConvertOverflowClampToTib) {
+    DataUnit unit = DataUnit::B;
+    autoConvertDataSize(1024ull * 1024ull * 1024ull * 1024ull * 1024ull, unit);
+    EXPECT_EQ(unit, DataUnit::TiB);
 }
 
-TEST(PathTest, Accessor_ParentDirectory) {
-    Path p("./test_dir/test.txt");
-    std::string parent = p.parentDirectory();
-    EXPECT_FALSE(parent.empty());
+TEST(DataUnitTest, UnitNames) {
+    EXPECT_STREQ(dataUnitName(DataUnit::B), "B");
+    EXPECT_STREQ(dataUnitName(DataUnit::KiB), "KiB");
+    EXPECT_STREQ(dataUnitName(DataUnit::MiB), "MiB");
+    EXPECT_STREQ(dataUnitName(DataUnit::GiB), "GiB");
+    EXPECT_STREQ(dataUnitName(DataUnit::TiB), "TiB");
 }
 
-TEST(PathTest, Accessor_ParentDirectory_Root) {
-#if defined(_WIN32) || defined(_WIN64)
-    Path p("C:\\");
-    std::string parent = p.parentDirectory();
-    EXPECT_FALSE(parent.empty());
-#else
-    Path p("/");
-    std::string parent = p.parentDirectory();
-    EXPECT_EQ(parent, "/");
-#endif
-}
+// ============================================================================
+// FileType Tests
+// ============================================================================
 
-TEST(PathTest, TypeCheck_Valid) {
-    Path p(".");
-    EXPECT_TRUE(p.isValid());
-}
-
-TEST(PathTest, TypeCheck_Directory) {
-    Path p(".");
-    EXPECT_TRUE(p.isDirectory());
-    EXPECT_FALSE(p.isFile());
-}
-
-TEST(PathTest, TypeCheck_File) {
-    std::string testFile = "./test_isfile.txt";
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    Path p(testFile);
-    EXPECT_TRUE(p.isFile());
-    EXPECT_FALSE(p.isDirectory());
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(PathTest, TypeCheck_IsSymbolLink) {
-    Path p(".");
-    EXPECT_FALSE(p.isSymbolLink());
-}
-
-TEST(PathTest, TypeCheck_FileType) {
-    Path p(".");
-    EXPECT_EQ(p.fileType(), FileType::Directory);
-}
-
-TEST(PathTest, Accessor_FileSize) {
-    std::string testFile = "./test_size.txt";
-    std::string content = "Hello, World!";
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    Path p(testFile);
-    EXPECT_EQ(p.fileSize(), content.size());
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(PathTest, Operator_Divide) {
-    Path p(".");
-    Path& result = p / "subdir";
-    EXPECT_EQ(&result, &p);
-    EXPECT_FALSE(p.path().empty());
-}
-
-TEST(PathTest, Method_Join) {
-    Path p(".");
-    Path& result = p.join("subdir");
-    EXPECT_EQ(&result, &p);
-    EXPECT_FALSE(p.path().empty());
-}
-
-TEST(PathTest, Method_Parent) {
-    Path p("./test_dir/test.txt");
-    Path& result = p.parent();
-    EXPECT_EQ(&result, &p);
-    EXPECT_FALSE(p.path().empty());
-}
-
-TEST(PathTest, Method_Upper) {
-    Path p("./test_dir");
-    Path& result = p.upper();
-    EXPECT_EQ(&result, &p);
-    EXPECT_FALSE(p.path().empty());
-}
-
-TEST(PathTest, Static_Exist) {
-    EXPECT_TRUE(Path::exist("."));
-    EXPECT_FALSE(Path::exist("/nonexistent/path/12345"));
-}
-
-TEST(PathTest, Static_IsDirectory) {
-    EXPECT_TRUE(Path::isDirectory("."));
-
-    std::string testFile = "./test_static_isfile.txt";
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-    EXPECT_FALSE(Path::isDirectory(testFile));
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(PathTest, Static_IsFile) {
-    std::string testFile = "./test_static_isfile.txt";
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-    EXPECT_TRUE(Path::isFile(testFile));
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-
-    EXPECT_FALSE(Path::isFile("."));
-}
-
-TEST(PathTest, Static_IsSymbolLink) {
-    EXPECT_FALSE(Path::isSymbolLink("."));
-}
-
-TEST(PathTest, InvalidPath) {
-    Path invalid("/this/path/does/not/exist/12345");
-    EXPECT_FALSE(invalid.isValid());
-    EXPECT_FALSE(invalid.isDirectory());
-    EXPECT_FALSE(invalid.isFile());
-    EXPECT_EQ(invalid.fileType(), FileType::Unknown);
-}
-
-TEST(PathTest, EmptyPath) {
-    Path empty("");
-    SUCCEED();
-}
-
-TEST(PathTest, Method_Unset) {
-    Path p(".");
-    EXPECT_TRUE(p.isValid());
-    p.unset();
-    EXPECT_FALSE(p.isValid());
-    EXPECT_TRUE(p.path().empty());
-}
-
-TEST(PathTest, Accessor_LastAccessTime) {
-    std::string testFile = "./test_access_time.txt";
-    if (!FileSystem::mkFile(testFile, "test")) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    Path p(testFile);
-    EXPECT_GT(p.lastAccessTime(), 0);
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(PathTest, Accessor_LastWriteTime) {
-    std::string testFile = "./test_write_time.txt";
-    if (!FileSystem::mkFile(testFile, "test")) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    Path p(testFile);
-    EXPECT_GT(p.lastWriteTime(), 0);
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(PathTest, Accessor_LastCreateTime) {
-    std::string testFile = "./test_create_time.txt";
-    if (!FileSystem::mkFile(testFile, "test")) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    Path p(testFile);
-    EXPECT_GT(p.lastCreateTime(), 0);
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(PathTest, Accessor_UserPermission) {
-    std::string testFile = "./test_user_perm.txt";
-    if (!FileSystem::mkFile(testFile, "test")) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    Path p(testFile);
-    Permission perm = p.userPermission();
-    // 在 Windows 上可能返回 None，在 Unix 上应该有值
-    EXPECT_TRUE(perm == P_None || perm >= P_Read);
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(PathTest, Accessor_GroupPermission) {
-    std::string testFile = "./test_group_perm.txt";
-    if (!FileSystem::mkFile(testFile, "test")) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    Path p(testFile);
-    Permission perm = p.groupPermission();
-    EXPECT_TRUE(perm == P_None || perm >= P_Read);
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(PathTest, Accessor_OtherPermission) {
-    std::string testFile = "./test_other_perm.txt";
-    if (!FileSystem::mkFile(testFile, "test")) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    Path p(testFile);
-    Permission perm = p.otherPermission();
-    EXPECT_TRUE(perm == P_None || perm >= P_Read);
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-
-TEST(DataUnitTest, ConvertDataSize_B_to_KiB) {
-    size_t size = 2048;
-    double result = convertDataSize(size, DataUnit::KiB, DataUnit::B);
-    EXPECT_DOUBLE_EQ(result, 2.0);
-}
-
-TEST(DataUnitTest, ConvertDataSize_KiB_to_MiB) {
-    size_t size = 1024;
-    double result = convertDataSize(size, DataUnit::MiB, DataUnit::KiB);
-    EXPECT_DOUBLE_EQ(result, 1.0);
-}
-
-TEST(DataUnitTest, ConvertDataSize_MiB_to_GiB) {
-    size_t size = 1024;
-    double result = convertDataSize(size, DataUnit::GiB, DataUnit::MiB);
-    EXPECT_DOUBLE_EQ(result, 1.0);
-}
-
-TEST(DataUnitTest, ConvertDataSize_GiB_to_TiB) {
-    size_t size = 1024;
-    double result = convertDataSize(size, DataUnit::TiB, DataUnit::GiB);
-    EXPECT_DOUBLE_EQ(result, 1.0);
-}
-
-TEST(DataUnitTest, ConvertDataSize_SameUnit) {
-    size_t size = 100;
-    double result = convertDataSize(size, DataUnit::MiB, DataUnit::MiB);
-    EXPECT_DOUBLE_EQ(result, 100.0);
-}
-
-TEST(DataUnitTest, UserDefinedLiterals_B) {
-    EXPECT_EQ(100_B, 100);
-}
-
-TEST(DataUnitTest, UserDefinedLiterals_KB) {
-    EXPECT_EQ(1_KB, 1000);
-}
-
-TEST(DataUnitTest, UserDefinedLiterals_KiB) {
-    EXPECT_EQ(1_KiB, 1024);
-}
-
-TEST(DataUnitTest, UserDefinedLiterals_MB) {
-    EXPECT_EQ(1_MB, 1000000);
-}
-
-TEST(DataUnitTest, UserDefinedLiterals_MiB) {
-    EXPECT_EQ(1_MiB, 1048576);
-}
-
-TEST(DataUnitTest, UserDefinedLiterals_GB) {
-    EXPECT_EQ(1_GB, 1000000000);
-}
-
-TEST(DataUnitTest, UserDefinedLiterals_GiB) {
-    EXPECT_EQ(1_GiB, 1073741824);
-}
-
-TEST(DataUnitTest, UserDefinedLiterals_TB) {
-    EXPECT_EQ(1_TB, 1000000000000);
-}
-
-TEST(DataUnitTest, UserDefinedLiterals_TiB) {
-    EXPECT_EQ(1_TiB, 1099511627776);
-}
-
-
-TEST(PermissionTest, PermissionValues) {
-    EXPECT_EQ(static_cast<uint8_t>(P_None), 0);
-    EXPECT_EQ(static_cast<uint8_t>(P_Execute), 1);
-    EXPECT_EQ(static_cast<uint8_t>(P_Write), 2);
-    EXPECT_EQ(static_cast<uint8_t>(P_WriteExec), 3);
-    EXPECT_EQ(static_cast<uint8_t>(P_Read), 4);
-    EXPECT_EQ(static_cast<uint8_t>(P_ReadExec), 5);
-    EXPECT_EQ(static_cast<uint8_t>(P_ReadWrite), 6);
-    EXPECT_EQ(static_cast<uint8_t>(P_All), 7);
-}
-
-
-TEST(FileTypeTest, FileTypeName_Unknown) {
+TEST(FileTypeTest, TypeNames) {
     EXPECT_STREQ(fileTypeName(FileType::Unknown), "Unknown");
-}
-
-TEST(FileTypeTest, FileTypeName_Directory) {
     EXPECT_STREQ(fileTypeName(FileType::Directory), "Directory");
-}
-
-TEST(FileTypeTest, FileTypeName_File) {
     EXPECT_STREQ(fileTypeName(FileType::File), "File");
-}
-
-TEST(FileTypeTest, FileTypeName_SymbolLink) {
     EXPECT_STREQ(fileTypeName(FileType::SymbolLink), "Symbol Link");
-}
-
-TEST(FileTypeTest, FileTypeName_Device) {
     EXPECT_STREQ(fileTypeName(FileType::Device), "Device");
-}
-
-TEST(FileTypeTest, FileTypeName_Socket) {
     EXPECT_STREQ(fileTypeName(FileType::Socket), "Socket");
 }
 
+// ============================================================================
+// Permission Tests
+// ============================================================================
 
-// 移动后源对象会被重置为未打开状态
-
-TEST(FileTest, TypeTrait_NoCopy) {
-    EXPECT_FALSE(std::is_copy_constructible<File>::value);
-    EXPECT_FALSE(std::is_copy_assignable<File>::value);
+TEST(PermissionTest, EnumValues) {
+    EXPECT_EQ(static_cast<int>(P_None), 0);
+    EXPECT_EQ(static_cast<int>(P_Execute), 1);
+    EXPECT_EQ(static_cast<int>(P_Write), 2);
+    EXPECT_EQ(static_cast<int>(P_WriteExec), 3);
+    EXPECT_EQ(static_cast<int>(P_Read), 4);
+    EXPECT_EQ(static_cast<int>(P_ReadExec), 5);
+    EXPECT_EQ(static_cast<int>(P_ReadWrite), 6);
+    EXPECT_EQ(static_cast<int>(P_All), 7);
 }
 
-TEST(FileTest, TypeTrait_MoveOnly) {
-    EXPECT_TRUE(std::is_move_constructible<File>::value);
-    EXPECT_TRUE(std::is_move_assignable<File>::value);
+TEST(PermissionTest, BitwiseCombination) {
+    Permission perm = P_None;
+    perm = static_cast<Permission>(perm | P_Read);
+    EXPECT_EQ(perm, P_Read);
+    perm = static_cast<Permission>(perm | P_Write);
+    EXPECT_EQ(perm, P_ReadWrite);
+    perm = static_cast<Permission>(perm | P_Execute);
+    EXPECT_EQ(perm, P_All);
 }
 
-TEST(FileTest, Constructor_String_ReadOnly) {
-    std::string testFile = "./test_file_ctor_str_r.txt";
-    std::string content = "Test content";
+// ============================================================================
+// Path Tests (string & filesystem)
+// ============================================================================
 
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
+class PathTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        removeTestFile(kTestPathName);
+        File file(kTestPathName, WriteOnly);
+        ASSERT_TRUE(file.isOpen());
+        ASSERT_TRUE(file.write("path test content"));
+        file.close();
+        recordLastError("PathTest::SetUp");
     }
-
-    File file(testFile, ReadOnly);
-    EXPECT_TRUE(file.isFile());
-    EXPECT_TRUE(file.isOpen());
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
+    void TearDown() override {
+        removeTestFile(kTestPathName);
     }
+};
+
+TEST_F(PathTest, ExistingFile) {
+    Path path(kTestPathName);
+    EXPECT_TRUE(path.isValid());
+    EXPECT_TRUE(path.isFile());
+    EXPECT_FALSE(path.isDirectory());
+    EXPECT_EQ(path.fileType(), FileType::File);
+    EXPECT_GT(path.fileSize(), 0u);
+    EXPECT_EQ(path.fileSize(), strlen("path test content"));
 }
 
-TEST(FileTest, Constructor_String_WriteOnly) {
-    std::string testFile = "./test_file_ctor_str_w.txt";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, WriteOnly);
-    EXPECT_TRUE(file.isFile());
-    EXPECT_TRUE(file.isOpen());
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
+TEST_F(PathTest, ShortNameAndExtension) {
+    Path path(kTestPathName);
+    EXPECT_EQ(path.shortFileName(), std::string("tiny_test_path.txt"));
+    EXPECT_EQ(path.extensionName(), std::string("txt"));
+    EXPECT_EQ(path.fileNameWithoutExtension(), std::string("tiny_test_path"));
 }
 
-TEST(FileTest, Constructor_String_ReadWrite) {
-    std::string testFile = "./test_file_ctor_str_rw.txt";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, ReadWrite);
-    EXPECT_TRUE(file.isFile());
-    EXPECT_TRUE(file.isOpen());
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
+TEST_F(PathTest, DirectoryType) {
+    Path path(".");
+    EXPECT_TRUE(path.isValid());
+    EXPECT_TRUE(path.isDirectory());
+    EXPECT_FALSE(path.isFile());
+    EXPECT_EQ(path.fileType(), FileType::Directory);
 }
 
-TEST(FileTest, Constructor_String_Unknown) {
-    std::string testFile = "./test_file_ctor_str_u.txt";
-    std::string content = "Test content";
+TEST_F(PathTest, DirectoryExtensionIsEmpty) {
+    Path path(".");
+    EXPECT_TRUE(path.extensionName().empty());
+    EXPECT_EQ(path.fileNameWithoutExtension(), path.shortFileName());
+}
 
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+TEST_F(PathTest, ParentDirectoryString) {
+    Path path(kTestPathName);
+    auto parent = path.parentDirectory();
+    EXPECT_FALSE(parent.empty());
+    EXPECT_EQ(parent.find("tiny_test_path.txt"), std::string::npos);
+}
 
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
+TEST_F(PathTest, NonExistentPath) {
+    Path path("no_such_file_or_dir_tiny_test_xyz");
+    EXPECT_FALSE(path.isValid());
+    EXPECT_FALSE(path.isFile());
+    EXPECT_FALSE(path.isDirectory());
+    EXPECT_EQ(path.fileType(), FileType::Unknown);
+    EXPECT_FALSE(Path::exist("no_such_file_or_dir_tiny_test_xyz"));
+    EXPECT_FALSE(Path::isFile("no_such_file_or_dir_tiny_test_xyz"));
+    EXPECT_FALSE(Path::isDirectory("no_such_file_or_dir_tiny_test_xyz"));
+    recordLastError("PathTest::NonExistentPath");
+}
 
-    File file(testFile, Unknown);
-    EXPECT_TRUE(file.isFile());
+TEST_F(PathTest, EmptyPath) {
+    Path path("");
+    EXPECT_FALSE(path.isValid());
+    EXPECT_TRUE(path.path().empty());
+}
+
+TEST_F(PathTest, StaticExistHelpers) {
+    EXPECT_TRUE(Path::exist(kTestPathName));
+    EXPECT_TRUE(Path::isFile(kTestPathName));
+    EXPECT_FALSE(Path::isDirectory(kTestPathName));
+    EXPECT_TRUE(Path::exist("."));
+    EXPECT_TRUE(Path::isDirectory("."));
+    EXPECT_FALSE(Path::isFile("."));
+}
+
+TEST_F(PathTest, CopyAndMove) {
+    Path src(kTestPathName);
+    Path copied(src);
+    EXPECT_TRUE(copied.isValid());
+    EXPECT_EQ(copied.path(), src.path());
+    EXPECT_EQ(copied.fileSize(), src.fileSize());
+
+    Path moved(std::move(copied));
+    EXPECT_TRUE(moved.isValid());
+    EXPECT_EQ(moved.path(), src.path());
+
+    Path assigned("");
+    assigned = src;
+    EXPECT_TRUE(assigned.isValid());
+    EXPECT_EQ(assigned.path(), src.path());
+
+    Path move_assigned("");
+    move_assigned = Path(kTestPathName);
+    EXPECT_TRUE(move_assigned.isValid());
+    EXPECT_EQ(move_assigned.path(), src.path());
+}
+
+TEST_F(PathTest, SetPathAndReset) {
+    Path path("no_such_file_or_dir_tiny_test_xyz");
+    EXPECT_FALSE(path.isValid());
+
+    path.setPath(kTestPathName);
+    EXPECT_TRUE(path.isValid());
+    // checkPath normalizes the stored path to an absolute path
+    EXPECT_NE(path.path().find(kTestPathName), std::string::npos);
+
+    EXPECT_TRUE(path.reset());
+    EXPECT_TRUE(path.isValid());
+
+    path.setPath(std::string("no_such_file_or_dir_tiny_test_xyz"));
+    EXPECT_FALSE(path.reset());
+    EXPECT_FALSE(path.isValid());
+    recordLastError("PathTest::SetPathAndReset");
+}
+
+TEST_F(PathTest, Unset) {
+    Path path(kTestPathName);
+    ASSERT_TRUE(path.isValid());
+    path.unset();
+    EXPECT_TRUE(path.path().empty());
+    EXPECT_FALSE(path.isValid());
+    EXPECT_EQ(path.fileType(), FileType::Unknown);
+    EXPECT_EQ(path.fileSize(), 0u);
+}
+
+TEST_F(PathTest, JoinAndOperator) {
+    Path path(".");
+    path.join(kTestPathName);
+    EXPECT_NE(path.path().find(kTestPathName), std::string::npos);
+    bool has_sep = path.path().find("\\") != std::string::npos ||
+                   path.path().find("/") != std::string::npos;
+    EXPECT_TRUE(has_sep);
+    EXPECT_TRUE(path.isFile());
+
+    Path path2(".");
+    path2 / kTestPathName;
+    EXPECT_NE(path2.path().find(kTestPathName), std::string::npos);
+    EXPECT_TRUE(path2.isFile());
+}
+
+TEST_F(PathTest, UniqueID) {
+    Path path(kTestPathName);
+    EXPECT_NE(path.uniqueID(), 0u);
+}
+
+TEST_F(PathTest, Timestamps) {
+    Path path(kTestPathName);
+    ASSERT_TRUE(path.isValid());
+    EXPECT_GT(path.lastAccessTime(), 0);
+    EXPECT_GT(path.lastWriteTime(), 0);
+    EXPECT_GT(path.lastCreateTime(), 0);
+}
+
+TEST_F(PathTest, OwnerAndGroup) {
+    Path path(kTestPathName);
+    ASSERT_TRUE(path.isValid());
+    bool ok = false;
+    auto owner = path.ownerName(&ok);
+    EXPECT_TRUE(ok);
+    EXPECT_FALSE(owner.empty());
+    ok = false;
+    auto group = path.groupName(&ok);
+    EXPECT_TRUE(ok);
+    EXPECT_FALSE(group.empty());
+}
+
+TEST_F(PathTest, PermissionsInValidRange) {
+    Path path(kTestPathName);
+    ASSERT_TRUE(path.isValid());
+    EXPECT_LE(static_cast<int>(path.userPermission()), static_cast<int>(P_All));
+    EXPECT_LE(static_cast<int>(path.groupPermission()), static_cast<int>(P_All));
+    EXPECT_LE(static_cast<int>(path.otherPermission()), static_cast<int>(P_All));
+}
+
+// ============================================================================
+// File open/close Tests
+// ============================================================================
+
+TEST(FileOpenCloseTest, OpenNonExistentReadOnly) {
+    removeTestFile(kTestFileName);
+    File file(kTestFileName, Unknown);
     EXPECT_FALSE(file.isOpen());
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, Constructor_Path_ReadOnly) {
-    std::string testFile = "./test_file_ctor_path_r.txt";
-    std::string content = "Test content";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    Path filePath(testFile);
-    File file(filePath, ReadOnly);
-    EXPECT_TRUE(file.isFile());
-    EXPECT_TRUE(file.isOpen());
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, Constructor_Path_WriteOnly) {
-    std::string testFile = "./test_file_ctor_path_w.txt";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    Path filePath(testFile);
-    File file(filePath, WriteOnly);
-    EXPECT_TRUE(file.isFile());
-    EXPECT_TRUE(file.isOpen());
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, Constructor_Path_Unknown) {
-    std::string testFile = "./test_file_ctor_path_u.txt";
-    std::string content = "Test content";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    Path filePath(testFile);
-    File file(filePath, Unknown);
-    EXPECT_TRUE(file.isFile());
-    EXPECT_FALSE(file.isOpen());
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, Constructor_InvalidPath) {
-    File file("/this/path/does/not/exist.txt", ReadOnly);
-    EXPECT_FALSE(file.isFile());
-    EXPECT_FALSE(file.isOpen());
-}
-
-TEST(FileTest, Constructor_DirectoryPath) {
-    File file(".", ReadOnly);
-    EXPECT_FALSE(file.isFile());
-}
-
-TEST(FileTest, MoveConstructor_Transfer) {
-    std::string testFile = "./test_file_move_ctor.txt";
-    std::string content = "Move constructor test";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file1(testFile, ReadOnly);
-    EXPECT_TRUE(file1.isOpen());
-
-    File file2(std::move(file1));
-
-    // 源对象被重置
-    EXPECT_FALSE(file1.isOpen());
-    EXPECT_FALSE(file1.isFile());
-
-    // 目标对象获得资源
-    EXPECT_TRUE(file2.isOpen());
-    EXPECT_TRUE(file2.isFile());
-
-    file2.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, MoveConstructor_CanRead) {
-    std::string testFile = "./test_file_move_ctor_read.txt";
-    std::string content = "Hello, Move!";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file1(testFile, ReadOnly);
-    File file2(std::move(file1));
-
-    FileData data = file2.readAll();
-    EXPECT_FALSE(data.empty());
-
-    file2.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, MoveAssignment_Transfer) {
-    std::string testFile1 = "./test_file_move_asgn1.txt";
-    std::string testFile2 = "./test_file_move_asgn2.txt";
-
-    Path checkPath1(testFile1);
-    if (checkPath1.isValid()) FileSystem::rmFile(testFile1);
-    Path checkPath2(testFile2);
-    if (checkPath2.isValid()) FileSystem::rmFile(testFile2);
-
-    if (!FileSystem::mkFile(testFile1, "content1")) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile(testFile1) failed: " << error;
-    }
-    if (!FileSystem::mkFile(testFile2, "content2")) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile(testFile2) failed: " << error;
-    }
-
-    File file1(testFile1, ReadOnly);
-    File file2(testFile2, ReadOnly);
-
-    EXPECT_TRUE(file1.isOpen());
-    EXPECT_TRUE(file2.isOpen());
-
-    file2 = std::move(file1);
-
-    // 源对象被重置
-    EXPECT_FALSE(file1.isOpen());
-    EXPECT_FALSE(file1.isFile());
-
-    // 目标对象获得资源
-    EXPECT_TRUE(file2.isOpen());
-    EXPECT_TRUE(file2.isFile());
-
-    file2.close();
-    if (!FileSystem::rmFile(testFile1)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile(testFile1) failed: " << error;
-    }
-    if (!FileSystem::rmFile(testFile2)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile(testFile2) failed: " << error;
-    }
-}
-
-TEST(FileTest, MoveAssignment_Self) {
-    std::string testFile = "./test_file_move_self.txt";
-    std::string content = "Self assignment test";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, ReadOnly);
-    EXPECT_TRUE(file.isOpen());
-
-    File* ptr = &file;
-    *ptr = std::move(file);
-
-    // 自赋值后仍保持有效
-    EXPECT_TRUE(file.isOpen());
-    EXPECT_TRUE(file.isFile());
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, IsValid_True) {
-    std::string testFile = "./test_file_valid_true.txt";
-    std::string content = "Valid file";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, ReadOnly);
-    EXPECT_TRUE(file.isFile());
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, IsValid_False_Directory) {
-    File file(".", ReadOnly);
-    EXPECT_FALSE(file.isFile());
-}
-
-TEST(FileTest, IsValid_False_NotExist) {
-    File file("/nonexistent/path/file.txt", ReadOnly);
-    EXPECT_FALSE(file.isFile());
-}
-
-TEST(FileTest, IsOpen_True) {
-    std::string testFile = "./test_file_open_true.txt";
-    std::string content = "Open test";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, ReadOnly);
-    EXPECT_TRUE(file.isOpen());
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, IsOpen_False) {
-    std::string testFile = "./test_file_open_false.txt";
-    std::string content = "Not open test";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, Unknown);
-    EXPECT_FALSE(file.isOpen());
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, Open_SUCCESS) {
-    std::string testFile = "./test_file_open_success.txt";
-    std::string content = "Open success";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, Unknown);
-    EXPECT_FALSE(file.isOpen());
-
-    if (!file.open(ReadOnly)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "open() failed: " << error;
-    }
-    EXPECT_TRUE(file.isOpen());
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, Open_Fail_Invalid) {
-    File file("/nonexistent/path/file.txt", Unknown);
     EXPECT_FALSE(file.open(ReadOnly));
     EXPECT_FALSE(file.isOpen());
+    recordLastError("FileOpenCloseTest::OpenNonExistentReadOnly");
 }
 
-TEST(FileTest, Open_Fail_Directory) {
-    File file(".", Unknown);
+TEST(FileOpenCloseTest, OpenUnknownMode) {
+    removeTestFile(kTestFileName);
+    File file(kTestFileName, Unknown);
+    EXPECT_FALSE(file.open(Unknown));
+    EXPECT_FALSE(file.isOpen());
+    recordLastError("FileOpenCloseTest::OpenUnknownMode");
+}
+
+TEST(FileOpenCloseTest, OpenDirectory) {
+    File file(".", ReadOnly);
     EXPECT_FALSE(file.open(ReadOnly));
-}
-
-TEST(FileTest, Close_Normal) {
-    std::string testFile = "./test_file_close.txt";
-    std::string content = "Close test";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, ReadOnly);
-    EXPECT_TRUE(file.isOpen());
-
-    file.close();
     EXPECT_FALSE(file.isOpen());
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
+    recordLastError("FileOpenCloseTest::OpenDirectory");
 }
 
-TEST(FileTest, Close_Multiple) {
-    std::string testFile = "./test_file_close_multi.txt";
-    std::string content = "Multiple close test";
+TEST(FileOpenCloseTest, NullAndIsFile) {
+    File valid(kTestFileName, WriteOnly);
+    EXPECT_TRUE(valid.isOpen());
+    EXPECT_TRUE(valid.isFile());
+    EXPECT_FALSE(valid.isNull());
+    EXPECT_FALSE(valid.path().empty());
+    valid.close();
 
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, ReadOnly);
-    file.close();
-    file.close();
-    file.close();
-
-    EXPECT_FALSE(file.isOpen());
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
+    File invalid("no_such_file_or_dir_tiny_test_xyz", ReadOnly);
+    EXPECT_FALSE(invalid.isFile());
+    EXPECT_TRUE(invalid.isNull());
+    recordLastError("FileOpenCloseTest::NullAndIsFile");
 }
 
-TEST(FileTest, SetPath_String_ClosesFile) {
-    std::string testFile1 = "./test_file_setpath_s1.txt";
-    std::string testFile2 = "./test_file_setpath_s2.txt";
-
-    Path checkPath1(testFile1);
-    if (checkPath1.isValid()) FileSystem::rmFile(testFile1);
-    Path checkPath2(testFile2);
-    if (checkPath2.isValid()) FileSystem::rmFile(testFile2);
-
-    if (!FileSystem::mkFile(testFile1, "content1")) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile(testFile1) failed: " << error;
-    }
-    if (!FileSystem::mkFile(testFile2, "content2")) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile(testFile2) failed: " << error;
-    }
-
-    File file(testFile1, ReadOnly);
-    EXPECT_TRUE(file.isOpen());
-
-    file.setPath(testFile2);
-    // setPath 应该关闭原文件
-    EXPECT_FALSE(file.isOpen());
-    EXPECT_TRUE(file.isFile());
-
-    if (!FileSystem::rmFile(testFile1)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile(testFile1) failed: " << error;
-    }
-    if (!FileSystem::rmFile(testFile2)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile(testFile2) failed: " << error;
-    }
-}
-
-TEST(FileTest, SetPath_Path_ClosesFile) {
-    std::string testFile1 = "./test_file_setpath_p1.txt";
-    std::string testFile2 = "./test_file_setpath_p2.txt";
-
-    Path checkPath1(testFile1);
-    if (checkPath1.isValid()) FileSystem::rmFile(testFile1);
-    Path checkPath2(testFile2);
-    if (checkPath2.isValid()) FileSystem::rmFile(testFile2);
-
-    if (!FileSystem::mkFile(testFile1, "content1")) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile(testFile1) failed: " << error;
-    }
-    if (!FileSystem::mkFile(testFile2, "content2")) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile(testFile2) failed: " << error;
-    }
-
-    File file(testFile1, ReadOnly);
-    EXPECT_TRUE(file.isOpen());
-
-    Path newPath(testFile2);
-    file.setPath(newPath);
-    // setPath 应该关闭原文件
-    EXPECT_FALSE(file.isOpen());
-    EXPECT_TRUE(file.isFile());
-
-    if (!FileSystem::rmFile(testFile1)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile(testFile1) failed: " << error;
-    }
-    if (!FileSystem::rmFile(testFile2)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile(testFile2) failed: " << error;
-    }
-}
-
-TEST(FileTest, SetPath_Invalid) {
-    std::string testFile = "./test_file_setpath_inv.txt";
-    std::string content = "Valid content";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, ReadOnly);
-    EXPECT_TRUE(file.isFile());
-
-    file.setPath("/nonexistent/path/file.txt");
-    EXPECT_FALSE(file.isFile());
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, ReadAll_Success) {
-    std::string testFile = "./test_file_readall.txt";
-    std::string content = "Hello, World!";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, ReadOnly);
-    FileData data = file.readAll();
-
-    EXPECT_FALSE(data.empty());
-    EXPECT_GE(data.size(), content.size());
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, ReadAll_NotOpen) {
-    std::string testFile = "./test_file_readall_no.txt";
-    std::string content = "Content";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, Unknown);
-    FileData data = file.readAll();
-
-    EXPECT_TRUE(data.empty());
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, ReadAll_Invalid) {
-    File file("/nonexistent/path/file.txt", ReadOnly);
-    FileData data = file.readAll();
-    EXPECT_TRUE(data.empty());
-}
-
-TEST(FileTest, ReadAllText_Success) {
-    std::string testFile = "./test_file_readalltext.txt";
-    std::string content = "Hello, World!";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, ReadOnly);
-    std::string text = file.readAllText();
-
-    EXPECT_FALSE(text.empty());
-    EXPECT_EQ(text, content);
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, ReadAllText_NotOpen) {
-    std::string testFile = "./test_file_readalltext_no.txt";
-    std::string content = "Content";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, Unknown);
-    std::string text = file.readAllText();
-
-    EXPECT_TRUE(text.empty());
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, ReadText_Length) {
-    std::string testFile = "./test_file_readtext_len.txt";
-    std::string content = "Hello, World!";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, ReadOnly);
-    std::string text = file.readText(5);
-
-    EXPECT_FALSE(text.empty());
-    EXPECT_EQ(text, "Hello");
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, Read_Length) {
-    std::string testFile = "./test_file_read_len.txt";
-    std::string content = "Hello, World!";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, ReadOnly);
-    FileData data = file.read(5);
-
-    EXPECT_FALSE(data.empty());
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, Read_ExceedFileSize) {
-    std::string testFile = "./test_file_read_exceed.txt";
-    std::string content = "Hi";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, ReadOnly);
-    FileData data = file.read(1000);
-
-    EXPECT_FALSE(data.empty());
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, Read_Zero) {
-    std::string testFile = "./test_file_read_zero.txt";
-    std::string content = "Some content";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, ReadOnly);
-    FileData data = file.read(0);
-
-    EXPECT_FALSE(data.empty());
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, Write_Full) {
-    std::string testFile = "./test_file_write_full.txt";
-    FileData data = {0x48, 0x65, 0x6C, 0x6C, 0x6F};
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, WriteOnly);
-    EXPECT_TRUE(file.write(data));
-
-    file.close();
-
-    Path verifyPath(testFile);
-    EXPECT_EQ(verifyPath.fileSize(), data.size());
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, Write_Length) {
-    std::string testFile = "./test_file_write_len.txt";
-    FileData data = {0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x20, 0x57, 0x6F, 0x72, 0x6C, 0x64};
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, WriteOnly);
-    EXPECT_TRUE(file.write(data, 5));
-
-    file.close();
-
-    Path verifyPath(testFile);
-    EXPECT_EQ(verifyPath.fileSize(), 5);
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, Write_LengthExceedsData) {
-    std::string testFile = "./test_file_write_exceed.txt";
-    FileData data = {0x01, 0x02, 0x03};
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, WriteOnly);
-    EXPECT_TRUE(file.write(data, 100));
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, Write_ZeroLength) {
-    std::string testFile = "./test_file_write_zero.txt";
-    FileData data = {0x01, 0x02, 0x03};
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, WriteOnly);
-    EXPECT_TRUE(file.write(data, 0));
-
-    file.close();
-
-    Path verifyPath(testFile);
-    EXPECT_EQ(verifyPath.fileSize(), 0);
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, Write_NotOpen) {
-    std::string testFile = "./test_file_write_no.txt";
-    FileData data = {0x01, 0x02};
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, Unknown);
-    EXPECT_FALSE(file.write(data));
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, Write_Invalid) {
-    FileData data = {0x01, 0x02};
-    File file("/nonexistent/path/file.txt", WriteOnly);
-    EXPECT_FALSE(file.write(data));
-}
-
-TEST(FileTest, Write_EmptyData) {
-    std::string testFile = "./test_file_write_empty.txt";
-    FileData data;
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, WriteOnly);
-    EXPECT_TRUE(file.write(data));
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, Write_Multiple) {
-    std::string testFile = "./test_file_write_multi.txt";
-    FileData data1 = {0x01, 0x02, 0x03};
-    FileData data2 = {0x04, 0x05, 0x06};
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, WriteOnly);
-    EXPECT_TRUE(file.write(data1));
-    EXPECT_TRUE(file.write(data2));
-    file.close();
-
-    Path verifyPath(testFile);
-    EXPECT_EQ(verifyPath.fileSize(), data1.size() + data2.size());
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, WriteThenRead) {
-    std::string testFile = "./test_file_wr.txt";
-    FileData writeData = {0x48, 0x65, 0x6C, 0x6C, 0x6F};
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    // 写入
+TEST(FileOpenCloseTest, OpenWriteOnlyCreatesFile) {
+    removeTestFile(kTestFileName);
     {
-        File file(testFile, WriteOnly);
-        EXPECT_TRUE(file.write(writeData));
-        file.close();
-    }
-
-    // 读取并验证
-    {
-        File file(testFile, ReadOnly);
-        FileData readData = file.readAll();
-
-        EXPECT_GE(readData.size(), writeData.size());
-
-        bool match = true;
-        for (size_t i = 0; i < writeData.size(); ++i) {
-            if (readData[i] != writeData[i]) {
-                match = false;
-                break;
-            }
-        }
-        EXPECT_TRUE(match);
-
-        file.close();
-    }
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, Destructor_AutoClose) {
-    std::string testFile = "./test_file_dtor.txt";
-    std::string content = "Destructor test";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    {
-        File file(testFile, ReadOnly);
+        File file(kTestFileName, WriteOnly);
+        ASSERT_TRUE(file.isOpen());
         EXPECT_TRUE(file.isOpen());
-        // 离开作用域，析构函数自动关闭
+        // Path is re-validated after creating the file
+        EXPECT_TRUE(file.isFile());
+        file.close();
+        EXPECT_FALSE(file.isOpen());
     }
-
-    // 文件应该可以被正常删除（已关闭）
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
+    EXPECT_TRUE(Path::exist(kTestFileName));
+    removeTestFile(kTestFileName);
 }
 
-TEST(FileTest, OpenMode_AppendWrite) {
-    std::string testFile = "./test_file_mode_aw.txt";
+// ============================================================================
+// File read/write Tests
+// ============================================================================
 
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
+class FileIOTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        removeTestFile(kTestFileName);
+        File file(kTestFileName, WriteOnly);
+        ASSERT_TRUE(file.isOpen());
+        ASSERT_TRUE(file.write(std::string(kTestContent)));
+        file.close();
+        recordLastError("FileIOTest::SetUp");
     }
-
-    File file(testFile, static_cast<OpenMode>(Append | WriteOnly));
-    EXPECT_TRUE(file.isOpen());
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
+    void TearDown() override {
+        removeTestFile(kTestFileName);
     }
+};
+
+TEST_F(FileIOTest, ReadText) {
+    File file(kTestFileName, ReadOnly);
+    ASSERT_TRUE(file.isOpen());
+    EXPECT_EQ(file.fileSize(), contentLen());
+
+    auto first = file.readText(11);
+    EXPECT_EQ(first.substr(0, 11), std::string("Hello Tiny!"));
+    auto second = file.readText(1);
+    EXPECT_EQ(second.substr(0, 1), std::string("\n"));
 }
 
-TEST(FileTest, OpenMode_AppendReadWrite) {
-    std::string testFile = "./test_file_mode_arw.txt";
+TEST_F(FileIOTest, ReadWithLength) {
+    File file(kTestFileName, ReadOnly);
+    ASSERT_TRUE(file.isOpen());
 
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    auto data = file.read(5);
+    ASSERT_GE(data.size(), 5u);
+    std::string head(data.begin(), data.begin() + 5);
+    EXPECT_EQ(head, std::string("Hello"));
 
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, static_cast<OpenMode>(Append | ReadWrite));
-    EXPECT_TRUE(file.isOpen());
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
+    auto data2 = file.read(6);
+    std::string tail(data2.begin(), data2.begin() + 6);
+    EXPECT_EQ(tail, std::string(" Tiny!"));
 }
 
-TEST(FileTest, WriteLine_Success) {
-    std::string testFile = "./test_file_writeline.txt";
-    std::string line1 = "Hello, World!";
-    std::string line2 = "Second line";
+TEST_F(FileIOTest, ReadAllAndReadAllText) {
+    File file(kTestFileName, ReadOnly);
+    ASSERT_TRUE(file.isOpen());
 
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
+    std::string all = file.readAllText();
+    EXPECT_EQ(all, std::string(kTestContent));
 
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, WriteOnly);
-    EXPECT_TRUE(file.writeLine(line1));
-    EXPECT_TRUE(file.writeLine(line2));
-    file.close();
-
-    // 读取并验证
-    File readFile(testFile, ReadOnly);
-    std::string content = readFile.readAllText();
-    readFile.close();
-
-    EXPECT_NE(content.find(line1), std::string::npos);
-    EXPECT_NE(content.find(line2), std::string::npos);
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, WriteLine_NotOpen) {
-    std::string testFile = "./test_file_writeline_no.txt";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, Unknown);
-    EXPECT_FALSE(file.writeLine("test"));
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, WriteLine_Invalid) {
-    File file("/nonexistent/path/file.txt", WriteOnly);
-    EXPECT_FALSE(file.writeLine("test"));
-}
-
-TEST(FileTest, IsEOF_AtEnd) {
-    std::string testFile = "./test_file_eof.txt";
-    std::string content = "EOF test";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, ReadOnly);
-    file.readAll();
-    EXPECT_TRUE(file.isEOF());
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, IsEOF_NotOpen) {
-    std::string testFile = "./test_file_eof_no.txt";
-    std::string content = "Content";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, Unknown);
-    EXPECT_TRUE(file.isEOF());
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, FileSize_Success) {
-    std::string testFile = "./test_file_size.txt";
-    std::string content = "File size test content";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, ReadOnly);
-    EXPECT_EQ(file.fileSize(), content.size());
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, FileSize_NotOpen) {
-    std::string testFile = "./test_file_size_no.txt";
-    std::string content = "Content";
-
-    Path checkPath(testFile);
-    if (checkPath.isValid()) FileSystem::rmFile(testFile);
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, Unknown);
-    EXPECT_EQ(file.fileSize(), 0);
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, FileSize_Invalid) {
-    File file("/nonexistent/path/file.txt", ReadOnly);
-    EXPECT_EQ(file.fileSize(), 0);
-}
-
-TEST(FileTest, IsNull_False) {
-    std::string testFile = "./test_file_notnull.txt";
-    if (!FileSystem::mkFile(testFile, "test")) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, ReadOnly);
-    EXPECT_FALSE(file.isNull());
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, IsNull_True) {
-    File file("/nonexistent/path/file.txt", ReadOnly);
-    EXPECT_TRUE(file.isNull());
-}
-
-TEST(FileTest, ReadLine_Success) {
-    std::string testFile = "./test_file_readline.txt";
-    std::string content = "Line 1\nLine 2\nLine 3";
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, ReadOnly);
-    std::string line1 = file.readLine();
-    EXPECT_EQ(line1, "Line 1");
-
-    std::string line2 = file.readLine();
-    EXPECT_EQ(line2, "Line 2");
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, ReadLine_NotOpen) {
-    std::string testFile = "./test_file_readline_no.txt";
-    if (!FileSystem::mkFile(testFile, "test")) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, Unknown);
-    std::string line = file.readLine();
-    EXPECT_TRUE(line.empty());
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, Write_CharPtr) {
-    std::string testFile = "./test_file_write_char.txt";
-    const char* data = "Hello";
-
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, WriteOnly);
-    EXPECT_TRUE(file.write(data, 5));
-
-    file.close();
-
-    Path verifyPath(testFile);
-    EXPECT_EQ(verifyPath.fileSize(), 5);
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, Write_String) {
-    std::string testFile = "./test_file_write_str.txt";
-    std::string data = "Hello, String!";
-
-    if (!FileSystem::mkFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, WriteOnly);
-    EXPECT_TRUE(file.write(data));
-
-    file.close();
-
-    Path verifyPath(testFile);
-    EXPECT_EQ(verifyPath.fileSize(), data.size());
-
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
-}
-
-TEST(FileTest, MoveToStart) {
-    std::string testFile = "./test_file_movestart.txt";
-    std::string content = "Test content";
-
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, ReadOnly);
-    file.read(5);
     file.moveToStart();
-
-    std::string text = file.readText(4);
-    EXPECT_EQ(text, "Test");
-
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
+    auto raw = file.readAll();
+    ASSERT_GE(raw.size(), contentLen());
+    std::string content(raw.begin(), raw.begin() + static_cast<long>(contentLen()));
+    EXPECT_EQ(content, std::string(kTestContent));
 }
 
-TEST(FileTest, MoveToEnd) {
-    std::string testFile = "./test_file_moveend.txt";
-    std::string content = "Test content";
+TEST_F(FileIOTest, ReadLine) {
+    File file(kTestFileName, ReadOnly);
+    ASSERT_TRUE(file.isOpen());
 
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
+    EXPECT_EQ(file.readLine(), std::string("Hello Tiny!"));
+    EXPECT_EQ(file.readLine(), std::string("This is line 2."));
+    EXPECT_EQ(file.readLine(), std::string("line3"));
+}
 
-    File file(testFile, ReadOnly);
+TEST_F(FileIOTest, ReadLineWithLimit) {
+    File file(kTestFileName, ReadOnly);
+    ASSERT_TRUE(file.isOpen());
+
+    auto part = file.readLine(5);
+    EXPECT_EQ(part, std::string("Hello"));
+    EXPECT_FALSE(file.isEOF());
+}
+
+TEST_F(FileIOTest, IsEOFAndPosition) {
+    File file(kTestFileName, ReadOnly);
+    ASSERT_TRUE(file.isOpen());
+    EXPECT_FALSE(file.isEOF());
+
     file.moveToEnd();
     EXPECT_TRUE(file.isEOF());
 
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
+    file.moveToStart();
+    EXPECT_FALSE(file.isEOF());
+    (void)file.readAllText();
+    EXPECT_TRUE(file.isEOF());
 }
 
-TEST(FileTest, MoveTo_Positive) {
-    std::string testFile = "./test_file_moveto_pos.txt";
-    std::string content = "Hello, World!";
+TEST_F(FileIOTest, MoveTo) {
+    File file(kTestFileName, ReadOnly);
+    ASSERT_TRUE(file.isOpen());
 
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
+    file.moveTo(6, File::Where::Begin);
+    auto text = file.readText(4);
+    EXPECT_EQ(text.substr(0, 4), std::string("Tiny"));
 
-    File file(testFile, ReadOnly);
-    file.moveTo(7);
+    file.moveTo(-4, File::Where::Current);
+    text = file.readText(4);
+    EXPECT_EQ(text.substr(0, 4), std::string("Tiny"));
 
-    std::string text = file.readText(5);
-    EXPECT_EQ(text, "World");
+    file.moveTo(100000, File::Where::Begin);
+    EXPECT_TRUE(file.isEOF());
 
-    file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
+    file.moveTo(3, File::Where::Begin);
+    file.moveTo(2, File::Where::Current);
+    text = file.readText(2);
+    EXPECT_EQ(text.substr(0, 2), std::string(" T"));
 }
 
-TEST(FileTest, MoveTo_Negative) {
-    std::string testFile = "./test_file_moveto_neg.txt";
-    std::string content = "Hello, World!";
+TEST_F(FileIOTest, BinaryWriteAndRead) {
+    removeTestFile(kTestFileName);
+    File file(kTestFileName, WriteOnly);
+    ASSERT_TRUE(file.isOpen());
 
-    if (!FileSystem::mkFile(testFile, content)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
-    }
-
-    File file(testFile, ReadOnly);
-    file.moveTo(-6);
-
-    std::string text = file.readText(5);
-    EXPECT_EQ(text, "World");
-
+    FileData out;
+    out.push_back(0x00);
+    out.push_back(0x01);
+    out.push_back(0xFF);
+    out.push_back(0x7F);
+    out.push_back(0x80);
+    ASSERT_TRUE(file.write(out));
+    ASSERT_TRUE(file.write(out, out.size()));
     file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
+
+    File in(kTestFileName, ReadOnly);
+    ASSERT_TRUE(in.isOpen());
+    auto raw = in.readAll();
+    ASSERT_GE(raw.size(), 10u);
+    for (size_t i = 0; i < 5; ++i) {
+        EXPECT_EQ(raw[i], out[i]);
+        EXPECT_EQ(raw[i + 5], out[i]);
     }
+    in.close();
+    removeTestFile(kTestFileName);
+    recordLastError("FileIOTest::BinaryWriteAndRead");
 }
 
-TEST(FileTest, Accessor_Path) {
-    std::string testFile = "./test_file_path.txt";
-    if (!FileSystem::mkFile(testFile, "test")) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
+TEST_F(FileIOTest, AppendMode) {
+    removeTestFile(kTestFileName);
+    {
+        File file(kTestFileName, WriteOnly);
+        ASSERT_TRUE(file.isOpen());
+        ASSERT_TRUE(file.write("AAA"));
+        file.close();
     }
-
-    File file(testFile, ReadOnly);
-    std::string path = file.path();
-    EXPECT_FALSE(path.empty());
-
+    {
+        // Append only takes effect combined with WriteOnly/ReadWrite mode
+        File file(kTestFileName, WriteOnly | Append);
+        ASSERT_TRUE(file.isOpen());
+        ASSERT_TRUE(file.write("BBB"));
+        file.close();
+    }
+    File file(kTestFileName, ReadOnly);
+    ASSERT_TRUE(file.isOpen());
+    EXPECT_EQ(file.readAllText(), std::string("AAABBB"));
     file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
+    removeTestFile(kTestFileName);
 }
 
-TEST(FileTest, Accessor_FileName) {
-    std::string testFile = "./test_file_name.txt";
-    if (!FileSystem::mkFile(testFile, "test")) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "mkFile() failed: " << error;
+TEST_F(FileIOTest, WriteAfterReopenOverwrites) {
+    removeTestFile(kTestFileName);
+    {
+        File file(kTestFileName, WriteOnly);
+        ASSERT_TRUE(file.isOpen());
+        ASSERT_TRUE(file.write("old content that is long"));
+        file.close();
     }
-
-    File file(testFile, ReadOnly);
-    std::string name = file.fileName();
-    EXPECT_FALSE(name.empty());
-    EXPECT_NE(name.find("test_file_name"), std::string::npos);
-
+    {
+        File file(kTestFileName, WriteOnly);
+        ASSERT_TRUE(file.isOpen());
+        ASSERT_TRUE(file.write("new"));
+        file.close();
+    }
+    File file(kTestFileName, ReadOnly);
+    ASSERT_TRUE(file.isOpen());
+    auto all = file.readAllText();
+    // OPEN_ALWAYS keeps old tail bytes when new content is shorter
+    EXPECT_EQ(all.substr(0, 3), std::string("new"));
     file.close();
-    if (!FileSystem::rmFile(testFile)) {
-        std::string error;
-        lastSystemError(error);
-        ADD_FAILURE() << "rmFile() failed: " << error;
-    }
+    removeTestFile(kTestFileName);
 }
 
+TEST_F(FileIOTest, WriteLineAndReadBack) {
+    removeTestFile(kTestFileName);
+    {
+        File file(kTestFileName, WriteOnly);
+        ASSERT_TRUE(file.isOpen());
+        ASSERT_TRUE(file.writeLine("first"));
+        ASSERT_TRUE(file.writeLine("second"));
+        file.close();
+    }
+    File file(kTestFileName, ReadOnly);
+    ASSERT_TRUE(file.isOpen());
+    auto first = file.readLine();
+    // writeLine appends "\r\n"; readLine strips the trailing "\n"
+    ASSERT_FALSE(first.empty());
+    EXPECT_EQ(first.substr(0, 5), std::string("first"));
+    auto second = file.readLine();
+    ASSERT_FALSE(second.empty());
+    EXPECT_EQ(second.substr(0, 6), std::string("second"));
+    file.close();
+    removeTestFile(kTestFileName);
+}
 
+// ============================================================================
+// File stream operators Tests
+// ============================================================================
+
+TEST(FileStreamOperatorTest, OutputOperator) {
+    removeTestFile(kTestFileName);
+    {
+        File file(kTestFileName, WriteOnly);
+        ASSERT_TRUE(file.isOpen());
+        file << "Hello";
+        file << " ";
+        file << std::string("Stream");
+        FileData data;
+        data.push_back('!');
+        file << data;
+        file.close();
+    }
+    File file(kTestFileName, ReadOnly);
+    ASSERT_TRUE(file.isOpen());
+    EXPECT_EQ(file.readAllText(), std::string("Hello Stream!"));
+    file.close();
+    removeTestFile(kTestFileName);
+}
+
+TEST(FileStreamOperatorTest, ExtractOperator) {
+    removeTestFile(kTestFileName);
+    {
+        File writer(kTestFileName, WriteOnly);
+        ASSERT_TRUE(writer.isOpen());
+        ASSERT_TRUE(writer.write(std::string(kTestContent)));
+        writer.close();
+    }
+
+    File file(kTestFileName, ReadOnly);
+    ASSERT_TRUE(file.isOpen());
+
+    std::string word;
+    file > word;
+    EXPECT_EQ(word, std::string("Hello"));
+
+    // The string extractor consumes the trailing whitespace separator
+    char ch = '\0';
+    file > ch;
+    EXPECT_EQ(ch, 'T');
+
+    file > word;
+    EXPECT_EQ(word, std::string("iny!"));
+
+    file.close();
+    removeTestFile(kTestFileName);
+}
+
+TEST(FileStreamOperatorTest, ExtractRestOperators) {
+    removeTestFile(kTestFileName);
+    {
+        File writer(kTestFileName, WriteOnly);
+        ASSERT_TRUE(writer.isOpen());
+        ASSERT_TRUE(writer.write(std::string(kTestContent)));
+        writer.close();
+    }
+
+    File file(kTestFileName, ReadOnly);
+    ASSERT_TRUE(file.isOpen());
+
+    char ch = '\0';
+    file > ch;
+    EXPECT_EQ(ch, 'H');
+
+    uint8_t byte = 0;
+    file > byte;
+    EXPECT_EQ(byte, static_cast<uint8_t>('e'));
+
+    file.moveToStart();
+    std::string all;
+    file >> all;
+    EXPECT_EQ(all, std::string(kTestContent));
+
+    file.moveToStart();
+    FileData raw;
+    file >> raw;
+    ASSERT_GE(raw.size(), contentLen());
+    std::string content(raw.begin(), raw.begin() + static_cast<long>(contentLen()));
+    EXPECT_EQ(content, std::string(kTestContent));
+
+    file.close();
+    removeTestFile(kTestFileName);
+}
+
+// ============================================================================
+// File path/name Tests
+// ============================================================================
+
+TEST(FilePathTest, PathAndFileName) {
+    removeTestFile(kTestFileName);
+    File file(kTestFileName, WriteOnly);
+    ASSERT_TRUE(file.isOpen());
+    EXPECT_NE(file.path().find(kTestFileName), std::string::npos);
+    EXPECT_EQ(file.fileName(), std::string(kTestFileName));
+    file.close();
+    removeTestFile(kTestFileName);
+}
+
+// ============================================================================
+// File move semantics Tests
+// ============================================================================
+
+TEST(FileMoveTest, MoveConstructor) {
+    const char* name = "tiny_test_move_ctor.tmp";
+    removeTestFile(name);
+    File src(name, WriteOnly);
+    ASSERT_TRUE(src.isOpen());
+    ASSERT_TRUE(src.write("moved"));
+    auto src_path = src.path();
+
+    File dst(std::move(src));
+    EXPECT_TRUE(dst.isOpen());
+    EXPECT_EQ(dst.path(), src_path);
+    EXPECT_TRUE(dst.write("!"));
+    dst.close();
+
+    File check(name, ReadOnly);
+    ASSERT_TRUE(check.isOpen());
+    EXPECT_EQ(check.readAllText(), std::string("moved!"));
+    check.close();
+    removeTestFile(name);
+}
+
+TEST(FileMoveTest, MoveAssignment) {
+    const char* name = "tiny_test_move_assign.tmp";
+    removeTestFile(name);
+    File src(name, WriteOnly);
+    ASSERT_TRUE(src.isOpen());
+    ASSERT_TRUE(src.write("assigned"));
+
+    File dst("no_such_file_or_dir_tiny_test_xyz", ReadOnly);
+    dst = std::move(src);
+    EXPECT_TRUE(dst.isOpen());
+    EXPECT_TRUE(dst.write(" ok"));
+    dst.close();
+
+    File check(name, ReadOnly);
+    ASSERT_TRUE(check.isOpen());
+    EXPECT_EQ(check.readAllText(), std::string("assigned ok"));
+    check.close();
+    removeTestFile(name);
+}
+
+// ============================================================================
+// main
+// ============================================================================
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

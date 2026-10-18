@@ -1963,7 +1963,7 @@ namespace Tiny {
         CloseHandle(handler);
         if (ok == 0) return false;
 #elif defined(TINY_CPP_MY_OS_UNIX)
-        auto ok = open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_TRUNC, 0777 - umask(0000));
+        auto ok = open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0777 - umask(0000));
         if (ok == -1) return false;
         auto size = write(ok, data.data(), data.size() * sizeof(uint8_t));
         if (size == -1) return false;
@@ -2625,6 +2625,9 @@ namespace Tiny {
             auto& res = _result_map[path->uniqueID()];
             if ((_trigger & Filename) && (res.before.meta_data._path != res.after.meta_data._path)) {
                 res.trigger |= Filename;
+            }
+            if ((_trigger & Filesize) && (res.before.meta_data._file_size != res.after.meta_data._file_size)) {
+                res.trigger |= Filesize;
             }
             if ((_trigger & Permission) && (res.before.meta_data._permission != res.after.meta_data._permission)) {
                 res.trigger |= Permission;

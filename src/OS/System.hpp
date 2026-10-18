@@ -216,12 +216,13 @@ namespace Tiny {
             enum Trigger : uint8_t {
                 None         = 0,
                 Filename     = 1,
-                Permission   = 2,
-                Timestamp    = 4,
-                Owner        = 8,
-                Metadata     = 15,
-                Context      = 16,
-                All          = 31
+                Filesize     = 2,
+                Permission   = 4,
+                Timestamp    = 8,
+                Owner        = 16,
+                Metadata     = 31,
+                Context      = 32,
+                All          = 63
             };
 
             explicit FileSnapShot() = default;
