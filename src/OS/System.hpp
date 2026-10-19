@@ -72,7 +72,8 @@ namespace Tiny {
         };
 
         struct CPU {
-            CPU_Arch machine;
+            std::string name{};
+            CPU_Arch machine{};
             uint32_t cores{};
             uint32_t page_size{};
             float total_usage{};

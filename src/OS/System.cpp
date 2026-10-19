@@ -845,6 +845,7 @@ namespace Tiny {
         char new_version[128] = {};
         size_t len = sizeof(new_version);
         sysctlbyname("kern.osproductversion", new_version, &len, nullptr, 0);
+        info.os_name = "MacOS";
         info.version = new_version;
 #elif defined(__linux__)
         File file("/etc/os-release", OpenMode::ReadOnly);
@@ -907,38 +908,52 @@ namespace Tiny {
         info.cores = sys_info.dwNumberOfProcessors;
         info.page_size = sys_info.dwPageSize;
 
-        /// CPU Usage
-        static PDH_HQUERY query{};
-        static std::vector<PDH_HCOUNTER> counter(info.cores, nullptr);
+        // CPU Name
+        HKEY key;
+        auto ok = RegOpenKeyExA(HKEY_LOCAL_MACHINE,
+            "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 0, KEY_READ, &key);
+        if (ok == ERROR_SUCCESS) {
+            DWORD sz = 128;
+            info.name.resize(sz);
+            ok = RegQueryValueExA(key, "ProcessorNameString",
+                nullptr, nullptr, reinterpret_cast<LPBYTE>(&info.name[0]), &sz);
+            RegCloseKey(key);
+        }
 
-        // Init counter
-        if (!query) {
-            if (PdhOpenQueryA(nullptr, 0, &query) == ERROR_SUCCESS) {
-                info.usages.resize(info.cores);
-                for (uint32_t i = 0; i < info.cores; i++) {
-                    wchar_t path[MAX_PATH];
-                    swprintf(path, L"\\Processor Information(0,%u)\\%% Processor Time", i);
-                    if (PdhAddCounterW(query, path, 0, &counter[i]) != ERROR_SUCCESS) ret = false;
-                }
-            } else ret = false;
-        }
-        // Get per core usage
-        info.usages.resize(info.cores);
-        PdhCollectQueryData(query);
-        std::this_thread::sleep_for(std::chrono::milliseconds(internal));
-        PdhCollectQueryData(query);
-        for (size_t i = 0; i < info.cores; i++) {
-            PDH_FMT_COUNTERVALUE value;
-            auto err_code = PdhGetFormattedCounterValue(counter[i], PDH_FMT_DOUBLE,
-                                           nullptr, &value);
-            if (err_code == ERROR_SUCCESS) {
-                info.usages[i] = static_cast<float>(value.doubleValue);
-                info.total_usage += info.usages[i];
-            } else {
-                ret = false;
+        if (internal > 0) {
+            /// CPU Usage
+            static PDH_HQUERY query{};
+            static std::vector<PDH_HCOUNTER> counter(info.cores, nullptr);
+
+            // Init counter
+            if (!query) {
+                if (PdhOpenQueryA(nullptr, 0, &query) == ERROR_SUCCESS) {
+                    info.usages.resize(info.cores);
+                    for (uint32_t i = 0; i < info.cores; i++) {
+                        wchar_t path[MAX_PATH];
+                        swprintf(path, L"\\Processor Information(0,%u)\\%% Processor Time", i);
+                        if (PdhAddCounterW(query, path, 0, &counter[i]) != ERROR_SUCCESS) ret = false;
+                    }
+                } else ret = false;
             }
+            // Get per core usage
+            info.usages.resize(info.cores);
+            PdhCollectQueryData(query);
+            std::this_thread::sleep_for(std::chrono::milliseconds(internal));
+            PdhCollectQueryData(query);
+            for (size_t i = 0; i < info.cores; i++) {
+                PDH_FMT_COUNTERVALUE value;
+                auto err_code = PdhGetFormattedCounterValue(counter[i], PDH_FMT_DOUBLE,
+                                               nullptr, &value);
+                if (err_code == ERROR_SUCCESS) {
+                    info.usages[i] = static_cast<float>(value.doubleValue);
+                    info.total_usage += info.usages[i];
+                } else {
+                    ret = false;
+                }
+            }
+            if (info.cores > 0) info.total_usage /= static_cast<float>(info.cores);
         }
-        if (info.cores > 0) info.total_usage /= info.cores;
 
 #elif defined(TINY_CPP_MY_OS_UNIX)
         // CPU machine
@@ -959,107 +974,141 @@ namespace Tiny {
         size_t length = sizeof(info.cores);
         if (sysctlbyname("hw.ncpu", &info.cores, &length, nullptr, 0) == -1) info.cores = 1;
         info.usages.resize(info.cores);
+        info.name.resize(128);
+        sysctlbyname("hw.model", &info.name[0], 128, nullptr, 0);
+        if (internal > 0) {
+            auto prev = calcTickStat();
+            std::this_thread::sleep_for(std::chrono::milliseconds(internal));
+            auto next = calcTickStat();
 
-        auto prev = calcTickStat();
-        std::this_thread::sleep_for(std::chrono::milliseconds(internal));
-        auto next = calcTickStat();
-
-        // Calc the CPU usage
-        float total_usage = 0;
-        for (size_t i = 0; i < info.cores; ++i) {
-            auto d_total = (next[i].total - prev[i].total);
-            auto d_idle = (next[i].idle - prev[i].idle);
-            if (d_total != 0) {
-                info.usages[i] = 100.f - (100.f * static_cast<double>(d_idle) / static_cast<double>(d_total));
+            // Calc the CPU usage
+            float total_usage = 0;
+            for (size_t i = 0; i < info.cores; ++i) {
+                auto d_total = (next[i].total - prev[i].total);
+                auto d_idle = (next[i].idle - prev[i].idle);
+                if (d_total != 0) {
+                    info.usages[i] = 100.f - (100.f * static_cast<double>(d_idle) / static_cast<double>(d_total));
+                }
+                total_usage += info.usages[i];
             }
-            total_usage += info.usages[i];
+            info.total_usage = total_usage / static_cast<float>(info.cores);
         }
-        info.total_usage = total_usage / static_cast<float>(info.cores);
 #elif defined(__linux__)
-        info.cores = get_nprocs();
-        info.usages.resize(info.cores);
-        static std::function<std::vector<CPU_Stat>()> getCPUStat = [&info, &ret] {
-            std::vector<CPU_Stat> output_list;
-            File cpu_stat("/proc/stat");
-            if (cpu_stat.open(OpenMode::ReadOnly)) {
-                std::string line;
-                size_t i = 0;
-                do {
-                    line = cpu_stat.readLine();
-                    auto pos = line.find_first_of("cpu");
-                    if (pos != std::string::npos) {
-                        std::istringstream iss(line);
-                        std::string cpu_name;
-                        CPU_Stat stat;
-                        iss >> cpu_name >> stat.user >> stat.nice >> stat.system
-                            >> stat.idle >> stat.iowait >> stat.irq >> stat.softirq;
-                        output_list.push_back(stat);
-                        i += 1;
-                    } else {
+        File cpu_info("/proc/cpuinfo");
+        if (cpu_info.open(OpenMode::ReadOnly)) {
+            std::string line;
+            do {
+                line = cpu_info.readLine();
+                if (line.find("model name") != std::string::npos) {
+                    auto sz = line.find(":");
+                    if (sz != std::string::npos && sz + 2 < line.size()) {
+                        info.name = line.substr(sz + 2);
                         break;
                     }
-                } while (true);
-                cpu_stat.close();
-            } else {
-                ret = false;
-            }
-            return output_list;
-        };
-        auto prev = getCPUStat();
-        std::this_thread::sleep_for(std::chrono::milliseconds(internal));
-        auto next = getCPUStat();
-        for (size_t i = 0; i < info.cores + 1; ++i) {
-            auto d_total = next[i].total() - prev[i].total();
-            auto d_busy = next[i].busy() - prev[i].busy();
-            if (i == 0) {
-                info.total_usage = static_cast<double>(d_busy) / static_cast<double>(d_total) * 100.f;
-            } else {
-                info.usages[i - 1] = static_cast<double>(d_busy) / static_cast<double>(d_total) * 100.f;
+                } else if (line.find("Hardware") != std::string::npos) {
+                    auto sz = line.find(":");
+                    if (sz != std::string::npos && sz + 2 < line.size()) {
+                        info.name = line.substr(sz + 2);
+                        break;
+                    }
+                }
+            } while (true);
+            cpu_info.close();
+        }
+
+        info.cores = get_nprocs();
+        info.usages.resize(info.cores);
+
+        if (internal > 0) {
+            static std::function<std::vector<CPU_Stat>()> getCPUStat = [&info, &ret] {
+                std::vector<CPU_Stat> output_list;
+                output_list.resize(info.cores + 1);
+
+                File cpu_stat("/proc/stat");
+                if (cpu_stat.open(OpenMode::ReadOnly)) {
+                    std::string line;
+                    size_t i = 0;
+                    do {
+                        line = cpu_stat.readLine();
+                        auto pos = line.find_first_of("cpu");
+                        if (pos != std::string::npos) {
+                            std::istringstream iss(line);
+                            std::string cpu_name;
+                            CPU_Stat stat;
+                            iss >> cpu_name >> stat.user >> stat.nice >> stat.system
+                                >> stat.idle >> stat.iowait >> stat.irq >> stat.softirq;
+                            output_list[i] = stat;
+                            i += 1;
+                        } else {
+                            break;
+                        }
+                    } while (true);
+                    cpu_stat.close();
+                } else {
+                    ret = false;
+                }
+                return output_list;
+            };
+            auto prev = getCPUStat();
+            std::this_thread::sleep_for(std::chrono::milliseconds(internal));
+            auto next = getCPUStat();
+            for (size_t i = 0; i < info.cores + 1; ++i) {
+                auto d_total = next[i].total() - prev[i].total();
+                auto d_busy = next[i].busy() - prev[i].busy();
+                if (i == 0) {
+                    info.total_usage = static_cast<double>(d_busy) / static_cast<double>(d_total) * 100.f;
+                } else {
+                    info.usages[i - 1] = static_cast<double>(d_busy) / static_cast<double>(d_total) * 100.f;
+                }
             }
         }
 #elif defined(__FreeBSD__)
         size_t u32_sz = sizeof(uint32_t);
         sysctlbyname("hw.ncpu", &info.cores, &u32_sz, nullptr, 0);
         sysctlbyname("hw.pagesize", &info.page_size, &u32_sz, nullptr, 0);
-        std::vector<size_t> value, sum_value;
-        size_t val_sz = 0, sum_sz = 0;
-        if (sysctlbyname("kern.cp_times", nullptr, &val_sz, nullptr, 0) == -1 ||
-            sysctlbyname("kern.cp_time", nullptr, &sum_sz, nullptr, 0) == -1) {
-            return false;
-        }
-        value.resize(val_sz / sizeof(size_t));
-        sum_value.resize(sum_sz / sizeof(size_t));
+        info.name.resize(128);
+        sysctlbyname("hw.model", &info.name[0], 128, nullptr, 0);
         info.usages.resize(info.cores);
+        if (internal > 0) {
+            std::vector<size_t> value, sum_value;
+            size_t val_sz = 0, sum_sz = 0;
+            if (sysctlbyname("kern.cp_times", nullptr, &val_sz, nullptr, 0) == -1 ||
+                sysctlbyname("kern.cp_time", nullptr, &sum_sz, nullptr, 0) == -1) {
+                return false;
+                }
+            value.resize(val_sz / sizeof(size_t));
+            sum_value.resize(sum_sz / sizeof(size_t));
 
-        static std::function<std::vector<CPU_Stat>(const std::vector<size_t>, uint32_t)> calcTicks =
-                [&](const std::vector<size_t> value, uint32_t ncpu) {
-            std::vector<CPU_Stat> result;
-            result.resize(ncpu);
-            for (size_t i = 0; i < ncpu; ++i) {
-                result[i].user = value[i * 5];
-                result[i].nice = value[i * 5 + 1];
-                result[i].system = value[i * 5 + 2];
-                result[i].irq = value[i * 5 + 3];
-                result[i].idle = value[i * 5 + 4];
+            static std::function<std::vector<CPU_Stat>(const std::vector<size_t>, uint32_t)> calcTicks =
+                    [&](const std::vector<size_t> value, uint32_t ncpu) {
+                        std::vector<CPU_Stat> result;
+                        result.resize(ncpu);
+                        for (size_t i = 0; i < ncpu; ++i) {
+                            result[i].user = value[i * 5];
+                            result[i].nice = value[i * 5 + 1];
+                            result[i].system = value[i * 5 + 2];
+                            result[i].irq = value[i * 5 + 3];
+                            result[i].idle = value[i * 5 + 4];
+                        }
+                        return result;
+            };
+
+            sysctlbyname("kern.cp_times", &value[0], &val_sz, nullptr, 0);
+            sysctlbyname("kern.cp_time", &sum_value[0], &sum_sz, nullptr, 0);
+            auto prev = calcTicks(value, info.cores);
+            auto sum_prev = calcTicks(sum_value, 1);
+            std::this_thread::sleep_for(std::chrono::milliseconds(internal));
+            sysctlbyname("kern.cp_times", &value[0], &val_sz, nullptr, 0);
+            sysctlbyname("kern.cp_time", &sum_value[0], &sum_sz, nullptr, 0);
+            auto next = calcTicks(value, info.cores);
+            auto sum_next = calcTicks(sum_value, 1);
+            for (size_t i = 0; i < info.cores; ++i) {
+                info.usages[i] = static_cast<double>(next[i].busy() - prev[i].busy()) /
+                                 static_cast<double>(next[i].total() - prev[i].total()) * 100.f;
             }
-            return result;
-        };
-
-        sysctlbyname("kern.cp_times", &value[0], &val_sz, nullptr, 0);
-        sysctlbyname("kern.cp_time", &sum_value[0], &sum_sz, nullptr, 0);
-        auto prev = calcTicks(value, info.cores);
-        auto sum_prev = calcTicks(sum_value, 1);
-        std::this_thread::sleep_for(std::chrono::milliseconds(internal));
-        sysctlbyname("kern.cp_times", &value[0], &val_sz, nullptr, 0);
-        sysctlbyname("kern.cp_time", &sum_value[0], &sum_sz, nullptr, 0);
-        auto next = calcTicks(value, info.cores);
-        auto sum_next = calcTicks(sum_value, 1);
-        for (size_t i = 0; i < info.cores; ++i) {
-            info.usages[i] = static_cast<double>(next[i].busy() - prev[i].busy()) /
-                             static_cast<double>(next[i].total() - prev[i].total()) * 100.f;
+            info.total_usage = static_cast<double>(sum_next.front().busy() - sum_prev.front().busy()) /
+                               static_cast<double>(sum_next.front().total() - sum_prev.front().total()) * 100.f;
         }
-        info.total_usage = static_cast<double>(sum_next.front().busy() - sum_prev.front().busy()) /
-                           static_cast<double>(sum_next.front().total() - sum_prev.front().total()) * 100.f;
 #endif
         info.page_size = sysconf(_SC_PAGE_SIZE);
 #endif

@@ -32,9 +32,24 @@ using term = TUI::Terminal;
 std::mutex mutex{};
 std::atomic<bool> need_refresh{};
 
+template <typename T>
+T min(T value1, T value2) {
+    return value1 < value2 ? value1 : value2;
+}
+
+template <typename T>
+T max(T value1, T value2) {
+    return value1 > value2 ? value1 : value2;
+}
+
 void drawInfo(TUI::Renderer& renderer) {
-    renderer.drawBorder({0, 0}, {2, 60}, {}, {});
-    renderer.setStrF({1, 4}, "{:>18c}Host Information", ' ');
+    auto win_width = TUI::Terminal::screenSize().width;
+    const auto W = min(win_width, 60U);
+    const auto IW = min(win_width, 40U);
+    const auto II = IW / 2;
+    renderer.drawBorder({0, 0}, {2, W}, {}, {});
+    const auto III = max(static_cast<int>(II - 8), 0);
+    renderer.setStrF({1, 6}, "{:>{}c}Host Information", III, ' ');
 
     TUI::StyleList styles;
     TUI::Style style_1, style_2;
@@ -46,18 +61,19 @@ void drawInfo(TUI::Renderer& renderer) {
     styles.push_back(style_2);
 
     auto os_info = OS::currentHostInfo();
-    renderer.drawBorder({2, 0}, {10, 60}, {}, {});
-    renderer.setSSFX({3, 1}, "<1>{:>20s}: <2>{:<20s}", styles, "Hostname", os_info.host_name);
-    renderer.setSSFX({4, 1}, "<1>{:>20s}: <2>{:<20s}", styles, "Username", os_info.user_name);
-    renderer.setSSFX({5, 1}, "<1>{:>20s}: <2>{:<20s}", styles, "OS", os_info.os_name);
-    renderer.setSSFX({6, 1}, "<1>{:>20s}: <2>{:<20s}", styles, "Version", os_info.version);
-    renderer.setSSFX({7, 1}, "<1>{:>20s}: <2>{:<20s}", styles, "Arch", os_info.machine);
-    renderer.setSSFX({8, 1}, "<1>{:>20s}: <2>{:<32s}", styles, "Memory", "Processing...");
-    renderer.setSSFX({9, 1}, "<1>{:>20s}: <2>{:<32s}", styles, "Disk", "Processing...");
+    renderer.drawBorder({2, 0}, {10, W}, {}, {});
+    renderer.setSSFX({3, 1}, "<1>{:>{}s}: <2>{:<{}s}", styles, II, "Hostname", II, os_info.host_name);
+    renderer.setSSFX({4, 1}, "<1>{:>{}s}: <2>{:<{}s}", styles, II, "Username", II, os_info.user_name);
+    renderer.setSSFX({5, 1}, "<1>{:>{}s}: <2>{:<{}s}", styles, II, "OS", II, os_info.os_name);
+    renderer.setSSFX({6, 1}, "<1>{:>{}s}: <2>{:<{}s}", styles, II, "Version", II, os_info.version);
+    renderer.setSSFX({7, 1}, "<1>{:>{}s}: <2>{:<{}s}", styles, II, "Arch", II, os_info.machine);
+    renderer.setSSFX({8, 1}, "<1>{:>{}s}: <2>{:<{}s}", styles, II, "Memory", II, "Processing...");
+    renderer.setSSFX({9, 1}, "<1>{:>{}s}: <2>{:<{}s}", styles, II, "Disk", II, "Processing...");
 }
 
 void updateInfo(TUI::Renderer& renderer, OS::CPU& cpu, OS::Memory& memory, OS::DiskSpace& disk_space) {
     // std::lock_guard<std::mutex> lock_guard(mutex);
+    const auto W = min(TUI::Terminal::screenSize().width, 60U);
     if (need_refresh.load()) {
         TUI::StyleList styles;
         TUI::Style style_1, style_2, style_def;
@@ -80,16 +96,18 @@ void updateInfo(TUI::Renderer& renderer, OS::CPU& cpu, OS::Memory& memory, OS::D
         );
 
 
-        renderer.drawBorder({10, 0}, {12, 60}, {}, {});
-        renderer.drawBorder({12, 0}, {13 + cpu.cores, 60}, {}, {});
-        renderer.setStrF({11, 2}, "CPU Total: {:.1f}%  ", cpu.total_usage);
+        renderer.drawBorder({10, 0}, {13, W}, {}, {});
+        renderer.drawBorder({13, 0}, {14 + cpu.cores, W}, {}, {});
+        renderer.setSSFX({11, 2}, "CPU Name : <2>{}  ", styles,cpu.name);
+        renderer.setSSFX({12, 2}, "CPU Total: <2>{:.1f}%  ", styles, cpu.total_usage);
+        const auto M = W - 10;
         for (size_t i = 0; i < cpu.cores; i++) {
-            auto repeat = static_cast<uint8_t>(50.f * (cpu.usages[i] * 0.01f));
+            auto repeat = static_cast<uint8_t>(static_cast<float>(M) * (cpu.usages[i] * 0.01f));
             std::string s;
             for (size_t j = 0; j < repeat; j++) {
-                s += "|";
+                s += '|';
             }
-            renderer.setSSFX({13 + static_cast<uint32_t>(i), 2}, "<2>CPU{:>2s}: <3>{:<50s}", styles, i, s);
+            renderer.setSSFX({14 + static_cast<uint32_t>(i), 2}, "<2>CPU{:>2s}: <3>{:<{}s}", styles, i, M, s);
         }
         need_refresh.store(false);
     }
@@ -116,6 +134,7 @@ int main() {
     term::setCursorVisible(false);
     // ren.setResizeEvent(drawInfo);
     TUI::EventBus::self().subscribe<TUI::Renderer>([&ren](const TUI::AbstractEvent&) {
+        ren.clear();
         drawInfo(ren);
     });
     e1.setDelayMS(10);
