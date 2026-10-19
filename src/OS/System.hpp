@@ -226,6 +226,7 @@ namespace Tiny {
             };
 
             explicit FileSnapShot() = default;
+            FileSnapShot(Trigger trigger) : _trigger(trigger) {}
             ~FileSnapShot() = default;
 
             void addPath(Path* path);

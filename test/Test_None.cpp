@@ -3,14 +3,13 @@
 using namespace Tiny;
 
 int main(int argc, char *argv[]) {
-    OS::FileSnapShot file_snap_shot;
+    OS::FileSnapShot file_snap_shot(OS::FileSnapShot::All);
     OS::FileSystem::mkFile("./test.txt", "Hello world!");
     OS::FileSystem::mkDir("./test");
     OS::Path path("./test");
     OS::Path p2("./test.txt");
     file_snap_shot.addPath(path);
     file_snap_shot.addPath(p2);
-    file_snap_shot.setTrigger(Tiny::OS::FileSnapShot::Metadata);
     std::vector<uint64_t> res;
     size_t cnt = 10;
     while (cnt--) {

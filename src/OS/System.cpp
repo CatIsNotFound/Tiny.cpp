@@ -836,16 +836,16 @@ namespace Tiny {
         uname(&uts_name);
         info.host_name = uts_name.nodename;
         info.user_name = getpwuid(getuid())->pw_name;
+        info.os_name = uts_name.sysname;
         info.machine = uts_name.machine;
         info.version = uts_name.release;
         // Get OS Name
 #ifdef __APPLE__
-        info.os_name = "macOS";
         char new_version[128] = {};
         size_t len = sizeof(new_version);
         sysctlbyname("kern.osproductversion", new_version, &len, nullptr, 0);
         info.version = new_version;
-#else
+#elif defined(__linux__)
         File file("/etc/os-release", OpenMode::ReadOnly);
         if (file.isOpen()) {
             while (true) {
@@ -992,11 +992,7 @@ namespace Tiny {
                         CPU_Stat stat;
                         iss >> cpu_name >> stat.user >> stat.nice >> stat.system
                             >> stat.idle >> stat.iowait >> stat.irq >> stat.softirq;
-                        if (i <= info.cores) {
-                            output_list.push_back(stat);
-                        } else {
-                            break;
-                        }
+                        output_list.push_back(stat);
                         i += 1;
                     } else {
                         break;
@@ -2278,17 +2274,23 @@ namespace Tiny {
     OS::Path OS::FileSystem::homePath() {
         char user[256] = {};
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        if (FAILED(SHGetFolderPathA(nullptr, CSIDL_PROFILE, nullptr, 0, user)))
+        if (FAILED(SHGetFolderPathA(nullptr, CSIDL_PROFILE, nullptr, 0, user))) {
             return Path("");
+        }
+        return Path(user);
 #elif defined(TINY_CPP_MY_OS_UNIX)
         auto home_path = std::getenv("HOME");
-        strcpy(user, home_path);
+        return Path(home_path);
 #endif
-        return Path(user);
     }
 
     OS::Path OS::FileSystem::cachePath() {
-        return homePath() / ".cache";
+        auto cache_path = homePath() / ".cache";
+        if (!cache_path.isValid()) {
+            mkDir(cache_path);
+            cache_path.reset();
+        }
+        return cache_path;
     }
 
     OS::Path OS::FileSystem::localDataPath() {
@@ -2300,6 +2302,7 @@ namespace Tiny {
         auto home_path = std::getenv("HOME");
         local_data = home_path;
         local_data += "/.local/share";
+        mkDir(local_data);
 #endif
         return Path(local_data);
     }

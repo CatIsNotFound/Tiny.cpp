@@ -11,8 +11,8 @@ int main() {
     int ret = OS::Process::exec(R"(.\assets\keep_cmd.bat)", 3000, &s, &o);
 #else
     TUI::Terminal::print() << "Running: " << "./assets/keep_bash" << "\n";
-    OS::exec("chmod u+x ./assets/keep_bash");
-    int ret = OS::exec("./assets/keep_bash", 5000, &s, &o);
+    OS::Process::exec("chmod u+x ./assets/keep_bash");
+    int ret = OS::Process::exec("./assets/keep_bash", 5000, &s, &o);
 #endif
     TUI::Terminal::print() << "Ret: " << ret << "\n";
     TUI::Terminal::print() << TUI::TStyle::bold() << "Output: \n"
