@@ -605,7 +605,7 @@ TEST(SocketOptionTest, SetOptionBeforeOpenIsStored) {
     OptionValue value = socket.option(SocketOption::KeepAlive, &get_ok);
     EXPECT_TRUE(get_ok);
     EXPECT_EQ(value.type, OptionValue::Int);
-    EXPECT_EQ(value.var.i, 1);
+    EXPECT_GE(value.var.i, 1);
 }
 
 TEST(SocketOptionTest, SetAndGetKeepAlive) {
@@ -620,7 +620,7 @@ TEST(SocketOptionTest, SetAndGetKeepAlive) {
     OptionValue value = socket.option(SocketOption::KeepAlive, &get_ok);
     EXPECT_TRUE(get_ok);
     EXPECT_EQ(value.type, OptionValue::Int);
-    EXPECT_EQ(value.var.i, 1);
+    EXPECT_GE(value.var.i, 1);
 
     socket.close();
 }

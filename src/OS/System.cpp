@@ -53,6 +53,7 @@
 #include <sys/wait.h>
 #include <pwd.h>
 #include <cstring>
+#include <cerrno>
 #ifdef __APPLE__
 #include <sys/sysctl.h>
 #include <mach/mach.h>
@@ -1891,12 +1892,12 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_WINDOWS
         while (!create_dir.empty()) {
             auto ok = CreateDirectoryA(create_dir.front().c_str(), nullptr);
-            if (ok == 0) return false;
+            if (ok == 0 && GetLastError() != ERROR_ALREADY_EXISTS) return false;
             create_dir.pop_front();
         }
 #elif defined(TINY_CPP_MY_OS_UNIX)
         while (!create_dir.empty()) {
-            if (mkdir(create_dir.front().c_str(), 0777 - umask(0000)) == -1) return false;
+            if (mkdir(create_dir.front().c_str(), 0777 - umask(0000)) == -1 && errno != EEXIST) return false;
             create_dir.pop_front();
         }
 #else
@@ -1914,12 +1915,12 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_WINDOWS
         while (!create_dir.empty()) {
             auto ok = CreateDirectoryA(create_dir.front().c_str(), nullptr);
-            if (ok == 0) return false;
+            if (ok == 0 && GetLastError() != ERROR_ALREADY_EXISTS) return false;
             create_dir.pop_front();
         }
 #elif defined(TINY_CPP_MY_OS_UNIX)
         while (!create_dir.empty()) {
-            if (mkdir(create_dir.front().c_str(), 0777 - umask(0000)) == -1) return false;
+            if (mkdir(create_dir.front().c_str(), 0777 - umask(0000)) == -1 && errno != EEXIST) return false;
             create_dir.pop_front();
         }
 #else
