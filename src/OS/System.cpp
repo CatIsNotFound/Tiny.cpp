@@ -974,8 +974,9 @@ namespace Tiny {
         size_t length = sizeof(info.cores);
         if (sysctlbyname("hw.ncpu", &info.cores, &length, nullptr, 0) == -1) info.cores = 1;
         info.usages.resize(info.cores);
+        size_t name_sz = 128;
         info.name.resize(128);
-        sysctlbyname("hw.model", &info.name[0], 128, nullptr, 0);
+        sysctlbyname("hw.model", &info.name[0], &name_sz, nullptr, 0);
         if (internal > 0) {
             auto prev = calcTickStat();
             std::this_thread::sleep_for(std::chrono::milliseconds(internal));
@@ -1066,8 +1067,9 @@ namespace Tiny {
         size_t u32_sz = sizeof(uint32_t);
         sysctlbyname("hw.ncpu", &info.cores, &u32_sz, nullptr, 0);
         sysctlbyname("hw.pagesize", &info.page_size, &u32_sz, nullptr, 0);
+        size_t name_sz = 128;
         info.name.resize(128);
-        sysctlbyname("hw.model", &info.name[0], 128, nullptr, 0);
+        sysctlbyname("hw.model", &info.name[0], &name_sz, nullptr, 0);
         info.usages.resize(info.cores);
         if (internal > 0) {
             std::vector<size_t> value, sum_value;

@@ -25,7 +25,7 @@
 
 #include "../src/OS/System.hpp"
 #include <gtest/gtest.h>
-#include <cstdio>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -52,6 +52,20 @@ static std::string absPath(const std::string& rel) {
 
 static std::string testDir() { return absPath("tiny_sys_dir"); }
 static std::string testCopyDir() { return absPath("tiny_sys_dir_copy"); }
+
+static std::string strip(const std::string& s) {
+    if (s.empty()) return {};
+    size_t st_pos{}, ed_pos{s.size()};
+    bool found_st{}, found_ed{};
+    for (size_t i = 0; i < s.size(); ++i) {
+        if (st_pos > ed_pos) break;
+        if (!found_st && !isspace(s[i]))              { st_pos = i; found_st = true; }
+        if (!found_ed && !isspace(s[ed_pos - i - 1])) { ed_pos = ed_pos - i - 1; found_ed = true; }
+        if (found_st && found_ed) break;
+    }
+    if (!found_st && !found_ed) return {};
+    return s.substr(st_pos, ed_pos - st_pos + 1);
+}
 
 /// Record the last system error info (project convention for system-related operations)
 static void recordLastError(const char* context) {
@@ -143,6 +157,7 @@ TEST(CPUInfoTest, GetCPUInfo) {
         ok = getCPUInfo(info, 50);
     }
     recordLastError("CPUInfoTest::GetCPUInfo");
+    EXPECT_FALSE(strip(info.name).empty());
     EXPECT_GT(info.cores, 0u);
     EXPECT_GT(info.page_size, 0u);
     EXPECT_EQ(info.usages.size(), static_cast<size_t>(info.cores));
