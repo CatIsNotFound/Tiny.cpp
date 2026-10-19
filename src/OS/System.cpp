@@ -2301,16 +2301,10 @@ namespace Tiny {
         }
 #elif defined(TINY_CPP_MY_OS_UNIX)
         if (isAdmin()) {
-            if (Path::exist("/usr/share")) {
-                if (Path::exist("/usr/local/share")) {
-                    local_data = "/usr/local/share";
-                }
-            } else {
-                local_data = "/usr/share";
-            }
+            local_data = "/root/.local/share";
+            mkDir(local_data);
         } else {
-            auto home_path = std::getenv("HOME");
-            local_data = home_path;
+            local_data = std::getenv("HOME");
             local_data += "/.local/share";
             mkDir(local_data);
         }

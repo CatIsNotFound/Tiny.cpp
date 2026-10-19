@@ -274,7 +274,7 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_WINDOWS
         return getNameByID(_ids->gid, ok);
 #else
-        return getGroupNameByID(_ids->uid, ok);
+        return getGroupNameByID(_ids->gid, ok);
 #endif
     }
 
