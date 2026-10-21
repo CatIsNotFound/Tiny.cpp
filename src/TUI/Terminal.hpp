@@ -28,6 +28,7 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <tuple>
 #include <cstdint>
 #include <cwchar>
 
@@ -415,17 +416,14 @@ namespace Tiny {
             Terminal& operator<<(const T& expr);
             Terminal& operator<<(Terminal&);
         private:
-            template<typename T, typename... Args>
-            static void formatImpl(std::ostringstream &ostream, const char* format, T arg, Args... args);
-            static void formatImpl(std::ostringstream &ostream, const char* format);
-            template<typename T, typename... Args>
-            static void parseFormatSpec(std::ostringstream &ostream, const char *format, T arg, Args... args);
-            template<typename T, typename... Args>
-            static void handleAlternateForm(std::ostringstream &ostream, const char*& format,
-                                            std::string& spec, T arg, Args... args);
-            template<typename T>
-            static void appendArgs(std::ostringstream& ostream, T&& t);
-            static void appendFormatText(std::ostringstream& ostream, const char* format);
+            template <typename T, typename... Args>
+            static size_t parseSpec(std::string& dest, const char *byte, std::string *output, T value, Args&&... args);
+            template <typename T, typename... Args>
+            static void render(std::string& dest, const char *byte, T arg, Args&&... args);
+            template <typename T>
+            static size_t renderOnce(std::string& dest, const char* byte, T arg);
+            static void render(std::string& dest, const char* byte);
+
             static bool printFormattedText(const std::string& str, bool use_output_term = true);
             static Terminal _terms;
             static bool _print_mode;
@@ -476,7 +474,8 @@ namespace Tiny {
     }
 }
 
-#include "Terminal_Int.hpp"
+// #include "Terminal_Int.hpp"
+#include "Format.hpp"
 #endif //TINY_CPP_TUI_TERMINAL_HPP
 
 /*************************************************************************************

@@ -43,6 +43,10 @@ addModule(TestIniParser MY_MODULE
         TestIniParser.cpp
 )
 
+addModule(TestFormat MY_MODULE
+        TestFormat.cpp
+)
+
 addModule(TestInput MY_MODULE_WITHOUT_GTEST
         Test_Input.cpp
 )

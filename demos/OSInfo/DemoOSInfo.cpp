@@ -99,7 +99,7 @@ void updateInfo(TUI::Renderer& renderer, OS::CPU& cpu, OS::Memory& memory, OS::D
         renderer.drawBorder({10, 0}, {13, W}, {}, {});
         renderer.drawBorder({13, 0}, {14 + cpu.cores, W}, {}, {});
         renderer.setSSFX({11, 2}, "CPU Name : <2>{}  ", styles,cpu.name);
-        renderer.setSSFX({12, 2}, "CPU Total: <2>{:.1f}%  ", styles, cpu.total_usage);
+        renderer.setSSFX({12, 2}, "CPU Total: <2>{:5.1f}%  ", styles, cpu.total_usage);
         const auto M = W - 10;
         for (size_t i = 0; i < cpu.cores; i++) {
             auto repeat = static_cast<uint8_t>(static_cast<float>(M) * (cpu.usages[i] * 0.01f));

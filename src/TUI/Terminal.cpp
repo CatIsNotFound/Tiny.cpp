@@ -1399,6 +1399,8 @@ namespace Tiny {
         return *this;
     }
 
+
+
     TUI::Terminal & TUI::Terminal::operator<<(Terminal &) {
         return _terms;
     }
@@ -1410,8 +1412,7 @@ namespace Tiny {
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(use_output_term ? STD_OUTPUT_HANDLE : STD_ERROR_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return false;
-        auto w_str = U8Code::string2Wide(str);
-        if (!WriteConsoleW(console, w_str.c_str(), w_str.size(), nullptr, nullptr)) return false;
+        if (!WriteConsoleA(console, str.c_str(), str.size(), nullptr, nullptr)) return false;
         return true;
 #endif
     }

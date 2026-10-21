@@ -52,7 +52,7 @@ set(SOURCE_FILES
         src/Events/Events.cpp
         src/TUI/Terminal.hpp
         src/TUI/Terminal.cpp
-        src/TUI/Terminal_Int.hpp
+        src/TUI/Format.hpp
         src/TUI/TUI.hpp
         src/TUI/TUI.cpp
         src/Parser/CommandParser.hpp
