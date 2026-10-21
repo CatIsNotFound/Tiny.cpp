@@ -38,32 +38,6 @@
 #include <complex>
 #include <cstdint>
 
-
-template <typename T>
-static std::string digitToString(T value, uint8_t base = 10, bool upper_letter = false, bool* ok = nullptr) {
-    if (base > 16 || base < 2) {
-        if (ok) *ok = false;
-        return {};
-    }
-    std::string s;
-    bool flag{};
-    if (!std::is_unsigned<T>::value && value < 0) {
-        value *= -1;
-        flag = true;
-    }
-    do {
-        const auto D = value % base;
-        if (D >= 10) s.push_back(upper_letter ? 'A' + D - 10 : 'a' + D - 10);
-        else s.push_back('0' + D);
-        value /= base;
-    } while (value);
-    if (flag) s.push_back('-');
-    std::reverse(s.begin(), s.end());
-    if (ok) *ok = true;
-    return s;
-}
-
-
 namespace Tiny {
     namespace TUI {
         namespace Format {
@@ -102,6 +76,30 @@ namespace Tiny {
                     }
                 }
             };
+
+            template <typename T>
+            static std::string digitToString(T value, uint8_t base = 10, bool upper_letter = false, bool* ok = nullptr) {
+                if (base > 16 || base < 2) {
+                    if (ok) *ok = false;
+                    return {};
+                }
+                std::string s;
+                bool flag{};
+                if (!std::is_unsigned<T>::value && value < 0) {
+                    value *= -1;
+                    flag = true;
+                }
+                do {
+                    const auto D = value % base;
+                    if (D >= 10) s.push_back(upper_letter ? 'A' + D - 10 : 'a' + D - 10);
+                    else s.push_back('0' + D);
+                    value /= base;
+                } while (value);
+                if (flag) s.push_back('-');
+                std::reverse(s.begin(), s.end());
+                if (ok) *ok = true;
+                return s;
+            }
 
             static void formatTo(Sink& sink, const std::string& str_view, const FmtSpec& fmt);
 
@@ -287,11 +285,12 @@ namespace Tiny {
             bool is_closed{}, parsing_width{}, parsing_floating{};
             std::string parsed{"{:"};
             while (*byte) {
-                parsed.push_back(*byte);
                 if (*byte == '}') {
                     is_closed = true;
+                    byte -= 1;
                     break;
                 }
+                parsed.push_back(*byte);
                 if (!parsed_align) {
                     if (*byte == '<') {
                         fmt_spec.align = Format::Align::Left;
