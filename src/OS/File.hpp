@@ -31,6 +31,8 @@
 #include <array>
 #include <cstdint>
 #include <cmath>
+#include <iomanip>
+#include <ios>
 
 /*******************************************************************************************
  * P.S: - To enabled using Windows32 lib, please use the macro below:                      *

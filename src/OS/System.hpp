@@ -106,7 +106,7 @@ namespace Tiny {
 
         const char* getCPUArchName(CPU_Arch cpu_arch);
         HostInfo currentHostInfo();
-        CPU currentCPUInfo();
+        CPU currentCPUInfo(size_t internal = 50);
         Memory currentMemory();
         DiskSpace currentDiskSpace();
         bool getHostInfo(HostInfo& info);
@@ -115,10 +115,62 @@ namespace Tiny {
         bool getDiskSpace(DiskSpace& disk_space);
         CPU_Arch getCurrentCPUArch();
 
-        void lastSystemError(std::string& info, int* err_code = nullptr);
+        uint32_t lastSystemError(std::string* info = nullptr);
         bool isAdmin();
 
         namespace Process {
+            enum class Status {
+                Unknown,
+                Running,
+                Sleeping,
+                UninterruptibleSleep,
+                Stopped,
+                Zombie,
+                Terminated
+            };
+            struct Process {
+                /// Process ID
+                size_t pid{};
+                /// Parent Process ID
+                size_t ppid{};
+                /// Process name
+                std::string name{};
+                /// Execute Path
+                std::string exe_path{};
+                /// Process Status
+                Status status{};
+                /// CPU Usage (%)
+                float cpu{};
+                /// Memory Usage (bytes)
+                size_t memory{};
+                /// User name
+                std::string user_name{};
+                /// Get current error code when capture.
+                uint32_t error_code{};
+
+                explicit Process() = default;
+                explicit Process(size_t pid, bool get_more = false, size_t delay_ms = 500) : pid(pid) {
+                    update(pid, get_more, delay_ms);
+                }
+                void update(size_t pid, bool get_more = false, size_t delay_ms = 500);
+                void update(bool get_more = false, size_t delay_ms = 500);
+                void reset() {
+                    ppid = 0;
+                    name.clear();
+                    exe_path.clear();
+                    status = Status::Unknown;
+                    cpu = 0;
+                    memory = 0;
+                    user_name.clear();
+                    error_code = 0;
+                }
+                static Process currentProcess(bool get_more = false, size_t delay_ms = 500);
+            };
+
+            std::vector<Process> listProcess(bool get_more = false, size_t delay_ms = 500, bool *ok = nullptr);
+            bool updateProcessList(std::vector<Process>& list, bool get_more = false, size_t delay_ms = 500,
+                                   bool remove_terminated_process = true);
+
             class Child {
             public:
                 explicit Child(bool catch_mode = true, bool use_pipe2 = true);

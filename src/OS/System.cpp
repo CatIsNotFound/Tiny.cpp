@@ -31,15 +31,18 @@
 #include <thread>
 #include <mutex>
 #include <sstream>
+#include <stack>
 #include <condition_variable>
 
 #ifdef TINY_CPP_MY_OS_WINDOWS
 #include <windows.h>
 #include <winnt.h>
+#include <tlhelp32.h>
 #include <process.h>
 #include <fileapi.h>
 #include <shlobj.h>
 #include <pdh.h>
+#include <psapi.h>
 #include <sddl.h>
 #pragma comment(lib, "pdh.lib")
 #elif defined(TINY_CPP_MY_OS_UNIX)
@@ -102,6 +105,209 @@ namespace {
         GetWindowThreadProcessId(hwnd, &my_pid);
         if (my_pid == G_PID && IsWindowVisible(hwnd)) {
             SendMessage(hwnd, WM_CLOSE, 0, 0L);
+        }
+        return true;
+    }
+
+    std::string isSystemUser(PSID sid) {
+        static const SID_IDENTIFIER_AUTHORITY ntAuth = SECURITY_NT_AUTHORITY;
+        if (!IsValidSid(sid)) return {};
+        if (IsWellKnownSid(sid, WinLocalSystemSid))
+            return "SYSTEM";
+        if (IsWellKnownSid(sid, WinLocalServiceSid))
+            return "LOCAL SERVICE";
+        if (IsWellKnownSid(sid, WinNetworkServiceSid))
+            return "NETWORK SERVICE";
+        if (IsWellKnownSid(sid, WinNullSid))
+            return "NULL";
+        return {};
+    }
+
+    std::string getNameBySID(PSID sid, bool* ok = nullptr) {
+        if (!IsValidSid(sid)) {
+            if (ok) *ok = false;
+            return {};
+        }
+
+        WCHAR user_name[256];
+        DWORD user_name_len = sizeof(user_name) / sizeof(WCHAR);
+        WCHAR com_name[256];
+        DWORD com_name_len = sizeof(com_name) / sizeof(WCHAR);
+        SID_NAME_USE use_type;
+        if (LookupAccountSidW(nullptr, sid, user_name, &user_name_len, com_name, &com_name_len, &use_type)) {
+            if (ok) *ok = true;
+            return wide2String(user_name);
+        }
+        if (ok) *ok = false;
+        return {};
+    }
+
+    struct CPUTimes {
+        size_t pid{};
+        struct {
+            FILETIME kernel{}, user{}, systime{};
+        } last, current;
+        struct {
+            ULARGE_INTEGER kernel{}, user{}, systime{};
+        } last_ull, cur_ull;
+    };
+
+    ULARGE_INTEGER fileTime2Ull(const FILETIME& filetime) {
+        ULARGE_INTEGER ull;
+        ull.LowPart = filetime.dwLowDateTime;
+        ull.HighPart = filetime.dwHighDateTime;
+        return ull;
+    }
+
+    float calcCPUUsage(CPUTimes &cpu_times) {
+        auto cur_times  = cpu_times.cur_ull.kernel.QuadPart + cpu_times.cur_ull.user.QuadPart;
+        auto last_times = cpu_times.last_ull.kernel.QuadPart + cpu_times.last_ull.user.QuadPart;
+        auto delta = cur_times - last_times;
+        auto delta_systime = cpu_times.cur_ull.systime.QuadPart - cpu_times.last_ull.systime.QuadPart;
+        if (delta_systime <= 0 || delta <= 0) return 0.f;
+
+        double usage = static_cast<double>(delta) / static_cast<double>(delta_systime) * 100.0;
+        // if (cpu_count > 0) usage /= static_cast<double>(cpu_count);
+        return static_cast<float>(usage);
+    }
+
+    bool listAllProcess(std::vector<Tiny::OS::Process::Process>& list, bool readd_prg = false,
+                        bool get_more = false, size_t delay_ms = 500, bool remove_term_prg = false) {
+        if (readd_prg && !list.empty()) list.clear();
+        else {
+            for (auto& process: list) {
+                process.reset();
+                process.status = Tiny::OS::Process::Status::Terminated;
+            }
+        }
+        HANDLE procs_list = CreateToolhelp32Snapshot(
+                TH32CS_SNAPPROCESS, 0);
+        if (procs_list == INVALID_HANDLE_VALUE) return false;
+        PROCESSENTRY32W proc_entry{};
+        proc_entry.dwSize = sizeof(proc_entry);
+        if (Process32FirstW(procs_list, &proc_entry)) {
+            do {
+                Tiny::OS::Process::Process new_proc;
+                new_proc.pid = proc_entry.th32ProcessID;
+                new_proc.ppid = proc_entry.th32ParentProcessID;
+                new_proc.name = wide2String(proc_entry.szExeFile);
+                new_proc.exe_path = "???\\" + new_proc.name;
+                new_proc.user_name = "???";
+                new_proc.status = Tiny::OS::Process::Status::Running;
+                if (readd_prg || list.empty()) {
+                    list.emplace_back(new_proc);
+                } else {
+                    auto found = std::find_if(list.begin(), list.end(), [&new_proc](const Tiny::OS::Process::Process& proc) {
+                        return proc.pid == new_proc.pid;
+                    });
+                    if (found != list.end()) {
+                        *found = std::move(new_proc);
+                    } else {
+                        list.emplace_back(new_proc);
+                    }
+                }
+            } while (Process32NextW(procs_list, &proc_entry));
+        }
+        CloseHandle(procs_list);
+        if (remove_term_prg) {
+            std::stack<int64_t> rm_idxs;
+            int64_t idx = 0;
+            for (auto& process: list) {
+                if (process.status == Tiny::OS::Process::Status::Terminated) {
+                    rm_idxs.push(idx);
+                }
+                ++idx;
+            }
+            while (!rm_idxs.empty()) {
+                list.erase(list.begin() + rm_idxs.top());
+                rm_idxs.pop();
+            }
+        }
+        if (!get_more) return true;
+        HANDLE token_hdl{};
+
+        std::vector<CPUTimes> cpu_procs;
+        for (auto& proc: list) {
+            DWORD SIZE_OF_INFO{};
+            DWORD SIZE = MAX_PATH;
+            auto proc_hdl = OpenProcess(PROCESS_ALL_ACCESS, false, proc.pid);
+            if (proc_hdl == nullptr) {
+                proc.error_code = static_cast<uint32_t>(GetLastError());
+                continue;
+            }
+            WCHAR exe_path[MAX_PATH]{};
+            auto is_ok = QueryFullProcessImageNameW(proc_hdl, 0, exe_path, &SIZE);
+            if (is_ok) {
+                proc.exe_path = wide2String(exe_path);
+            } else {
+                proc.error_code = static_cast<uint32_t>(GetLastError());
+            }
+
+            if (OpenProcessToken(proc_hdl, TOKEN_ALL_ACCESS, &token_hdl)) {
+                GetTokenInformation(token_hdl, TokenUser, nullptr, 0, &SIZE_OF_INFO);
+                if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+                    auto token_info = static_cast<TOKEN_USER *>(malloc(SIZE_OF_INFO));
+                    if (token_info != nullptr) {
+                        GetTokenInformation(token_hdl, TokenUser, token_info, SIZE_OF_INFO, &SIZE_OF_INFO);
+                        auto sys = isSystemUser(token_info->User.Sid);
+                        if (!sys.empty()) {
+                            proc.user_name = std::move(sys);
+                        } else {
+                            proc.user_name = getNameBySID(token_info->User.Sid);
+                        }
+                    } else {
+                        proc.error_code = 1024; /// alloc memory failed!
+                    }
+                } else {
+                    proc.error_code = static_cast<uint32_t>(GetLastError());
+                }
+                CloseHandle(token_hdl);
+            } else {
+                proc.error_code = static_cast<uint32_t>(GetLastError());
+            }
+
+            if (delay_ms >= 50) {
+                CPUTimes times;
+                times.pid = proc.pid;
+                FILETIME creat_tm, exit_tm;
+                GetProcessTimes(proc_hdl, &creat_tm, &exit_tm, &times.last.kernel, &times.last.user);
+                GetSystemTimeAsFileTime(&times.last.systime);
+                times.last_ull.user = fileTime2Ull(times.last.user);
+                times.last_ull.kernel = fileTime2Ull(times.last.kernel);
+                times.last_ull.systime = fileTime2Ull(times.last.systime);
+                cpu_procs.push_back(times);
+            }
+            PROCESS_MEMORY_COUNTERS_EX proc_mem_cnt{};
+            if (GetProcessMemoryInfo(proc_hdl, reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&proc_mem_cnt), sizeof(proc_mem_cnt))) {
+                proc.memory = proc_mem_cnt.PrivateUsage;
+            } else {
+                proc.error_code = static_cast<uint32_t>(GetLastError());
+                proc.memory = 0;
+            }
+            CloseHandle(proc_hdl);
+        }
+        if (delay_ms >= 50) {
+            Sleep(delay_ms);
+            for (auto& proc: list) {
+                auto proc_hdl = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, proc.pid);
+                if (proc_hdl == nullptr) {
+                    proc.error_code = static_cast<uint32_t>(GetLastError());
+                    continue;
+                }
+                auto iter = std::find_if(cpu_procs.begin(), cpu_procs.end(), [&proc](const CPUTimes& cp) {
+                    return proc.pid == cp.pid;
+                });
+                if (iter != cpu_procs.end()) {
+                    FILETIME creat_tm, exit_tm;
+                    GetProcessTimes(proc_hdl, &creat_tm, &exit_tm, &iter->current.kernel, &iter->current.user);
+                    GetSystemTimeAsFileTime(&iter->current.systime);
+                    iter->cur_ull.user = fileTime2Ull(iter->current.user);
+                    iter->cur_ull.kernel = fileTime2Ull(iter->current.kernel);
+                    iter->cur_ull.systime = fileTime2Ull(iter->current.systime);
+                    proc.cpu = calcCPUUsage(*iter);
+                }
+                CloseHandle(proc_hdl);
+            }
         }
         return true;
     }
@@ -184,13 +390,13 @@ static void copeWithMaxStrWhenAddStr(std::string& dest, const std::string& addit
     dest += addition;
 }
 
-static int64_t getTicks() {
+static int64_t getTicks(bool system_time = true) {
 #ifdef TINY_CPP_MY_OS_WINDOWS
-    SYSTEMTIME sys{};
-    GetSystemTime(&sys);
     FILETIME ft{};
-    GetSystemTimeAsFileTime(&ft);
-
+    if (system_time) GetSystemTimeAsFileTime(&ft);
+    else {
+        return static_cast<int64_t>(GetTickCount64());
+    }
     LARGE_INTEGER ll{};
     ll.LowPart = ft.dwLowDateTime;
     ll.HighPart = ft.dwHighDateTime;
@@ -198,7 +404,7 @@ static int64_t getTicks() {
     return (ll.QuadPart - EPOCH_DIFF) / 10000;
 #elif defined(TINY_CPP_MY_OS_UNIX)
     struct timespec tv{};
-    clock_gettime(CLOCK_REALTIME, &tv);
+    clock_gettime(system_time ? CLOCK_REALTIME : CLOCK_MONOTONIC, &tv);
     return tv.tv_sec * 1000LL + tv.tv_nsec / 1000000;
 #endif
 }
@@ -771,9 +977,9 @@ namespace Tiny {
         return host_info;
     }
 
-    OS::CPU OS::currentCPUInfo() {
+    OS::CPU OS::currentCPUInfo(size_t internal) {
         CPU cpu_info;
-        getCPUInfo(cpu_info);
+        getCPUInfo(cpu_info, internal);
         return cpu_info;
     }
 
@@ -976,7 +1182,7 @@ namespace Tiny {
         info.usages.resize(info.cores);
         size_t name_sz = 128;
         info.name.resize(128);
-        sysctlbyname("hw.model", &info.name[0], &name_sz, nullptr, 0);
+        sysctlbyname("machdep.cpu.brand_string", &info.name[0], &name_sz, nullptr, 0);
         if (internal > 0) {
             auto prev = calcTickStat();
             std::this_thread::sleep_for(std::chrono::milliseconds(internal));
@@ -1013,7 +1219,7 @@ namespace Tiny {
                         break;
                     }
                 }
-            } while (true);
+            } while (!cpu_info.isEOF());
             cpu_info.close();
         }
 
@@ -1289,15 +1495,11 @@ namespace Tiny {
 #endif
     }
 
-    void OS::lastSystemError(std::string& info, int* err_code) {
+    uint32_t OS::lastSystemError(std::string* info) {
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        auto err = GetLastError();
-        if (err_code) *err_code = err;
-        if (err == 0) {
-            info.clear();
-            return;
-        }
-        SetLastError(0);
+        uint32_t err = GetLastError();
+        if (!info) return err;
+        if (err == 0) return 0;
         void* msg_buf = nullptr;
         auto out_size = FormatMessageA(
             FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
@@ -1309,32 +1511,32 @@ namespace Tiny {
             nullptr);
 
         if (out_size > 0) {
-            info = static_cast<char*>(msg_buf);
-            info.pop_back();
-            info.pop_back();
+            info->assign(static_cast<char*>(msg_buf));
+            info->pop_back();
+            info->pop_back();
             if (msg_buf) LocalFree(msg_buf);
-            return;
+            return err;
         }
+        char out[128]{};
+        snprintf(out, 128, "Unknown error! code: 0x%lx", err);
+        out[127] = '\0';
+        info->assign(out);
+
         if (msg_buf) LocalFree(msg_buf);
-        char out[32]{};
-        snprintf(out, 32, "Unknown error! code: 0x%x", err);
-        out[31] = '\0';
-        info = out;
+        return err;
 #else
-        int err = errno;
-        if (err_code) *err_code = err;
-        if (err == 0) {
-            info.clear();
-            return;
-        }
+        uint32_t err = errno;
+        if (!info) return err;
+        if (err == 0) return 0;
         auto err_text = strerror(err);
         if (err_text == nullptr) {
             std::ostringstream oss;
             oss << "Unknown error! code: 0x" << std::hex << err;
-            info = oss.str();
+            info->assign(oss.str());
             return;
         }
-        info = err_text;
+        info->assign(err_text);
+        return err;
 #endif
     }
 
@@ -1701,7 +1903,31 @@ namespace Tiny {
         };
     }
 
-    OS::Process::Child::Child(bool catch_mode, bool use_pipe2) {
+        std::vector<OS::Process::Process> OS::Process::listProcess(bool get_more, size_t delay_ms, bool *ok) {
+            std::vector<Process> processes;
+            bool is_ok{};
+    #ifdef TINY_CPP_MY_OS_WINDOWS
+            is_ok = listAllProcess(processes, true, get_more, delay_ms);
+    #else
+    #if defiened(__linux__)
+
+    #else
+
+    #endif
+    #endif
+            if (ok) *ok = is_ok;
+            return processes;
+        }
+
+        bool OS::Process::updateProcessList(std::vector<Process> &list, bool get_more, size_t delay_ms, bool remove_terminated_process) {
+#ifdef TINY_CPP_MY_OS_WINDOWS
+            return listAllProcess(list, false, get_more, delay_ms, remove_terminated_process);
+#else
+
+#endif
+        }
+
+        OS::Process::Child::Child(bool catch_mode, bool use_pipe2) {
         _pimpl.reset(new __SUBPROCESS_PIMPL__());
         _pimpl->setListenStreamEnabled(catch_mode);
         _pimpl->setOutputPipeEnabled(use_pipe2);
@@ -1721,8 +1947,7 @@ namespace Tiny {
     }
 
     bool OS::Process::Child::run(const std::string &programme) {
-        auto new_cmd = programme;
-        return _pimpl->run(new_cmd);
+        return _pimpl->run(programme);
     }
 
     bool OS::Process::Child::exec(const std::string &command) {
@@ -1863,7 +2088,7 @@ namespace Tiny {
             return EnumWindows(EnumWinEvent, 0);
         }
         auto hnd = OpenProcess(PROCESS_ALL_ACCESS, false, pid);
-        if (hnd == INVALID_HANDLE_VALUE) return false;
+        if (hnd == nullptr) return false;
         auto ret = TerminateProcess(hnd, 255);
         CloseHandle(hnd);
         return ret;
@@ -2761,3 +2986,28 @@ namespace Tiny {
         return result;
     }
 }
+
+/*************************************************************************************
+ * MIT License                                                                       *
+ *                                                                                   *
+ * Copyright (c) 2026 CatIsNotFound                                                  *
+ *                                                                                   *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy      *
+ * of this software and associated documentation files (the "Software"), to deal     *
+ * in the Software without restriction, including without limitation the rights      *
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell         *
+ * copies of the Software, and to permit persons to whom the Software is             *
+ * furnished to do so, subject to the following conditions:                          *
+ *                                                                                   *
+ * The above copyright notice and this permission notice shall be included in all    *
+ * copies or substantial portions of the Software.                                   *
+ *                                                                                   *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR        *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,          *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE       *
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER            *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,     *
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE     *
+ * SOFTWARE.                                                                         *
+ *                                                                                   *
+ *************************************************************************************/

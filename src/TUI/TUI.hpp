@@ -77,7 +77,7 @@
 /// @param ...        The variable list which should be captured.
 /// @return           The `SubscriberID` which in the EventBus.
 #define LISTEN_EVENT(YOUR_EVENT, TYPE, EVENT, ...)  \
-    Tiny::TUI::EventBus::self().subscribe<TYPE>([__VA_ARGS__] (const AbstractEvent& YOUR_EVENT) \
+    Tiny::TUI::EventBus::self().subscribe<TYPE>([__VA_ARGS__] (const Tiny::TUI::AbstractEvent& YOUR_EVENT) \
     EVENT \
     );
 

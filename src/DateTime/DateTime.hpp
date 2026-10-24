@@ -208,7 +208,7 @@ namespace Tiny {
         Duration minutes(Duration timestamps) noexcept;
         Duration seconds(Duration timestamps) noexcept;
         Duration milliseconds(Duration timestamps) noexcept;
-        Duration currentTimestamps() noexcept;
+        Duration currentTimestamps(bool monotonic_clock = false) noexcept;
         std::string formatStdTime(Duration timestamps, bool show_milliseconds = false);
         std::string formatTime(const char* format, Duration timestamps);
     }

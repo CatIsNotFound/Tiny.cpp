@@ -181,35 +181,35 @@ namespace Tiny {
     };
 #endif
 
-    const std::unordered_map<Net::SocketError, const char*> __SocketErrorStrings__{
-            {Net::SocketError::Success,                 "Tiny::Net::SocketError::Success"},
-            {Net::SocketError::InvalidParameter,        "Tiny::Net::SocketError::InvalidParameter"},
-            {Net::SocketError::SocketOptionError,       "Tiny::Net::SocketError::SocketOptionError"},
-            {Net::SocketError::ProtoNotSupported,       "Tiny::Net::SocketError::ProtoNotSupported"},
-            {Net::SocketError::SocketIsNotOpened,       "Tiny::Net::SocketError::SocketIsNotOpened"},
-            {Net::SocketError::SocketClosed,            "Tiny::Net::SocketError::SocketClosed"},
-            {Net::SocketError::SocketInUse,             "Tiny::Net::SocketError::SocketInUse"},
-            {Net::SocketError::AddressInUse,            "Tiny::Net::SocketError::AddressInUse"},
-            {Net::SocketError::AddressNotAvailable,     "Tiny::Net::SocketError::AddressNotAvailable"},
-            {Net::SocketError::AddressNotSupport,       "Tiny::Net::SocketError::AddressNotSupport"},
-            {Net::SocketError::ConnectionRefused,       "Tiny::Net::SocketError::ConnectionRefused"},
-            {Net::SocketError::ConnectionInProgress,    "Tiny::Net::SocketError::ConnectionInProgress"},
-            {Net::SocketError::ConnectionInUsed,        "Tiny::Net::SocketError::ConnectionInUsed"},
-            {Net::SocketError::ConnectionReset,         "Tiny::Net::SocketError::ConnectionReset"},
-            {Net::SocketError::ConnectionAborted,       "Tiny::Net::SocketError::ConnectionAborted"},
-            {Net::SocketError::ConnectionTimeout,       "Tiny::Net::SocketError::ConnectionTimeout"},
-            {Net::SocketError::NetworkUnreachable,      "Tiny::Net::SocketError::NetworkUnreachable"},
-            {Net::SocketError::HostUnreachable,         "Tiny::Net::SocketError::HostUnreachable"},
-            {Net::SocketError::NetworkDown,             "Tiny::Net::SocketError::NetworkDown"},
-            {Net::SocketError::MessageTooLong,          "Tiny::Net::SocketError::MessageTooLong"},
-            {Net::SocketError::ResourceUnavailable,     "Tiny::Net::SocketError::ResourceUnavailable"},
-            {Net::SocketError::OperationDenied,         "Tiny::Net::SocketError::OperationDenied"},
-            {Net::SocketError::SystemResourceLimit,     "Tiny::Net::SocketError::SystemResourceLimit"},
-            {Net::SocketError::OperationInProgress,     "Tiny::Net::SocketError::OperationInProgress"},
-            {Net::SocketError::OperationCancelled,      "Tiny::Net::SocketError::OperationCancelled"},
-            {Net::SocketError::OperationNotSupported,   "Tiny::Net::SocketError::OperationNotSupported"},
-            {Net::SocketError::SegmentationFault,       "Tiny::Net::SocketError::SegmentationFault"},
-            {Net::SocketError::UnknownError,            "Tiny::Net::SocketError::UnknownError"}
+    const std::unordered_map<uint32_t, const char*> __SocketErrorStrings__{
+        {static_cast<uint32_t>(Net::SocketError::Success),               "Tiny::Net::SocketError::Success"},
+        {static_cast<uint32_t>(Net::SocketError::InvalidParameter),      "Tiny::Net::SocketError::InvalidParameter"},
+        {static_cast<uint32_t>(Net::SocketError::SocketOptionError),     "Tiny::Net::SocketError::SocketOptionError"},
+        {static_cast<uint32_t>(Net::SocketError::ProtoNotSupported),     "Tiny::Net::SocketError::ProtoNotSupported"},
+        {static_cast<uint32_t>(Net::SocketError::SocketIsNotOpened),     "Tiny::Net::SocketError::SocketIsNotOpened"},
+        {static_cast<uint32_t>(Net::SocketError::SocketClosed),          "Tiny::Net::SocketError::SocketClosed"},
+        {static_cast<uint32_t>(Net::SocketError::SocketInUse),           "Tiny::Net::SocketError::SocketInUse"},
+        {static_cast<uint32_t>(Net::SocketError::AddressInUse),          "Tiny::Net::SocketError::AddressInUse"},
+        {static_cast<uint32_t>(Net::SocketError::AddressNotAvailable),   "Tiny::Net::SocketError::AddressNotAvailable"},
+        {static_cast<uint32_t>(Net::SocketError::AddressNotSupport),     "Tiny::Net::SocketError::AddressNotSupport"},
+        {static_cast<uint32_t>(Net::SocketError::ConnectionRefused),     "Tiny::Net::SocketError::ConnectionRefused"},
+        {static_cast<uint32_t>(Net::SocketError::ConnectionInProgress),  "Tiny::Net::SocketError::ConnectionInProgress"},
+        {static_cast<uint32_t>(Net::SocketError::ConnectionInUsed),      "Tiny::Net::SocketError::ConnectionInUsed"},
+        {static_cast<uint32_t>(Net::SocketError::ConnectionReset),       "Tiny::Net::SocketError::ConnectionReset"},
+        {static_cast<uint32_t>(Net::SocketError::ConnectionAborted),     "Tiny::Net::SocketError::ConnectionAborted"},
+        {static_cast<uint32_t>(Net::SocketError::ConnectionTimeout),     "Tiny::Net::SocketError::ConnectionTimeout"},
+        {static_cast<uint32_t>(Net::SocketError::NetworkUnreachable),    "Tiny::Net::SocketError::NetworkUnreachable"},
+        {static_cast<uint32_t>(Net::SocketError::HostUnreachable),       "Tiny::Net::SocketError::HostUnreachable"},
+        {static_cast<uint32_t>(Net::SocketError::NetworkDown),           "Tiny::Net::SocketError::NetworkDown"},
+        {static_cast<uint32_t>(Net::SocketError::MessageTooLong),        "Tiny::Net::SocketError::MessageTooLong"},
+        {static_cast<uint32_t>(Net::SocketError::ResourceUnavailable),   "Tiny::Net::SocketError::ResourceUnavailable"},
+        {static_cast<uint32_t>(Net::SocketError::OperationDenied),       "Tiny::Net::SocketError::OperationDenied"},
+        {static_cast<uint32_t>(Net::SocketError::SystemResourceLimit),   "Tiny::Net::SocketError::SystemResourceLimit"},
+        {static_cast<uint32_t>(Net::SocketError::OperationInProgress),   "Tiny::Net::SocketError::OperationInProgress"},
+        {static_cast<uint32_t>(Net::SocketError::OperationCancelled),    "Tiny::Net::SocketError::OperationCancelled"},
+        {static_cast<uint32_t>(Net::SocketError::OperationNotSupported), "Tiny::Net::SocketError::OperationNotSupported"},
+        {static_cast<uint32_t>(Net::SocketError::SegmentationFault),     "Tiny::Net::SocketError::SegmentationFault"},
+        {static_cast<uint32_t>(Net::SocketError::UnknownError),          "Tiny::Net::SocketError::UnknownError"}
     };
 
     struct SocketSetting {
@@ -1409,10 +1409,11 @@ namespace Tiny {
     }
 
     const char *Net::getSocketErrorName(SocketError err) {
-        if (__SocketErrorStrings__.find(err) != __SocketErrorStrings__.end()) {
-            return __SocketErrorStrings__.at(err);
+        auto no = static_cast<uint32_t>(err);
+        if (__SocketErrorStrings__.find(no) != __SocketErrorStrings__.end()) {
+            return __SocketErrorStrings__.at(no);
         }
-        return __SocketErrorStrings__.at(SocketError::UnknownError);
+        return __SocketErrorStrings__.at(static_cast<uint32_t>(SocketError::UnknownError));
     }
 
     Net::Socket::Socket(SocketType type, uint8_t msg_type, uint8_t proto_no)

@@ -566,11 +566,10 @@ Tiny::DT::Duration Tiny::DT::milliseconds(Tiny::DT::Duration timestamps) noexcep
     return timestamps;
 }
 
-Tiny::DT::Duration Tiny::DT::currentTimestamps() noexcept {
+Tiny::DT::Duration Tiny::DT::currentTimestamps(bool monotonic_clock) noexcept {
 #ifdef TINY_CPP_MY_OS_WINDOWS
-    SYSTEMTIME sys{};
-    GetSystemTime(&sys);
     FILETIME ft{};
+    if (monotonic_clock) return static_cast<Duration>(GetTickCount64());
     GetSystemTimeAsFileTime(&ft);
 
     LARGE_INTEGER ll{};
@@ -580,7 +579,7 @@ Tiny::DT::Duration Tiny::DT::currentTimestamps() noexcept {
     return (ll.QuadPart - EPOCH_DIFF) / 10000;
 #elif defined(TINY_CPP_MY_OS_UNIX)
     struct timespec tv{};
-    clock_gettime(CLOCK_REALTIME, &tv);
+    clock_gettime(monotonic_clock ? CLOCK_MONOTONIC : CLOCK_REALTIME, &tv);
     return tv.tv_sec * 1000LL + tv.tv_nsec / 1000000;
 #endif
 }

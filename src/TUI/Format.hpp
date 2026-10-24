@@ -54,7 +54,7 @@ namespace Tiny {
                 Align align{};
                 /** Whether the value is a floating-point type. **/
                 bool sharp{};
-                /** Specify the data type. Available value: `d` `x` `X` `o` `b` `f` `e` `g` `s` `c` `p` **/
+                /** Specify the data type. Available value: `d` `x` `X` `o` `b` `f` `e` `g` `s` `c` `p`, `P` **/
                 char data_type{};
                 /** Control the width of the string. `-1` means no width is specified. **/
                 int32_t width{-1};
@@ -145,9 +145,9 @@ namespace Tiny {
             struct Formatter {
                 static void format(std::string& dest, const T& value, const FmtSpec& fmt) {
                     Sink sink{dest};
-                    if (fmt.data_type == 'p') {
+                    if (fmt.data_type == 'p' || fmt.data_type == 'P') {
                         auto s = reinterpret_cast<size_t>(&value);
-                        formatTo(sink, digitToString(s, 16, false), fmt);
+                        formatTo(sink, digitToString(s, 16, fmt.data_type == 'P'), fmt);
                         return;
                     }
                     if (fmt.data_type == '\0' || fmt.data_type == 's') {
@@ -189,9 +189,9 @@ namespace Tiny {
             public:
                 static void format(std::string& dest, const T& value, const FmtSpec& fmt) {
                     Sink sink{dest};
-                    if (fmt.data_type == 'p') {
+                    if (fmt.data_type == 'p' || fmt.data_type == 'P') {
                         auto s = reinterpret_cast<size_t>(&value);
-                        formatTo(sink, digitToString(s, 16, false), fmt);
+                        formatTo(sink, digitToString(s, 16, fmt.data_type == 'P'), fmt);
                         return;
                     }
                     if (std::is_same<T, bool>::value) {
@@ -214,9 +214,9 @@ namespace Tiny {
                     if (fmt.data_type != '\0' && fmt.data_type != 'e' &&
                         fmt.data_type != 'g' && fmt.data_type != 'f' && fmt.data_type != 'p') return;
                     Sink sink{dest};
-                    if (fmt.data_type == 'p') {
+                    if (fmt.data_type == 'p' || fmt.data_type == 'P') {
                         auto v = reinterpret_cast<size_t>(&value);
-                        formatTo(sink, digitToString(v, 16, false), fmt);
+                        formatTo(sink, digitToString(v, 16, fmt.data_type == 'P'), fmt);
                         return;
                     }
                     std::ostringstream oss;
