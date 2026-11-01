@@ -52,8 +52,7 @@ static void removeTestFile(const char* name) {
 /// Record the last system error info (project convention for system-related operations)
 static void recordLastError(const char* context) {
     std::string info;
-    int code = 0;
-    lastSystemError(info, &code);
+    auto code = lastSystemError(&info);
     SUCCEED() << context << " | last system error code: " << code
               << ", info: " << (info.empty() ? "<none>" : info);
 }

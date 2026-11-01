@@ -2,6 +2,11 @@
 #include <atomic>
 using namespace Tiny;
 
+template <typename T>
+T clamp(const T& value, const T& min, const T& max) {
+    return value < min ? min : (value > max ? max : value);
+}
+
 struct Position {
     float x, y;
 };
@@ -33,22 +38,22 @@ std::string status(OS::Process::Status status) {
         return "?";
     case OS::Process::Status::Running:
         // return "∑";
-        return "R";
+        return "▶";
     case OS::Process::Status::Sleeping:
         // return "💤";
-        return "S";
+        return "Z";
     case OS::Process::Status::UninterruptibleSleep:
         // return "💦";
         return "U";
     case OS::Process::Status::Stopped:
         // return "🚫";
-        return "T";
+        return "⏸";
     case OS::Process::Status::Zombie:
         // return "💀";
-        return "Z";
+        return "⚠";
     case OS::Process::Status::Terminated:
         // return "❌";
-        return "X";
+        return "×";
     default:
         // return "😵";
         return "?";
@@ -250,21 +255,28 @@ void draw() {
         const uint32_t PW = scr_size.width - (7 * 5 + 17 + 11);
         const uint32_t PH = scr_size.height - 8;
 
-        uint32_t idx = 0, i = 0;
-        for (auto& process: proc_list) {
-            if (i++ < skip_index) continue;
+
+        // for (auto& process: proc_list) {
+        //     if (i++ < skip_index) continue;
+        //     DataUnit data_unit;
+        //     auto sz = autoConvertDataSize(process.memory, data_unit);
+        //     renderer.setSSFX({7 + idx, 0}, "{:>6s}{:>6s}{:>6s}{:>6.1f} {:>6.1f}{:<3s}{:>16s} {:<{}s}", styles,
+        //         process.pid, process.ppid, status(process.status), process.cpu, sz, dataUnitName(data_unit), process.user_name,
+        //         PW, process.exe_path.substr(0, PW));
+        //     ++idx;
+        //     if (idx >= PH) break;
+        // }
+        for (auto i = 0; i < PH; ++i) {
+            if (skip_index + i >= proc_list.size()) {
+                renderer.fillRows(7 + i, 8 + i);
+                continue;
+            }
             DataUnit data_unit;
+            auto& process = proc_list[skip_index + i];
             auto sz = autoConvertDataSize(process.memory, data_unit);
-            renderer.setSSFX({7 + idx, 0}, "{:>6s}{:>6s}{:>6s}{:>6.1f} {:>6.1f}{:<3s}{:>16s} {:<{}s}", styles,
+            renderer.setSSFX({static_cast<uint32_t>(7 + i), 0}, "{:>6s}{:>6s}{:>6s}{:>6.1f} {:>6.1f}{:<3s}{:>16s} {:<{}s}", styles,
                 process.pid, process.ppid, status(process.status), process.cpu, sz, dataUnitName(data_unit), process.user_name,
                 PW, process.exe_path.substr(0, PW));
-            ++idx;
-            if (idx >= PH) break;
-        }
-        if (idx < PH) {
-            do {
-                renderer.fillRows(7 + idx, 1);
-            } while (++idx >= PH);
         }
         update_proc.store(false);
     }
@@ -537,13 +549,16 @@ int main(int argc, char *argv[]) {
                             sorted_header_no.store(H_PRG_NAME);
                             break;
                         case SP_KEY_DOWN:
-                            skip_index = std::min(skip_index + 1, proc_list.size() - 1);
+                            skip_index = clamp(skip_index + 1, static_cast<uint64_t>(0), proc_list.size() - 1);
                             break;
                         case SP_KEY_UP:
-                            skip_index = std::max(skip_index - 1, static_cast<uint64_t>(0));
+                            skip_index = clamp(skip_index - 1, static_cast<uint64_t>(0), proc_list.size() - 1);
                             break;
                         case SP_KEY_HOME:
                             skip_index = 0;
+                            break;
+                        case SP_KEY_END:
+                            skip_index = proc_list.size() - 1;
                             break;
                         default:
                             break;

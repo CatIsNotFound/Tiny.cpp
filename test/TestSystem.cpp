@@ -70,8 +70,7 @@ static std::string strip(const std::string& s) {
 /// Record the last system error info (project convention for system-related operations)
 static void recordLastError(const char* context) {
     std::string info;
-    int code = 0;
-    lastSystemError(info, &code);
+    auto code = lastSystemError(&info);
     SUCCEED() << context << " | last system error code: " << code
               << ", info: " << (info.empty() ? "<none>" : info);
 }
@@ -229,8 +228,7 @@ TEST(SystemMiscTest, IsAdmin) {
 
 TEST(SystemMiscTest, LastSystemError) {
     std::string info;
-    int code = -1;
-    lastSystemError(info, &code);
+    auto code = lastSystemError(&info);
     EXPECT_GE(code, 0);
     if (code == 0) {
         EXPECT_TRUE(info.empty());
