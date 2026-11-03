@@ -626,9 +626,8 @@ namespace Tiny {
                     Terminal::moveCursor(r, c);
                     if (_back_buffer[r][c].style != old_style) {
                         old_style = _back_buffer[r][c].style;
-                        if (_back_buffer[r][c].style.isDefault()) {
-                            Terminal::reset();
-                        } else {
+                        Terminal::reset();
+                        if (!_back_buffer[r][c].style.isDefault()) {
                             setStyle(_back_buffer[r][c].style);
                         }
                     }

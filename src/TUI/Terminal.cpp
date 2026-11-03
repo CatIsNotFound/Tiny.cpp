@@ -309,8 +309,18 @@ namespace Tiny {
                 return "NumLock";
             case SP_KEY_SCROLLLOCK:
                 return "ScrollLock";
-            default:
-                return "Unknown";
+            }
+            if (SP >= SP_ALT_SPACE && SP <= SP_ALT_BACKSPACE) {
+                static std::string buf;
+                buf = "Alter + ";
+                if (SP == SP_ALT_SPACE) {
+                    buf += "Space";
+                } else if (SP == SP_ALT_BACKSPACE) {
+                    buf += "Backspace";
+                } else {
+                    buf += SP;
+                }
+                return buf.data();
             }
         } else if (KEY == KEY_UNKNOWN) {
             return "Unknown";
@@ -379,6 +389,7 @@ namespace Tiny {
         } else {
             return "Unknown";
         }
+        return "Unknown";
     }
 
     const char *TUI::getMouseName(const SP_Mouse &SP) {
@@ -1744,9 +1755,16 @@ namespace Tiny {
 
                 return true;
             }
-            if (_temp_buffers.size() == 1 || _temp_buffers[1] != '[') {
+            // Check is only press Esc key.
+            if (BUF_SIZE == 1) {
                 buffer += _temp_buffers[0];
                 _temp_buffers.erase(_temp_buffers.begin());
+                return true;
+            }
+            // Meta key binding
+            if (BUF_SIZE == 2) {
+                buffer += _temp_buffers;
+                _temp_buffers.erase(_temp_buffers.begin(), _temp_buffers.begin() + 2);
                 return true;
             }
             // Parsing mouse
@@ -1775,6 +1793,11 @@ namespace Tiny {
                 return true;
             }
             if (BUF_SIZE > 3 && _temp_buffers[3] == '~') {
+                buffer += _temp_buffers.substr(0, 4);
+                _temp_buffers.erase(_temp_buffers.begin(), _temp_buffers.begin() + 4);
+                return true;
+            }
+            if (BUF_SIZE > 3 && _temp_buffers[2] == '[') {
                 buffer += _temp_buffers.substr(0, 4);
                 _temp_buffers.erase(_temp_buffers.begin(), _temp_buffers.begin() + 4);
                 return true;
@@ -1881,15 +1904,15 @@ namespace Tiny {
         keyboard.is_pressed = true;
         if (buf.size() > 1) {
             if (buf.front() == '\x1b') {
-                if (buf == "\x1bOP") {
+                if (buf == "\x1bOP" || buf == "\x1b[[A") {
                     keyboard.sp_key = SP_KEY_F1;
-                } else if (buf == "\x1bOQ") {
+                } else if (buf == "\x1bOQ" || buf == "\x1b[[B") {
                     keyboard.sp_key = SP_KEY_F2;
-                } else if (buf == "\x1bOR") {
+                } else if (buf == "\x1bOR" || buf == "\x1b[[C") {
                     keyboard.sp_key = SP_KEY_F3;
-                } else if (buf == "\x1bOS") {
+                } else if (buf == "\x1bOS" || buf == "\x1b[[D") {
                     keyboard.sp_key = SP_KEY_F4;
-                } else if (buf == "\x1b[15~") {
+                } else if (buf == "\x1b[15~" || buf == "\x1b[[E") {
                     keyboard.sp_key = SP_KEY_F5;
                 } else if (buf == "\x1b[17~") {
                     keyboard.sp_key = SP_KEY_F6;
@@ -1909,9 +1932,9 @@ namespace Tiny {
                     keyboard.sp_key = SP_KEY_INSERT;
                 } else if (buf == "\x1b[3~") {
                     keyboard.sp_key = SP_KEY_DELETE;
-                } else if (buf == "\x1b[H") {
+                } else if (buf == "\x1b[H" || buf == "\x1b[1~") {
                     keyboard.sp_key = SP_KEY_HOME;
-                } else if (buf == "\x1b[F") {
+                } else if (buf == "\x1b[F" || buf == "\x1b[4~") {
                     keyboard.sp_key = SP_KEY_END;
                 } else if (buf == "\x1b[5~") {
                     keyboard.sp_key = SP_KEY_PAGE_UP;
@@ -1925,8 +1948,10 @@ namespace Tiny {
                     keyboard.sp_key = SP_KEY_DOWN;
                 } else if (buf == "\x1b[C") {
                     keyboard.sp_key = SP_KEY_RIGHT;
-                } else if (buf == "\x1b[E") {
+                } else if (buf == "\x1b[E" || buf == "\x1b[G") {
                     keyboard.sp_key = SP_KEY_CENTER;
+                } else if (buf.size() == 2 && buf[1] >= 32 && buf[1] <= 127) {
+                    keyboard.sp_key = static_cast<SP_Keys>(buf[1]);
                 }
             }
             if (keyboard.sp_key != SP_KEY_UNKNOWN) {

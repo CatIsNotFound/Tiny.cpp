@@ -122,6 +122,7 @@ namespace Tiny {
             enum class Status {
                 Unknown,
                 Running,
+                Idle,
                 Sleeping,
                 UninterruptibleSleep,
                 Stopped,
@@ -135,8 +136,8 @@ namespace Tiny {
                 size_t ppid{};
                 /// Process name
                 std::string name{};
-                /// Execute Path
-                std::string exe_path{};
+                /// Command line (p.s: In Windows, it will show the Execute Path)
+                std::string command{};
                 /// Process Status
                 Status status{};
                 /// CPU Usage (%)
@@ -157,7 +158,7 @@ namespace Tiny {
                 void reset() {
                     ppid = 0;
                     name.clear();
-                    exe_path.clear();
+                    command.clear();
                     status = Status::Unknown;
                     cpu = 0;
                     memory = 0;

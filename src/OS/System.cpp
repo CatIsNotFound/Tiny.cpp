@@ -191,7 +191,7 @@ namespace {
                 new_proc.pid = proc_entry.th32ProcessID;
                 new_proc.ppid = proc_entry.th32ParentProcessID;
                 new_proc.name = wide2String(proc_entry.szExeFile);
-                new_proc.exe_path = "???\\" + new_proc.name;
+                new_proc.command = "???\\" + new_proc.name;
                 new_proc.user_name = "???";
                 new_proc.status = Tiny::OS::Process::Status::Running;
                 if (readd_prg || list.empty()) {
@@ -238,7 +238,7 @@ namespace {
             WCHAR exe_path[MAX_PATH]{};
             auto is_ok = QueryFullProcessImageNameW(proc_hdl, 0, exe_path, &SIZE);
             if (is_ok) {
-                proc.exe_path = wide2String(exe_path);
+                proc.command = wide2String(exe_path);
             } else {
                 proc.error_code = static_cast<uint32_t>(GetLastError());
             }
@@ -408,6 +408,257 @@ static int64_t getTicks(bool system_time = true) {
     return tv.tv_sec * 1000LL + tv.tv_nsec / 1000000;
 #endif
 }
+
+static std::vector<std::string> splitString(const std::string& src, char c = ' ', size_t count = 0) {
+    std::vector<std::string> ret;
+    size_t st{}, i{}, cnt{};
+    bool fin{};
+    while (i < src.size()) {
+        if (src[i] == c) {
+            if (i - st > 0) {
+                ret.push_back(src.substr(st, i - st));
+                cnt++;
+            }
+            st = i + 1;
+            fin = true;
+        } else {
+            fin = false;
+        }
+        if (fin && count > 0 && cnt >= count) {
+            fin = false;
+            break;
+        }
+        i += 1;
+    }
+    if (!fin) ret.push_back(src.substr(st));
+    return ret;
+}
+
+#ifdef TINY_CPP_MY_OS_UNIX
+Tiny::OS::Process::Status charToStatus(char ch) {
+    switch (ch) {
+    case 'R':
+        return Tiny::OS::Process::Status::Running;
+    case 'I':
+        return Tiny::OS::Process::Status::Idle;
+    case 'S':
+        return Tiny::OS::Process::Status::Sleeping;
+    case 'D':
+        return Tiny::OS::Process::Status::UninterruptibleSleep;
+    case 'T':
+        return Tiny::OS::Process::Status::Stopped;
+    case 'Z':
+        return Tiny::OS::Process::Status::Zombie;
+    case 'X':
+        return Tiny::OS::Process::Status::Terminated;
+    default:
+        return Tiny::OS::Process::Status::Unknown;
+    }
+}
+
+Tiny::OS::Process::Process getProcess(size_t pid, bool& ok) {
+    Tiny::OS::Process::Process ret;
+#ifdef __linux__ 
+    int err{};
+    std::string _cmd_line, _stats;
+    FILE* file{};
+    std::string file_name = "/proc/" + std::to_string(pid) + "/cmdline";
+    file = fopen(file_name.data(), "r");
+    if (!file) {
+        ok = false;
+        return ret;
+    }
+    while (!feof(file)) {
+        char tt[2]{};
+        fread(tt, 1, 1, file);
+        _cmd_line += tt[0] == '\0' ? " " : tt;
+    }
+    while (!_cmd_line.empty()) {
+        if (_cmd_line.back() != ' ') break;
+        _cmd_line.pop_back();
+    }
+    err = errno;
+    fclose(file);
+    file_name = "/proc/" + std::to_string(pid) + "/status";
+    file = fopen(file_name.data(), "r");
+    if (!file) {
+        ok = false;
+        return ret;
+    }
+    size_t found_arg{};
+    while (!feof(file)) {
+        char tt[2]{};
+        char* p{};
+        fread(tt, 1, 1, file);
+        if (tt[0] == '\n') {
+            if (_stats.find("Name") < _stats.size()) {
+                auto lst = splitString(_stats, '\t', 1);
+                ret.name = lst[1];
+                ++found_arg;
+            } else if (_stats.find("State") < _stats.size()) {
+                auto lst = splitString(_stats, '\t', 2);
+                ret.status = charToStatus(lst[1][0]);
+                ++found_arg;
+            } else if (_stats.find("PPid") < _stats.size()) {
+                auto lst = splitString(_stats, '\t', 1);
+                ret.ppid = strtoull(lst[1].data(), &p, 10);
+                ++found_arg;
+            } else if (_stats.find("Uid") < _stats.size()) {
+                auto lst = splitString(_stats, '\t');
+                auto uid = strtoull(lst[2].data(), &p, 10);
+                passwd temp{}, *usr{};
+                char buf[1024];
+                auto ret_code = getpwuid_r(uid, &temp, buf, sizeof(buf), &usr);
+                if (ret_code == 0 && usr) {
+                    ret.user_name = usr->pw_name;
+                } else {
+                    ret.user_name = "???";
+                }
+                ++found_arg;
+            }
+            if (found_arg >= 4) break;
+            _stats.clear();
+            continue;
+        }
+        _stats.push_back(tt[0]);
+    }
+    fclose(file);
+    ret.command = _cmd_line;
+    ret.pid = pid;
+    ok = true;
+#endif
+    return ret;
+}
+
+bool getCPUTimeAndMem(size_t pid, size_t& usr_ticks, size_t& ker_time, size_t* mem_size) {
+#ifdef __linux__
+    std::string dir = "/proc/" + std::to_string(pid);
+    if (!Tiny::OS::Path::exist(dir)) return false;
+    std::string fname = dir + "/stat";
+    FILE* file = fopen(fname.data(), "r");
+    if (!file) return false;
+    size_t cnt{};
+    bool parse_name{};
+    std::vector<std::string> temp_list;
+    std::string temp;
+    const size_t COUNT = mem_size ? 23 : 15;
+    while (!feof(file)) {
+        char t[2]{};
+        auto ss = fread(t, 1, 1, file);
+        if (ss == 0) break;
+        if (parse_name && t[0] == ')') {
+            parse_name = false;
+            cnt += 1;
+            continue;
+        } else if (!parse_name) {
+            if (isspace(t[0])) {
+                cnt += 1;
+                temp_list.emplace_back(temp);
+                temp.clear();
+                if (cnt > COUNT) break;
+                continue;
+            } else if (t[0] == '(') {
+                parse_name = true;
+                continue;
+            }
+        }
+        temp += t[0];
+    }
+    fclose(file);
+    if (temp_list.size() < COUNT) return false;
+    char* p{};
+    usr_ticks = strtoull(temp_list[13].data(), &p, 10);
+    ker_time = strtoull(temp_list[14].data(), &p, 10);
+    if (mem_size) *mem_size = strtoull(temp_list[22].data(), &p, 10);
+    return true;
+#endif
+    return false;
+}
+
+struct CPU_TIME {
+    size_t usr_ticks{}, kern_ticks{};
+};
+
+bool getDetailFromProcess(std::vector<Tiny::OS::Process::Process>& proc_list, size_t internal = 1000) {
+    static const double HZ = static_cast<double>(sysconf(_SC_CLK_TCK));
+    std::vector<CPU_TIME> before_lst(proc_list.size()), after_lst(proc_list.size());
+    for (size_t i = 0; i < proc_list.size(); ++i) {
+        getCPUTimeAndMem(proc_list[i].pid, before_lst[i].usr_ticks, before_lst[i].kern_ticks, nullptr);
+    }
+    auto st = getTicks(false);
+    usleep(internal * 1000);
+    for (size_t i = 0; i < proc_list.size(); ++i) {
+        getCPUTimeAndMem(proc_list[i].pid, after_lst[i].usr_ticks, after_lst[i].kern_ticks, &proc_list[i].memory);
+    }
+    auto ed = getTicks(false);
+    auto delta_ticks = static_cast<double>(ed - st) * 0.001 * (HZ > 0 ? HZ : 100.0);
+    for (size_t i = 0; i < proc_list.size(); ++i) {
+        auto usr_ticks = std::max(static_cast<double>(after_lst[i].usr_ticks - before_lst[i].usr_ticks), 0.0);
+        auto ker_ticks = std::max(static_cast<double>(after_lst[i].kern_ticks - before_lst[i].kern_ticks), 0.0);
+        proc_list[i].cpu = (usr_ticks + ker_ticks) / delta_ticks * 100.0; 
+    }
+    return true;
+}
+
+
+bool listAllProcess(std::vector<Tiny::OS::Process::Process>& dest, bool readd_list = false, 
+                    bool get_more = false, size_t internal = 1000, bool rm_term_proc = true) {
+    if (readd_list) {
+        dest.clear();
+    } else {
+        for (auto& p : dest) {
+            p.status = Tiny::OS::Process::Status::Terminated;
+        }
+    }
+    
+    // usleep(internal * 1000);
+#ifdef __linux__
+    auto result = Tiny::OS::FileSystem::listPath("/proc", 1, [](const Tiny::OS::Path& path) {
+        for (auto& c : path.shortFileName()) {
+            if (!std::isdigit(c)) return false;
+        }
+        return true;
+    });
+    for (auto& r : result) {
+        // Tiny::OS::Process::Process p;
+        bool ok{};
+        char* ptr{};
+        auto p = getProcess(strtoull(r.shortFileName().data(), &ptr, 10), ok);
+        if (ok) {
+            if (readd_list) {
+                dest.emplace_back(p);
+            } else {
+                auto iter = std::find_if(dest.begin(), dest.end(), [&p](const Tiny::OS::Process::Process& proc) {
+                    return p.pid == proc.pid;
+                });
+                if (iter == dest.end()) {
+                    dest.emplace_back(p);
+                } else {
+                    *iter = p;
+                }
+            }
+        }
+    }
+#endif
+    if (!readd_list && rm_term_proc) {
+        std::stack<size_t> rm_idx;
+        for (size_t i = 0; i < dest.size(); ++i) {
+            if (dest[i].status == Tiny::OS::Process::Status::Terminated) {
+                rm_idx.push(i);
+            }
+        }
+        while (!rm_idx.empty()) {
+            dest.erase(dest.begin() + rm_idx.top());
+            rm_idx.pop();
+        }
+    }
+    if (get_more) {
+        internal = std::max(internal, static_cast<size_t>(500));
+        getDetailFromProcess(dest, internal);
+    }
+    return true;
+}
+#endif
 
 static bool isSpace(char c) {
     return c == ' ' || c == '\t' || c == '\n' || c == '\r';
@@ -1533,7 +1784,7 @@ namespace Tiny {
             std::ostringstream oss;
             oss << "Unknown error! code: 0x" << std::hex << err;
             info->assign(oss.str());
-            return;
+            return err;
         }
         info->assign(err_text);
         return err;
@@ -1909,8 +2160,8 @@ namespace Tiny {
     #ifdef TINY_CPP_MY_OS_WINDOWS
             is_ok = listAllProcess(processes, true, get_more, delay_ms);
     #else
-    #if defiened(__linux__)
-
+    #ifdef __linux__
+            is_ok = listAllProcess(processes, true, get_more, delay_ms);
     #else
 
     #endif
@@ -1923,8 +2174,9 @@ namespace Tiny {
 #ifdef TINY_CPP_MY_OS_WINDOWS
             return listAllProcess(list, false, get_more, delay_ms, remove_terminated_process);
 #else
-
+            return listAllProcess(list, false, get_more, delay_ms, remove_terminated_process);
 #endif
+            return false;
         }
 
         OS::Process::Child::Child(bool catch_mode, bool use_pipe2) {

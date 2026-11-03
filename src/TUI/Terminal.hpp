@@ -297,8 +297,11 @@ namespace Tiny {
             SP_KEY_ALT,
             SP_KEY_CAPSLOCK,
             SP_KEY_NUMLOCK,
-            SP_KEY_SCROLLLOCK
-        };
+            SP_KEY_SCROLLLOCK,
+            /////////////////////////
+            SP_ALT_SPACE = 32,
+            SP_ALT_BACKSPACE = 127,
+        }; 
 
         enum SP_Mouse : uint8_t {
             SP_MOUSE_UNKNOWN,

@@ -817,8 +817,9 @@ namespace Tiny {
         ReadFile(_handler, &out[0], file_size, &read_bytes, nullptr);
         _position += read_bytes;
 #elif defined(TINY_CPP_MY_OS_UNIX)
-        lseek(_handler, 0, SEEK_SET);
+        if (_position > 0) lseek(_handler, 0, SEEK_SET);
         auto read_bytes = ::read(_handler, &out[0], file_size * sizeof(uint8_t));
+        perror("e");
         _position += read_bytes;
 #endif
         return out;
