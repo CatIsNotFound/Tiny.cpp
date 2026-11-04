@@ -386,8 +386,6 @@ namespace Tiny {
             return "US";
         } else if (KEY == KEY_DEL) {
             return "DEL";
-        } else {
-            return "Unknown";
         }
         return "Unknown";
     }
@@ -1570,42 +1568,6 @@ namespace Tiny {
 #endif
 
 #ifdef TINY_CPP_MY_OS_UNIX
-    std::string TUI::Terminal::readLineOnRaw() {
-        std::string result;
-        char temp[64] = {};
-        size_t read_bytes = 0;
-        auto start_pos = cursorPosition();
-        do {
-            read_bytes = readAfterDelay(STDIN_FILENO, temp, 64);
-            if (read_bytes < 0) break;
-            if (KEY_ENTER(temp[0])) {
-                auto enter = "\r\n";
-                write(STDOUT_FILENO, enter, 2);
-                break;
-            } else if (KEY_BACKSPACE(temp[0])) {
-                if (!result.empty()) {
-                    size_t ori_length = result.size();
-                    size_t del_length = removeLastCharCount(result);
-                    result = result.substr(0, ori_length - del_length);
-                    moveCursor(start_pos);
-                    auto cover = std::string(ori_length, ' ');
-                    write(STDOUT_FILENO, cover.c_str(), cover.size());
-                    moveCursor(start_pos);
-                    write(STDOUT_FILENO, result.data(), result.size());
-                }
-            } else if (temp[0] != '\x1b') {
-                result += temp;
-                write(STDOUT_FILENO, temp, read_bytes);
-                size_t d = 0;
-                do {
-                    temp[d++] = '\0';
-                } while (temp[d]);
-            }
-        } while (read_bytes > 0);
-
-        return result;
-    }
-
     std::string TUI::Terminal::readLineOnRawEX() {
         std::string result;
         std::vector<std::string> text_buffer;
@@ -1693,17 +1655,16 @@ namespace Tiny {
                 cur_text_pos += mov_length;
                 cur_pos += dis_len;
                 moveRightCursor(dis_len);
-            } else if (strcmp(temp, "\x1b[H") == 0) {  // Press Home key
+            } else if (strcmp(temp, "\x1b[H") == 0 || strcmp(temp, "\x1b[1~") == 0) {  // Press Home key
                 cur_text_pos = 0;
                 cur_pos = 0;
                 moveCursor(start_pos);
-            } else if (strcmp(temp, "\x1b[F") == 0) {  // Press End key
+            } else if (strcmp(temp, "\x1b[F") == 0 || strcmp(temp, "\x1b[4~") == 0) {  // Press End key
                 cur_text_pos = result.size();
                 cur_pos = dis_sum;
                 moveCursor({start_pos.row, start_pos.column + static_cast<uint32_t>(cur_pos)});
             }
         } while (read_bytes > 0);
-
         return result;
     }
 

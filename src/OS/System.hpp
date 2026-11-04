@@ -136,7 +136,7 @@ namespace Tiny {
                 size_t ppid{};
                 /// Process name
                 std::string name{};
-                /// Command line (p.s: In Windows, it will show the Execute Path)
+                /// Command line (p.s: In Windows, it will only show the Execute Path)
                 std::string command{};
                 /// Process Status
                 Status status{};
@@ -146,7 +146,8 @@ namespace Tiny {
                 size_t memory{};
                 /// User name
                 std::string user_name{};
-                /// Get current error code when capture.
+                /// Get current error code when capture. (p.s: Only supported on Windows.)
+                /// @warning It will be removed possibly, please do not try to use it!
                 uint32_t error_code{};
 
                 explicit Process() = default;

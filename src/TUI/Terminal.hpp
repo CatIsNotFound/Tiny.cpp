@@ -437,7 +437,6 @@ namespace Tiny {
             static void* _old_input_handle;
         };
 #elif defined(TINY_CPP_MY_OS_UNIX)
-            static std::string readLineOnRaw();
             static std::string readLineOnRawEX();
             static bool isReady(int fd);
             static bool pushBuffers(int fd, size_t msec);
@@ -477,7 +476,6 @@ namespace Tiny {
     }
 }
 
-// #include "Terminal_Int.hpp"
 #include "Format.hpp"
 #endif //TINY_CPP_TUI_TERMINAL_HPP
 

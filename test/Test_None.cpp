@@ -1,5 +1,9 @@
 ﻿#include "../src/Tiny.hpp"
 #include <atomic>
+#include <climits>
+#ifndef SIZE_T_MAX
+#define SIZE_T_MAX SIZE_MAX
+#endif
 using namespace Tiny;
 
 template <typename T>
@@ -12,7 +16,7 @@ struct Position {
 };
 
 template <>
-struct Tiny::TUI::Format::Formatter<Position> {
+struct Tiny::TUI::Format::Formatter<::Position> {
     static void format(std::string& dest, const ::Position& value, const FmtSpec& fmt) {
         Sink sink{dest};
         if (fmt.data_type == 'p') {
@@ -38,22 +42,24 @@ std::string status(OS::Process::Status status) {
         return "?";
     case OS::Process::Status::Running:
         // return "∑";
-        return "▶";
+        return "R";
+    case OS::Process::Status::Idle:
+        return "I";
     case OS::Process::Status::Sleeping:
         // return "💤";
-        return "Z";
+        return "S";
     case OS::Process::Status::UninterruptibleSleep:
         // return "💦";
         return "U";
     case OS::Process::Status::Stopped:
         // return "🚫";
-        return "⏸";
+        return "T";
     case OS::Process::Status::Zombie:
         // return "💀";
-        return "⚠";
+        return "Z";
     case OS::Process::Status::Terminated:
         // return "❌";
-        return "×";
+        return "X";
     default:
         // return "😵";
         return "?";
@@ -76,7 +82,7 @@ static StyleList generate() {
     s_err.fg_color = Color::Red;
     s_err.bg_color = Color::Black;
     s_selected.intensity = 2;
-    s_selected.property |= Style::Reverse;
+    s_selected.property = Style::Reverse;
     s_sorted.intensity = 1;
     s_sorted.fg_color = Color::Black;
     s_sorted.bg_color = Color::Green;
@@ -235,7 +241,7 @@ void draw() {
         uint32_t col = 0;
         const uint32_t PW = scr_size.width - (7 * 5 + 17 + 11);
         for (uint32_t i = 0; i < HEADER_COUNT; ++i) {
-            uint32_t col_width = 6;
+            uint32_t col_width = 8;
             if (i == H_MEM) col_width = 10;
             if (i == H_USER) col_width = 16;
             if (i == H_PRG_NAME) col_width = PW;
@@ -252,20 +258,9 @@ void draw() {
     }
 
     if (update_proc.load()) {
-        const uint32_t PW = scr_size.width - (7 * 5 + 17 + 11);
+        const uint32_t PW = scr_size.width - 60;
         const uint32_t PH = scr_size.height - 8;
 
-
-        // for (auto& process: proc_list) {
-        //     if (i++ < skip_index) continue;
-        //     DataUnit data_unit;
-        //     auto sz = autoConvertDataSize(process.memory, data_unit);
-        //     renderer.setSSFX({7 + idx, 0}, "{:>6s}{:>6s}{:>6s}{:>6.1f} {:>6.1f}{:<3s}{:>16s} {:<{}s}", styles,
-        //         process.pid, process.ppid, status(process.status), process.cpu, sz, dataUnitName(data_unit), process.user_name,
-        //         PW, process.exe_path.substr(0, PW));
-        //     ++idx;
-        //     if (idx >= PH) break;
-        // }
         for (auto i = 0; i < PH; ++i) {
             if (skip_index + i >= proc_list.size()) {
                 renderer.fillRows(7 + i, 8 + i);
@@ -274,9 +269,9 @@ void draw() {
             DataUnit data_unit;
             auto& process = proc_list[skip_index + i];
             auto sz = autoConvertDataSize(process.memory, data_unit);
-            renderer.setSSFX({static_cast<uint32_t>(7 + i), 0}, "{:>6s}{:>6s}{:>6s}{:>6.1f} {:>6.1f}{:<3s}{:>16s} {:<{}s}", styles,
-                process.pid, process.ppid, status(process.status), process.cpu, sz, dataUnitName(data_unit), process.user_name,
-                PW, process.exe_path.substr(0, PW));
+            renderer.setSSFX({static_cast<uint32_t>(7 + i), 0}, "{:>8s}{:>8s}{:>8s}{:>8.1f} {:>6.1f}{:<3s}{:>16s} {:<{}s}", styles,
+                process.pid, process.ppid, status(process.status), process.cpu, sz, dataUnitName(data_unit), process.user_name.substr(0, 16),
+                PW, process.command.substr(0, PW));
         }
         update_proc.store(false);
     }
@@ -454,7 +449,7 @@ int main(int argc, char *argv[]) {
         if (proc_list.empty()) proc_list = Process::listProcess(true, delay_ms);
         else Process::updateProcessList(proc_list, true, delay_ms);
         std::sort(proc_list.begin(), proc_list.end(), [](const Process::Process& p1, const Process::Process& p2) {
-            switch (sorted_header_no) {
+            switch (sorted_header_no.load()) {
                 case H_PID:
                     return reversed_sort ? (p1.pid > p2.pid) : (p1.pid < p2.pid);
                 case H_PPID:
@@ -474,9 +469,9 @@ int main(int argc, char *argv[]) {
                     }
                     break;
                 case H_PRG_NAME:
-                    for (size_t i = 0; i < std::min(p1.exe_path.size(), p2.exe_path.size()); ++i) {
-                        if (p1.exe_path[i] == p2.exe_path[i]) continue;
-                        return reversed_sort ? p1.exe_path[i] > p2.exe_path[i] : p1.exe_path[i] < p2.exe_path[i];
+                    for (size_t i = 0; i < std::min(p1.command.size(), p2.command.size()); ++i) {
+                        if (p1.command[i] == p2.command[i]) continue;
+                        return reversed_sort ? p1.command[i] > p2.command[i] : p1.command[i] < p2.command[i];
                     }
                     break;
                 default:
@@ -498,10 +493,6 @@ int main(int argc, char *argv[]) {
         if (input.type == InputEvent::K && input.input.keyboard.is_pressed) {
             int next{};
             switch (input.input.keyboard.key) {
-                case KEY_ESC:
-                case KEY_CTRL_C:
-                    running_main.store(false);
-                    break;
                 case KEY_TAB:
                     next = sorted_header_no.load() + 1;
                     if (next >= HEADER_COUNT) next = 0;
@@ -528,41 +519,57 @@ int main(int argc, char *argv[]) {
                 case KEY_SPECIAL:
                     switch (input.input.keyboard.sp_key) {
                         case SP_KEY_F1:
+                        case '1':
                             sorted_header_no.store(H_PID);
                             break;
                         case SP_KEY_F2:
+                        case '2':
                             sorted_header_no.store(H_PPID);
                             break;
                         case SP_KEY_F3:
+                        case '3':
                             sorted_header_no.store(H_STATES);
                             break;
                         case SP_KEY_F4:
+                        case '4':
                             sorted_header_no.store(H_CPU);
                             break;
                         case SP_KEY_F5:
+                        case '5':
                             sorted_header_no.store(H_MEM);
                             break;
                         case SP_KEY_F6:
+                        case '6':
                             sorted_header_no.store(H_USER);
                             break;
                         case SP_KEY_F7:
+                        case '7':
                             sorted_header_no.store(H_PRG_NAME);
                             break;
                         case SP_KEY_DOWN:
-                            skip_index = clamp(skip_index + 1, static_cast<uint64_t>(0), proc_list.size() - 1);
+                            skip_index = (skip_index + 1) % proc_list.size();
+                            update_proc.store(true);
                             break;
                         case SP_KEY_UP:
-                            skip_index = clamp(skip_index - 1, static_cast<uint64_t>(0), proc_list.size() - 1);
+                            skip_index -= 1;
+                            if (skip_index >= SIZE_T_MAX - 1) skip_index = proc_list.size() - 1;
+                            update_proc.store(true);
                             break;
                         case SP_KEY_HOME:
                             skip_index = 0;
+                            update_proc.store(true);
                             break;
                         case SP_KEY_END:
                             skip_index = proc_list.size() - 1;
+                            update_proc.store(true);
                             break;
                         default:
                             break;
                     }
+                    break;
+                case KEY_ESC:
+                case KEY_CTRL_C:
+                    running_main.store(false);
                     break;
                 default:
                     break;
@@ -576,3 +583,19 @@ int main(int argc, char *argv[]) {
     }
     return 0;
 }
+
+
+
+// int main(int argc, char const *argv[])
+// {
+//     auto ts = DT::currentTimestamps(true);
+//     auto prg_lst = OS::Process::listProcess(true, 1000);
+//     auto ed = DT::currentTimestamps(true);
+//     for (auto& f : prg_lst) {
+//         if (f.pid == 0) continue;
+//     TUI::Terminal::printFormat("PID {}, PPID {}, Status {}, CPU {:.1f}%, MEM {} bytes, User '{}', Name '{}', Exe '{}'\r\n", 
+//         f.pid, f.ppid, status(f.status), f.cpu, f.memory, f.user_name, f.name, f.command);
+//     }
+//     TUI::Terminal::printFormat("Total: {} process(s), Running {} ms.\r\n", prg_lst.size(), ed - ts);
+//     return 0;
+// }
