@@ -474,7 +474,7 @@ std::string getArgsInApple(size_t pid, const char* prg_path) {
     bool parsed_space = false;
     for (size_t i = 0; i < sz; ++i) {
         if (i < 4) {
-            argc = argc * 10 + (buf[i] - '0');
+            argc = argc * 10 + buf[i];
         } else if (n >= argc) {
             break;
         } else if (!parsed_space && buf[i] == '\0') {
