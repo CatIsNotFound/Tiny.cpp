@@ -75,26 +75,29 @@ int readFile(const std::string& file_name, uint64_t offset, uint64_t count, uint
             Terminal::printFormat("{:>6s} | ", line_no + 1);
             Terminal::reset();
         }
-        Terminal::printLine(buf);
+        Terminal::print(buf);
     };
     bool print_finished{};
     /// Read all text
     if (offset == 0 && count == 0 && limit_bytes == 0) {
-        while (!my_file->isEOF() && !is_cancelled) {
-            printLine(my_file->readLine());
+        while (!is_cancelled) {
+            auto buf = my_file->readLine(0, false);
+            if (buf.empty()) break;
+            printLine(buf);
             line_no++;
         }
     } else {
         bool print_flag{};
         size_t cnt_lines{}, cnt_bytes{};
-        while (!my_file->isEOF() && !is_cancelled) {
+        while (!is_cancelled) {
             std::string buf;
             if (print_flag) {
-                buf = my_file->readLine(limit_bytes == 0 ? 0 : limit_bytes - cnt_bytes);
+                buf = my_file->readLine(limit_bytes == 0 ? 0 : limit_bytes - cnt_bytes, false);
             } else {
-                buf = my_file->readLine();
+                buf = my_file->readLine(0, false);
             }
-            if (no_empty_line && buf.empty()) {
+            if (buf.empty()) break;
+            if (no_empty_line && (buf == "\n" || buf == "\r\n")) {
                 line_no++;
                 continue;
             }

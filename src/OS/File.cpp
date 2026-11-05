@@ -772,7 +772,7 @@ namespace Tiny {
         return out;
     }
 
-    std::string OS::File::readLine(size_t limit_length) {
+    std::string OS::File::readLine(size_t limit_length, bool discard_new_line_char) {
         if (!isFile() || !isOpen()) return {};
         std::string out;
         char ch = '\0';
@@ -802,7 +802,8 @@ namespace Tiny {
             } else break;
         } while (ch != '\n' && (!limit_length || cur_len < limit_length));
 #endif
-        if (out.back() == '\n' || out.back() == '\r') out.pop_back();
+        if (!discard_new_line_char) return out;
+        while (out.back() == '\n' || out.back() == '\r') out.pop_back();
         return out;
     }
 

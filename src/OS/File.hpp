@@ -287,7 +287,7 @@ namespace Tiny {
             FileData read(size_t length);
             FileData readAll();
             std::string readText(size_t length);
-            std::string readLine(size_t limit_length = 0);
+            std::string readLine(size_t limit_length = 0, bool discard_new_line_char = true);
             std::string readAllText();
             bool write(const FileData& data, size_t length);
             bool write(const char* data, size_t length);
