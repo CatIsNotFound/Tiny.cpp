@@ -1598,7 +1598,8 @@ namespace Tiny {
         if (cpu_info.open(OpenMode::ReadOnly)) {
             std::string line;
             do {
-                line = cpu_info.readLine();
+                line = cpu_info.readLine(0, false);
+                if (line.empty()) break;
                 if (line.find("model name") != std::string::npos) {
                     auto sz = line.find(":");
                     if (sz != std::string::npos && sz + 2 < line.size()) {
@@ -1612,7 +1613,7 @@ namespace Tiny {
                         break;
                     }
                 }
-            } while (!cpu_info.isEOF());
+            } while (true);
             cpu_info.close();
         }
 
