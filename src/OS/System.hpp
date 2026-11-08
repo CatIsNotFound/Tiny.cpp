@@ -154,18 +154,9 @@ namespace Tiny {
                 explicit Process(size_t pid, bool get_more = false, size_t delay_ms = 500) : pid(pid) {
                     update(pid, get_more, delay_ms);
                 }
-                void update(size_t pid, bool get_more = false, size_t delay_ms = 500);
+                void update(size_t PID, bool get_more = false, size_t delay_ms = 500);
                 void update(bool get_more = false, size_t delay_ms = 500);
-                void reset() {
-                    ppid = 0;
-                    name.clear();
-                    command.clear();
-                    status = Status::Unknown;
-                    cpu = 0;
-                    memory = 0;
-                    user_name.clear();
-                    error_code = 0;
-                }
+                void reset();
                 static Process currentProcess(bool get_more = false, size_t delay_ms = 500);
             };
 

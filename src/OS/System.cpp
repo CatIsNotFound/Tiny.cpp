@@ -175,7 +175,7 @@ namespace {
         return static_cast<float>(usage);
     }
 
-    bool listAllProcess(std::vector<Tiny::OS::Process::Process>& list, bool readd_prg = false,
+    bool listAllProcess(std::vector<Tiny::OS::Process::Process>& list, const size_t C_PID = 0, bool readd_prg = false,
                         bool get_more = false, size_t delay_ms = 500, bool remove_term_prg = false) {
         if (readd_prg && !list.empty()) list.clear();
         else {
@@ -185,7 +185,7 @@ namespace {
             }
         }
         HANDLE procs_list = CreateToolhelp32Snapshot(
-                TH32CS_SNAPPROCESS, 0);
+                TH32CS_SNAPPROCESS, C_PID);
         if (procs_list == INVALID_HANDLE_VALUE) return false;
         PROCESSENTRY32W proc_entry{};
         proc_entry.dwSize = sizeof(proc_entry);
@@ -314,6 +314,15 @@ namespace {
             }
         }
         return true;
+    }
+
+    Tiny::OS::Process::Process getOneProcess(size_t pid, bool get_more, size_t delay_ms) {
+        std::vector<Tiny::OS::Process::Process> list;
+        list.emplace_back();
+        list.back().pid = pid;
+        listAllProcess(list, pid, false, get_more, delay_ms);
+        auto proc = list.front();
+        return list.empty() ? Tiny::OS::Process::Process() : Tiny::OS::Process::Process(list.front());
     }
 }
 #endif
@@ -721,7 +730,7 @@ bool getDetailFromProcess(std::vector<Tiny::OS::Process::Process>& proc_list, si
 }
 
 
-bool listAllProcess(std::vector<Tiny::OS::Process::Process>& dest, bool readd_list = false, 
+bool listAllProcess(std::vector<Tiny::OS::Process::Process>& dest, size_t PID, bool readd_list = false,
                     bool get_more = false, size_t internal = 1000, bool rm_term_proc = true) {
     if (readd_list) {
         dest.clear();
@@ -731,12 +740,22 @@ bool listAllProcess(std::vector<Tiny::OS::Process::Process>& dest, bool readd_li
         }
     }
 #ifdef __linux__
-    auto result = Tiny::OS::FileSystem::listPath("/proc", 1, [](const Tiny::OS::Path& path) {
-        for (auto& c : path.shortFileName()) {
-            if (!std::isdigit(c)) return false;
+    std::vector<Tiny::OS::Path> result;
+    if (PID == 0) {
+        result = Tiny::OS::FileSystem::listPath("/proc", 1, [](const Tiny::OS::Path& path) {
+            for (auto& c : path.shortFileName()) {
+                if (!std::isdigit(c)) return false;
+            }
+            return true;
+        });
+    } else {
+        Tiny::OS::Path path("/proc/" + std::to_string(PID));
+        if (path.isValid()) {
+            result.emplace_back(path);
+        } else {
+            return false;
         }
-        return true;
-    });
+    }
     for (auto& r : result) {
         // Tiny::OS::Process::Process p;
         bool ok{};
@@ -758,11 +777,16 @@ bool listAllProcess(std::vector<Tiny::OS::Process::Process>& dest, bool readd_li
         }
     }
 #elif defined(__APPLE__)
-    size_t count = static_cast<size_t>(proc_listpids(PROC_ALL_PIDS, 0, nullptr, 0)) / sizeof(int);
-    if (count <= 0) return false;
+    size_t count = 0;
     std::vector<int> pids;
-    pids.resize(count);
-    proc_listpids(PROC_ALL_PIDS, 0, &pids[0], sizeof(int) * count);
+    if (PID == 0) {
+        count = static_cast<size_t>(proc_listpids(PROC_ALL_PIDS, 0, nullptr, 0)) / sizeof(int);
+        if (count <= 0) return false;
+        pids.resize(count);
+        proc_listpids(PROC_ALL_PIDS, 0, &pids[0], sizeof(int) * count);
+    } else {
+        pids.emplace_back(PID);
+    }
     for (auto& pid : pids) {
         bool ok{};
         auto p = getProcess(static_cast<size_t>(pid), ok);
@@ -2297,23 +2321,46 @@ namespace Tiny {
         };
     }
 
-        std::vector<OS::Process::Process> OS::Process::listProcess(bool get_more, size_t delay_ms, bool *ok) {
-            std::vector<Process> processes;
-            bool is_ok = listAllProcess(processes, true, get_more, delay_ms);
-            if (ok) *ok = is_ok;
-            return processes;
-        }
+    void OS::Process::Process::update(size_t PID, bool get_more, size_t delay_ms) {
+        *this = getOneProcess(PID, get_more, delay_ms);
+    }
 
-        bool OS::Process::updateProcessList(std::vector<Process> &list, bool get_more, size_t delay_ms, bool remove_terminated_process) {
+    void OS::Process::Process::update(bool get_more, size_t delay_ms) {
+        update(pid, get_more, delay_ms);
+    }
+
+    void OS::Process::Process::reset() {
+        ppid = 0;
+        name.clear();
+        command.clear();
+        status = Status::Unknown;
+        cpu = 0;
+        memory = 0;
+        user_name.clear();
+        error_code = 0;
+    }
+
+    OS::Process::Process OS::Process::Process::currentProcess(bool get_more, size_t delay_ms) {
+        return Process(static_cast<size_t>(getpid()), get_more, delay_ms);
+    }
+
+    std::vector<OS::Process::Process> OS::Process::listProcess(bool get_more, size_t delay_ms, bool *ok) {
+        std::vector<Process> processes;
+        bool is_ok = listAllProcess(processes, true, get_more, delay_ms);
+        if (ok) *ok = is_ok;
+        return processes;
+    }
+
+    bool OS::Process::updateProcessList(std::vector<Process> &list, bool get_more, size_t delay_ms, bool remove_terminated_process) {
 #ifdef TINY_CPP_MY_OS_WINDOWS
-            return listAllProcess(list, false, get_more, delay_ms, remove_terminated_process);
+        return listAllProcess(list, false, get_more, delay_ms, remove_terminated_process);
 #else
-            return listAllProcess(list, false, get_more, delay_ms, remove_terminated_process);
+        return listAllProcess(list, false, get_more, delay_ms, remove_terminated_process);
 #endif
-            return false;
-        }
+        return false;
+    }
 
-        OS::Process::Child::Child(bool catch_mode, bool use_pipe2) {
+    OS::Process::Child::Child(bool catch_mode, bool use_pipe2) {
         _pimpl.reset(new __SUBPROCESS_PIMPL__());
         _pimpl->setListenStreamEnabled(catch_mode);
         _pimpl->setOutputPipeEnabled(use_pipe2);
