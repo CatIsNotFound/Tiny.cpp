@@ -98,7 +98,8 @@ void updateInfo(TUI::Renderer& renderer, OS::CPU& cpu, OS::Memory& memory, OS::D
 
         renderer.drawBorder({10, 0}, {13, W}, {}, {});
         renderer.drawBorder({13, 0}, {14 + cpu.cores, W}, {}, {});
-        renderer.setSSFX({11, 2}, "CPU Name : <2>{}  ", styles,cpu.name);
+        const auto FW = W - 13;
+        renderer.setSSFX({11, 2}, "CPU Name : <2>{:<{}s}", styles, FW, cpu.name.substr(0, FW));
         renderer.setSSFX({12, 2}, "CPU Total: <2>{:5.1f}%  ", styles, cpu.total_usage);
         const auto M = W - 10;
         for (size_t i = 0; i < cpu.cores; i++) {
@@ -155,7 +156,9 @@ int main() {
             break;
         }
 
-        if (input.type == TUI::InputEvent::Keyboard && input.input.keyboard.key == TUI::KEY_CTRL_C) break;
+        if (input.type == TUI::InputEvent::Keyboard && 
+            input.input.keyboard.key == TUI::KEY_CTRL_C ||
+            input.input.keyboard.key == TUI::KEY_ESC) break;
     }
     term::setCursorVisible(true);
     ren.clear();

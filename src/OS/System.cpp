@@ -569,7 +569,7 @@ Tiny::OS::Process::Process getProcess(size_t pid, bool& ok) {
         _stats.push_back(tt[0]);
     }
     fclose(file);
-    ret.command = _cmd_line;
+    ret.command = (_cmd_line.empty() ? ret.name : _cmd_line);
     ret.pid = pid;
     ok = true;
 #elif defined(__APPLE__)
@@ -665,7 +665,16 @@ bool getCPUTimeAndMem(size_t pid, uint64_t& usr_time, uint64_t& ker_time, size_t
     char* p{};
     usr_time = strtoull(temp_list[13].data(), &p, 10);
     ker_time = strtoull(temp_list[14].data(), &p, 10);
-    if (mem_size) *mem_size = strtoull(temp_list[22].data(), &p, 10);
+    static size_t PAGE_SIZE = getpagesize();
+    if (mem_size) {
+        Tiny::OS::File mem_file(dir + "/statm", Tiny::OS::ReadOnly);
+        if (mem_file.isOpen()) {
+            std::string s1;
+            mem_file > s1 > s1;
+            mem_file.close();
+            *mem_size = strtoull(s1.data(), &p, 10) * PAGE_SIZE;
+        }
+    }
     return true;
 #elif defined(__APPLE__)
     proc_taskinfo task_info{};
@@ -729,8 +738,7 @@ bool getDetailFromProcess(std::vector<Tiny::OS::Process::Process>& proc_list, si
 #endif
 }
 
-
-bool listAllProcess(std::vector<Tiny::OS::Process::Process>& dest, size_t PID, bool readd_list = false,
+bool listAllProcess(std::vector<Tiny::OS::Process::Process>& dest, size_t PID = 0, bool readd_list = false,
                     bool get_more = false, size_t internal = 1000, bool rm_term_proc = true) {
     if (readd_list) {
         dest.clear();
@@ -823,6 +831,16 @@ bool listAllProcess(std::vector<Tiny::OS::Process::Process>& dest, size_t PID, b
         getDetailFromProcess(dest, internal);
     }
     return true;
+}
+
+
+Tiny::OS::Process::Process getOneProcess(size_t pid, bool get_more, size_t delay_ms) {
+    std::vector<Tiny::OS::Process::Process> list;
+    list.emplace_back();
+    list.back().pid = pid;
+    listAllProcess(list, pid, false, get_more, delay_ms);
+    auto proc = list.front();
+    return list.empty() ? Tiny::OS::Process::Process() : Tiny::OS::Process::Process(list.front());
 }
 #endif
 
@@ -1628,12 +1646,14 @@ namespace Tiny {
                     auto sz = line.find(":");
                     if (sz != std::string::npos && sz + 2 < line.size()) {
                         info.name = line.substr(sz + 2);
+                        info.name.pop_back();
                         break;
                     }
                 } else if (line.find("Hardware") != std::string::npos) {
                     auto sz = line.find(":");
                     if (sz != std::string::npos && sz + 2 < line.size()) {
                         info.name = line.substr(sz + 2);
+                        info.name.pop_back();
                         break;
                     }
                 }
@@ -2346,16 +2366,16 @@ namespace Tiny {
 
     std::vector<OS::Process::Process> OS::Process::listProcess(bool get_more, size_t delay_ms, bool *ok) {
         std::vector<Process> processes;
-        bool is_ok = listAllProcess(processes, true, get_more, delay_ms);
+        bool is_ok = listAllProcess(processes, 0, true, get_more, delay_ms);
         if (ok) *ok = is_ok;
         return processes;
     }
 
     bool OS::Process::updateProcessList(std::vector<Process> &list, bool get_more, size_t delay_ms, bool remove_terminated_process) {
 #ifdef TINY_CPP_MY_OS_WINDOWS
-        return listAllProcess(list, false, get_more, delay_ms, remove_terminated_process);
+        return listAllProcess(list, 0, false, get_more, delay_ms, remove_terminated_process);
 #else
-        return listAllProcess(list, false, get_more, delay_ms, remove_terminated_process);
+        return listAllProcess(list, 0, false, get_more, delay_ms, remove_terminated_process);
 #endif
         return false;
     }

@@ -81,9 +81,6 @@ namespace Tiny {
         size_t lastCharCount(const std::string& buf);
     }
 
-    /// @warning "Please use 'Tiny::U8Code' instead, this namespace will be removed since v0.3.0!"
-    namespace Code = U8Code;
-
     namespace TUI {
         struct Size {
             uint32_t width, height;
@@ -266,8 +263,8 @@ namespace Tiny {
 
         enum SP_Keys : uint8_t {
             SP_KEY_UNKNOWN,
-            SP_KEY_NONE = 0,
-            SP_KEY_F1,
+            SP_KEY_NONE         = 0,
+            SP_KEY_F1           = 128,
             SP_KEY_F2,
             SP_KEY_F3,
             SP_KEY_F4,
@@ -299,8 +296,9 @@ namespace Tiny {
             SP_KEY_NUMLOCK,
             SP_KEY_SCROLLLOCK,
             /////////////////////////
-            SP_ALT_SPACE = 32,
-            SP_ALT_BACKSPACE = 127,
+            SP_SHIFT_TAB        = 9,
+            SP_ALT_SPACE        = 32,
+            SP_ALT_BACKSPACE    = 127,
         }; 
 
         enum SP_Mouse : uint8_t {
@@ -331,7 +329,7 @@ namespace Tiny {
         struct InputEvent {
             enum Type : uint8_t {
                 None,
-                N = 0,
+                N        = 0,
                 Keyboard,
                 Key      = 1,
                 K        = 1,
@@ -346,7 +344,7 @@ namespace Tiny {
                 } keyboard;
                 struct Mouse {
                     Position position;
-                    SP_Mouse button;
+                    SP_Mouse button;    // P.s: Specially, `32` ~ `127` is set as `Alt`+`<ASCII>`.
                     bool is_pressed;
                 } mouse;
             } input;

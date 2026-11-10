@@ -309,6 +309,10 @@ namespace Tiny {
                 return "NumLock";
             case SP_KEY_SCROLLLOCK:
                 return "ScrollLock";
+            case SP_SHIFT_TAB:
+                return "Shift + Tab";
+            default:
+                break;
             }
             if (SP >= SP_ALT_SPACE && SP <= SP_ALT_BACKSPACE) {
                 static std::string buf;
@@ -1591,7 +1595,7 @@ namespace Tiny {
                     do {
                         t[d] = result[s + d];
                     } while (++d < del_length);
-                    auto dis_len = wcwidth(*Code::string2Wide(t).c_str());
+                    auto dis_len = wcwidth(*U8Code::string2Wide(t).c_str());
                     dis_sum -= dis_len;
                     if (cur_text_pos >= ori_length) {
                         result = result.substr(0, ori_length - del_length);
@@ -1639,7 +1643,7 @@ namespace Tiny {
                 do {
                     t[d] = result[s + d];
                 } while (++d < mov_length);
-                auto dis_len = wcwidth(*Code::string2Wide(t).c_str());
+                auto dis_len = wcwidth(*U8Code::string2Wide(t).c_str());
                 cur_text_pos -= mov_length;
                 cur_pos -= dis_len;
                 moveLeftCursor(dis_len);
@@ -1651,7 +1655,7 @@ namespace Tiny {
                 do {
                     t[d] = result[cur_text_pos + d];
                 } while (++d < mov_length);
-                auto dis_len = wcwidth(*Code::string2Wide(t).c_str());
+                auto dis_len = wcwidth(*U8Code::string2Wide(t).c_str());
                 cur_text_pos += mov_length;
                 cur_pos += dis_len;
                 moveRightCursor(dis_len);
@@ -1769,6 +1773,11 @@ namespace Tiny {
                 return true;
             }
             if (_temp_buffers[2] >= 'A' && _temp_buffers[2] <= 'H') {
+                buffer += _temp_buffers.substr(0, 3);
+                _temp_buffers.erase(_temp_buffers.begin(), _temp_buffers.begin() + 3);
+                return true;
+            }
+            if (_temp_buffers[1] == '[' && _temp_buffers[2] == 'Z') {
                 buffer += _temp_buffers.substr(0, 3);
                 _temp_buffers.erase(_temp_buffers.begin(), _temp_buffers.begin() + 3);
                 return true;
@@ -1911,6 +1920,8 @@ namespace Tiny {
                     keyboard.sp_key = SP_KEY_RIGHT;
                 } else if (buf == "\x1b[E" || buf == "\x1b[G") {
                     keyboard.sp_key = SP_KEY_CENTER;
+                } else if (buf == "\x1b[Z") {
+                    keyboard.sp_key = SP_SHIFT_TAB;
                 } else if (buf.size() == 2 && buf[1] >= 32 && buf[1] <= 127) {
                     keyboard.sp_key = static_cast<SP_Keys>(buf[1]);
                 }

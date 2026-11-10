@@ -967,10 +967,10 @@ namespace Tiny {
 
     OS::File& OS::File::operator>(std::string &data) {
         data.clear();
-        while (!isEOF()) {
+        while (true) {
             auto buf = readText(1);
-            if (buf[0] == ' ' || buf[0] == '\n' || buf[0] == '\r' 
-                || buf[0] == '\t' || buf[0] == '\0' || buf == "\r\n") break;
+            if (buf.empty() || buf[0] == ' ' || buf[0] == '\n' || buf[0] == '\r' 
+                || buf[0] == '\t' || buf[0] == '\0') break;
             data += buf;
         }
         return *this;
