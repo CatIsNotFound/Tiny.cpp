@@ -25,9 +25,13 @@
 
 #include "System.hpp"
 
+#include <cstdint>
+#include <cstdlib>
+#include <machine/param.h>
 #include <stdexcept>
 #include <algorithm>
 #include <atomic>
+#include <sys/param.h>
 #include <thread>
 #include <mutex>
 #include <sstream>
@@ -447,6 +451,20 @@ static std::vector<std::string> splitString(const std::string& src, char c = ' '
     return ret;
 }
 
+static std::string strip(const std::string &s) {
+    if (s.empty()) return {};
+    size_t st_pos{}, ed_pos{s.size()};
+    bool found_st{}, found_ed{};
+    for (size_t i = 0; i < s.size(); ++i) {
+        if (st_pos > ed_pos) break;
+        if (!found_st && !isspace(s[i]))              { st_pos = i; found_st = true; }
+        if (!found_ed && !isspace(s[ed_pos - i - 1])) { ed_pos = ed_pos - i - 1; found_ed = true; }
+        if (found_st && found_ed) break;
+    }
+    if (!found_st && !found_ed) return {};
+    return s.substr(st_pos, ed_pos - st_pos + 1);
+}
+
 #ifdef TINY_CPP_MY_OS_UNIX
 Tiny::OS::Process::Status charToStatus(char ch) {
     switch (ch) {
@@ -498,6 +516,23 @@ std::string getArgsInApple(size_t pid, const char* prg_path) {
         }
         if (parsed_space && buf[i] != '\0') parsed_space = false;
     }
+    return ret;
+}
+#elif defined(__FreeBSD__)
+std::string getFullArgs(const char* arg, size_t max_size) {
+    std::string ret;
+    bool parse_zero = false;
+    for (size_t i = 0; i < max_size; ++i) {
+        if (arg[i] == '\0') {
+            if (parse_zero) break;
+            parse_zero = true;
+            ret += ' ';
+        } else {
+            parse_zero = false;
+            ret += arg[i];
+        }
+    }
+    ret.pop_back();
     return ret;
 }
 #endif
@@ -614,6 +649,62 @@ Tiny::OS::Process::Process getProcess(size_t pid, bool& ok) {
         ret.command = getArgsInApple(pid, prg_path);
     } 
     ok = true;
+#elif defined(__FreeBSD__)
+    const auto PID = static_cast<int>(pid);
+    int opt[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, PID};
+    size_t p_size = sizeof(kinfo_proc);
+    kinfo_proc k_proc;
+    if (sysctl(opt, 4, &k_proc, &p_size, nullptr, 0) == -1) {
+        ok = false;
+        return ret;
+    }
+    ret.pid = k_proc.ki_pid;
+    ret.ppid = k_proc.ki_ppid;
+    ret.name = k_proc.ki_comm;
+    switch (k_proc.ki_stat) {
+        case SIDL:
+            ret.status = Tiny::OS::Process::Status::Idle;
+            break;
+        case SRUN:
+            ret.status = Tiny::OS::Process::Status::Running;
+            break;
+        case SSLEEP:
+            ret.status = Tiny::OS::Process::Status::Sleeping;
+            break;
+        case SSTOP:
+            ret.status = Tiny::OS::Process::Status::Stopped;
+            break;
+        case SZOMB:
+            ret.status = Tiny::OS::Process::Status::Zombie;
+            break;
+        case SWAIT:
+            ret.status = Tiny::OS::Process::Status::UninterruptibleSleep;
+            break;
+        default:
+            ret.status = Tiny::OS::Process::Status::Unknown;
+            break;
+    }
+
+    passwd temp{}, *usr{};
+    char buf[1024];
+    auto ret_code = getpwuid_r(k_proc.ki_uid, &temp, buf, sizeof(buf), &usr);
+    if (ret_code == 0 && usr) {
+        ret.user_name = usr->pw_name;
+    } else {
+        ret.user_name = "???";
+    }
+
+    int max_args{};
+    size_t val_sz = sizeof(int);
+    if (sysctlbyname("kern.argmax", &max_args, &val_sz, nullptr, 0) != -1) {
+        char args[max_args];
+        opt[2] = KERN_PROC_ARGS;
+        auto MAX_ARGS = static_cast<size_t>(max_args);
+        if (sysctl(opt, 4, args, &MAX_ARGS, nullptr, 0) != -1) {
+            ret.command = getFullArgs(args, static_cast<size_t>(max_args));
+        }
+    }
+    ok = true;
 #endif
     return ret;
 }
@@ -675,7 +766,6 @@ bool getCPUTimeAndMem(size_t pid, uint64_t& usr_time, uint64_t& ker_time, size_t
             *mem_size = strtoull(s1.data(), &p, 10) * PAGE_SIZE;
         }
     }
-    return true;
 #elif defined(__APPLE__)
     proc_taskinfo task_info{};
     auto err = proc_pidinfo(static_cast<int>(pid), PROC_PIDTASKINFO, 0, &task_info, PROC_PIDTASKINFO_SIZE);
@@ -683,8 +773,23 @@ bool getCPUTimeAndMem(size_t pid, uint64_t& usr_time, uint64_t& ker_time, size_t
     usr_time = task_info.pti_total_user;
     ker_time = task_info.pti_total_system;
     if (mem_size) *mem_size = task_info.pti_resident_size;
+#elif defined(__FreeBSD__)
+    const auto PID = static_cast<int>(pid);
+    int opt[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, PID};
+    size_t p_size = sizeof(kinfo_proc);
+    kinfo_proc k_proc;
+    if (sysctl(opt, 4, &k_proc, &p_size, nullptr, 0) == -1) {
+        return false;
+    }
+    const auto& cpu_usage = k_proc.ki_rusage;
+    usr_time = cpu_usage.ru_utime.tv_sec * 1000 + cpu_usage.ru_utime.tv_usec / 1000;
+    ker_time = cpu_usage.ru_stime.tv_sec * 1000 + cpu_usage.ru_stime.tv_usec / 1000;
+    if (mem_size) {
+        static auto S_PAGE_SIZE = static_cast<size_t>(getpagesize());
+        *mem_size = k_proc.ki_rssize * S_PAGE_SIZE;
+    }
 #endif
-    return false;
+    return true;
 }
 
 bool getDetailFromProcess(std::vector<Tiny::OS::Process::Process>& proc_list, size_t internal = 1000) {
@@ -732,6 +837,29 @@ bool getDetailFromProcess(std::vector<Tiny::OS::Process::Process>& proc_list, si
         }
         proc_list[i].cpu = static_cast<double>(delta_usr_time + delta_kern_time) / 10000.0 / static_cast<double>(delta_ts);
     }
+    return true;
+#elif defined(__FreeBSD__)
+    std::vector<CPU_TIME> before(proc_list.size()), after(proc_list.size());
+    for (size_t i = 0; i < proc_list.size(); ++i) {
+        getCPUTimeAndMem(proc_list[i].pid, before[i].usr_time, before[i].kern_time, nullptr);
+    }
+    auto st = getTicks(false);
+    usleep(internal * 1000);
+    for (size_t i = 0; i < proc_list.size(); ++i) {
+        getCPUTimeAndMem(proc_list[i].pid, after[i].usr_time, after[i].kern_time, &proc_list[i].memory);
+    }
+    auto ed = getTicks(false);
+    auto delta_ts = ed - st;
+    for (size_t i = 0; i < proc_list.size(); ++i) {
+        auto delta_usr_time = static_cast<double>(after[i].usr_time) - static_cast<double>(before[i].usr_time);
+        auto delta_kern_time = static_cast<double>(after[i].kern_time) - static_cast<double>(before[i].kern_time);
+        if (delta_usr_time < 0 || delta_kern_time < 0) {
+            proc_list[i].cpu = 0;
+            continue;
+        }
+        proc_list[i].cpu = static_cast<double>(delta_usr_time + delta_kern_time) / static_cast<double>(delta_ts) * 100.0;
+    }
+
     return true;
 #else
     return false;
@@ -798,6 +926,38 @@ bool listAllProcess(std::vector<Tiny::OS::Process::Process>& dest, size_t PID = 
     for (auto& pid : pids) {
         bool ok{};
         auto p = getProcess(static_cast<size_t>(pid), ok);
+        if (ok) {
+            if (readd_list) {
+                dest.emplace_back(p);
+            } else {
+                auto iter = std::find_if(dest.begin(), dest.end(), [&p](const Tiny::OS::Process::Process& proc) {
+                    return p.pid == proc.pid;
+                });
+                if (iter == dest.end()) {
+                    dest.emplace_back(p);
+                } else {
+                    *iter = p;
+                }
+            }
+        }
+    }
+#elif defined(__FreeBSD__)
+    std::vector<uint64_t> pid_list;
+    if (PID == 0) {
+        std::string out, err;
+    	auto err_code = Tiny::OS::Process::exec("ps -ax -o pid=", 0, &out, nullptr);
+        if (err_code != 0) return false;
+        auto strs = splitString(out, '\n');
+        char* ptr{};
+        for (auto& s : strs) {
+            pid_list.push_back(strtoull(strip(s).data(), &ptr, 10));
+        }
+    } else {
+        pid_list.push_back(PID);
+    }
+    for (auto& pid : pid_list) {
+        bool ok{};
+        auto p = getProcess(pid, ok);
         if (ok) {
             if (readd_list) {
                 dest.emplace_back(p);
