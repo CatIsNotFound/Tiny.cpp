@@ -339,12 +339,12 @@ namespace Tiny {
             union Input {
                 struct Keyboard {
                     uint8_t key;
-                    SP_Keys sp_key;
+                    SP_Keys sp_key;     // P.s: Specially, `32` ~ `127` is set as `Alt`+`<ASCII>`.
                     bool is_pressed;    // P.s: Only Windows can captured, otherwise it is always `true`!
                 } keyboard;
                 struct Mouse {
                     Position position;
-                    SP_Mouse button;    // P.s: Specially, `32` ~ `127` is set as `Alt`+`<ASCII>`.
+                    SP_Mouse button;
                     bool is_pressed;
                 } mouse;
             } input;

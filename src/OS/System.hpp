@@ -136,7 +136,7 @@ namespace Tiny {
                 size_t ppid{};
                 /// Process name
                 std::string name{};
-                /// Command line (p.s: In Windows, it will only show the Execute Path)
+                /// Command line (p.s: In Windows, it will be shown the Execute Path possibly)
                 std::string command{};
                 /// Process Status
                 Status status{};

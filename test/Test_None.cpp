@@ -6,34 +6,14 @@
 #endif
 using namespace Tiny;
 
+struct ColsRange {
+    uint16_t start{}, end{};
+};
+
 template <typename T>
 T clamp(const T& value, const T& min, const T& max) {
     return value < min ? min : (value > max ? max : value);
 }
-
-struct Position {
-    float x, y;
-};
-
-template <>
-struct Tiny::TUI::Format::Formatter<::Position> {
-    static void format(std::string& dest, const ::Position& value, const FmtSpec& fmt) {
-        Sink sink{dest};
-        if (fmt.data_type == 'p') {
-            auto p = reinterpret_cast<size_t>(&value);
-            formatTo(sink, digitToString(p, 16, false), fmt);
-            return;
-        }
-        if (fmt.data_type == 's' || fmt.data_type == '\0') {
-            std::string s("(");
-            s += std::to_string(value.x);
-            s += ", ";
-            s += std::to_string(value.y);
-            s += ')';
-            formatTo(sink, s, fmt);
-        }
-    }
-};
 
 std::string status(OS::Process::Status status) {
     switch (status) {
@@ -71,7 +51,7 @@ using namespace OS;
 
 static StyleList generate() {
     StyleList style_list;
-    Style s_normal, s_bold, s_err, s_selected, s_sorted, s_header, s_low, s_warn, s_high;
+    Style s_normal, s_bold, s_err, s_selected, s_sorted, s_header, s_low, s_warn, s_high, s_pids;
     s_normal.intensity = 2;
     s_normal.fg_color = Color::Default;
     s_normal.bg_color = Color::Default;
@@ -95,6 +75,9 @@ static StyleList generate() {
     s_high.intensity = 2;
     s_high.fg_color = Color::Red;
     s_high.bg_color = Color::Default;
+    s_pids.fg_color = Color::Black;
+    s_pids.bg_color = Color::Blue;
+    s_pids.intensity = 1;
     style_list.push_back(s_normal);
     style_list.push_back(s_bold);
     style_list.push_back(s_err);
@@ -104,6 +87,7 @@ static StyleList generate() {
     style_list.push_back(s_low);
     style_list.push_back(s_warn);
     style_list.push_back(s_high);
+    style_list.push_back(s_pids);
     return style_list;
 }
 
@@ -121,7 +105,11 @@ static CPU cpu;
 static Memory memory;
 static uint64_t delay_ms{1000};
 static uint64_t skip_index{};
-static std::atomic<bool> update_info{}, update_proc{}, from_user{}, running_main{}, filter_mode{};
+static uint8_t skip_cpu_group{};
+static std::vector<size_t> selected_pids;
+static std::atomic<bool> update_proc{}, from_user{}, running_main{}, filter_mode{};
+static std::atomic<bool> draw_info{}, draw_proc{}, multiselect{};
+static Tiny::TUI::Size screen_size{};
 struct CpuFilter {
     float val{};
     int8_t opt{};
@@ -144,7 +132,7 @@ static const char* headerName(Header header) {
         case H_CPU:
             return "%CPU";
         case H_MEM:
-            return "%Mem";
+            return "Mem";
         case H_USER:
             return "User";
         case H_PRG_NAME:
@@ -215,49 +203,49 @@ void draw() {
     auto scr_size = Terminal::screenSize();
     auto& renderer = Renderer::self();
 
-    if (update_info.load()) {
+    if (draw_info.load()) {
         auto now = DT::currentTimestamps(true);
         auto mem_usage = static_cast<double>(memory.used_ram) / static_cast<double>(memory.total_ram) * 100.f;
         auto mem_avail = static_cast<double>(memory.available_ram) / static_cast<double>(memory.total_ram) * 100.f;
         renderer.setStrF({0, 0},
-            "Uptime: {:12s}, CPU: {} core(s), {:5.1f}% total, Memory: {:5.1f}% used, {:5.1f}% available",
+            "HTOP {:12s}, CPU: {:#2d} core(s), {:5.1f}% total, Memory: {:5.1f}% used, {:5.1f}% available",
             DT::formatTime("d:hh:mm:ss", now),  cpu.cores, cpu.total_usage, mem_usage, mem_avail);
         auto cpu_width = scr_size.width / 2 - 1;
         auto cpu_bar_width = cpu_width - 4;
         /// 01[||||||||]  02[|||||||||]
-        uint32_t shown_cpu = std::min(cpu.cores, 8U);
-        for (uint32_t i = 0; i < shown_cpu; ++i) {
-            auto c = static_cast<uint32_t>((static_cast<float>(cpu_bar_width) * (cpu.usages[i] * 0.01f)));
+        renderer.fillRows(1, 4);
+        for (uint32_t i = 0; i < 8; ++i) {
+            size_t idx = skip_cpu_group * 2 + i;
+            if (idx >= cpu.cores) break;
+            auto c = static_cast<uint32_t>((static_cast<float>(cpu_bar_width) * (cpu.usages[idx] * 0.01f)));
             auto prg = Terminal::formatString("{:{}c}", c, '|').substr(0, cpu_bar_width);
-            renderer.setSSFX({i / 2 + 1, (i + 1) % 2 ? 0 : cpu_width}, "<1>{:*0>2#d}:<{}>{:<{}s}", styles,
-                i + 1, cpu.usages[i] >= 85.f ? 9 : (cpu.usages[i] >= 60.f ? 8 : 7), cpu_bar_width, prg);
+            renderer.setSSFX({i / 2 + 1, (i + 1) % 2 ? 0 : cpu_width}, "<2>{:*0>2#d}:<{}>{:<{}s}", styles,
+                idx + 1, cpu.usages[idx] >= 85.f ? 9 : (cpu.usages[idx] >= 60.f ? 8 : 7), cpu_bar_width, prg);
         }
-        renderer.fillRows(5, 5);
-        renderer.setStrF({5, 0}, "Process: {:>5s}/{:<5s}",
-            skip_index, proc_list.size());
-        update_info.store(false);
+        draw_info.store(false);
     }
     if (from_user.load()) {
         uint32_t col = 0;
-        const uint32_t PW = scr_size.width - (7 * 5 + 17 + 11);
+        const uint32_t PW = scr_size.width - 59;
         for (uint32_t i = 0; i < HEADER_COUNT; ++i) {
             uint32_t col_width = 8;
             if (i == H_MEM) col_width = 10;
             if (i == H_USER) col_width = 16;
             if (i == H_PRG_NAME) col_width = PW;
             if (sorted_header_no == i) {
-                renderer.setSSFX({6, col}, "<5>{}{:<{}s}", styles,
-                    reversed_sort ? "▼" : "▲", col_width, headerName(static_cast<Header>(i)));
+                renderer.setSSFX({6, col}, "<5>{}{:{}{}s}", styles,
+                    reversed_sort ? "▼" : "▲", i < HEADER_COUNT - 1 ? '>' : '<', col_width - 1,
+                    headerName(static_cast<Header>(i)));
             } else {
-                renderer.setSSFX({6, col}, "<4> {:<{}s}", styles,
-                    col_width, headerName(static_cast<Header>(i)));
+                renderer.setSSFX({6, col}, "<4> {:{}{}s}", styles,
+                    i < HEADER_COUNT - 1 ? '>' : '<', col_width - 1, headerName(static_cast<Header>(i)));
             }
             col += col_width;
         }
         from_user.store(false);
     }
 
-    if (update_proc.load()) {
+    if (draw_proc.load()) {
         const uint32_t PW = scr_size.width - 60;
         const uint32_t PH = scr_size.height - 8;
 
@@ -269,11 +257,12 @@ void draw() {
             DataUnit data_unit;
             auto& process = proc_list[skip_index + i];
             auto sz = autoConvertDataSize(process.memory, data_unit);
-            renderer.setSSFX({static_cast<uint32_t>(7 + i), 0}, "{:>8s}{:>8s}{:>8s}{:>8.1f} {:>6.1f}{:<3s}{:>16s} {:<{}s}", styles,
-                process.pid, process.ppid, status(process.status), process.cpu, sz, dataUnitName(data_unit), process.user_name.substr(0, 16),
+            bool is_selected = std::find(selected_pids.begin(), selected_pids.end(), process.pid) != selected_pids.end();
+            renderer.setSSFX({static_cast<uint32_t>(7 + i), 0}, "{}{:>8s}{:>8s}{:>8s}{:>8.1f} {:>6.1f}{:<3s}{:>16s} {:<{}s}", styles,
+                is_selected ? "<10>" : "", process.pid, process.ppid, status(process.status), process.cpu, sz, dataUnitName(data_unit), process.user_name.substr(0, 16),
                 PW, process.command.substr(0, PW));
         }
-        update_proc.store(false);
+        draw_proc.store(false);
     }
     renderer.present();
 }
@@ -281,7 +270,7 @@ void draw() {
 bool look_for(Header header) {
     auto& renderer = Renderer::self();
     // auto scr_size = Terminal::screenSize();
-    std::array<const char*, HEADER_COUNT> range_tips = {
+    static std::array<std::string, HEADER_COUNT> range_tips = {
         "",
         "",
         "[R = running, S = sleeping, T = stopped, Z = zombie, ...]",
@@ -291,14 +280,13 @@ bool look_for(Header header) {
         ""
     };
     renderer.fillRows(5, 5, ' ', styles[3]);
-    renderer.setSSFX({5, 0}, "<4>Search {}: {} ", styles, headerName(header), range_tips[header]);
+    std::string h_name = headerName(header);
+    renderer.setSSFX({5, 0}, "<4>Search {}: {} ", styles, h_name, range_tips[header]);
     renderer.present();
     Terminal::setCursorVisible(true);
-#ifdef TINY_CPP_MY_OS_WINDOWS
+    size_t st_pos_col = 10 + h_name.size() + range_tips[header].size();
+    Terminal::moveCursor(5, st_pos_col);
     auto value = Terminal::readLine();
-#else
-    auto value = Terminal::readLine();
-#endif
     Terminal::setCursorVisible(false);
     size_t v1{}, v2{};
     Process::Status v3{};
@@ -420,33 +408,43 @@ bool look_for(Header header) {
         renderer.setSSFX({5, 0}, "<4>Invalid value! Press any key to continue... ", styles);
         renderer.present();
         Terminal::getKey();
+        renderer.fillRows(5, 5, ' ', styles[0]);
         return false;
     }
+    renderer.fillRows(5, 5, ' ', styles[0]);
     return true;
 }
 
 int main(int argc, char *argv[]) {
-    auto st = DT::currentTimestamps(), ed = st;
+    auto st = DT::currentTimestamps(true), ed = st;
     styles = generate();
+    screen_size = Terminal::screenSize();
     running_main.store(true);
     Renderer::self().setResizeEvent([](Renderer& renderer) {
+        screen_size = Terminal::screenSize();
         if (!filter_mode.load()) {
             from_user.store(true);
         }
         renderer.fillScreen();
     });
     EV::Event ev1(1, "update", []{ return true; }, [](const std::atomic<bool>&) {
-        if (!running_main.load() || update_info.load()) return;
-        getCPUInfo(cpu, delay_ms);
+        if (!running_main.load() || draw_info.load() || filter_mode.load()) return;
+        static bool first_running = true;
+        if (first_running) {
+            first_running = false;
+        } else {
+            getCPUInfo(cpu, delay_ms);
+        }
         getMemory(memory);
-        update_info.store(true);
+        draw_info.store(true);
     });
     ev1.setDelayMS(1);
     ev1.setRepeatCount(0);
     ev1.run();
     EV::Event ev2(2, "update_proc", []{ return true; }, [](const std::atomic<bool>&) {
-        if (!running_main.load() || update_proc.load()) return;
-        if (proc_list.empty()) proc_list = Process::listProcess(true, delay_ms);
+        if (!running_main.load() || !update_proc.load() || draw_proc.load() || filter_mode.load()) return;
+        static bool first_running = true;
+        if (proc_list.empty()) proc_list = Process::listProcess(!first_running, delay_ms);
         else Process::updateProcessList(proc_list, true, delay_ms);
         std::sort(proc_list.begin(), proc_list.end(), [](const Process::Process& p1, const Process::Process& p2) {
             switch (sorted_header_no.load()) {
@@ -479,24 +477,45 @@ int main(int argc, char *argv[]) {
             }
             return false;
         });
-        update_proc.store(true);
+        update_proc.store(false);
+        draw_proc.store(true);
+        if (first_running) first_running = false;
     });
     ev2.setDelayMS(1);
     ev2.setRepeatCount(0);
     ev2.run();
+    draw_info.store(true);
+    update_proc.store(true);
     from_user.store(true);
-    // update_info.store(true);
-    // update_proc.store(true);
+    std::array<ColsRange, HEADER_COUNT> mlabels = {
+        {
+           {0, 7},
+            {8, 15},
+            {16, 23},
+            {24, 31},
+            {32, 41},
+            {42, 57},
+            {57, 255}
+        }
+    };
+
+    auto last = DT::currentTimestamps(true), cur = last;
     while (running_main.load()) {
-        ed = DT::currentTimestamps();
+        ed = DT::currentTimestamps(true);
+        last = ed;
         auto input = Terminal::getInput();
         if (input.type == InputEvent::K && input.input.keyboard.is_pressed) {
             int next{};
             switch (input.input.keyboard.key) {
                 case KEY_TAB:
-                    next = sorted_header_no.load() + 1;
-                    if (next >= HEADER_COUNT) next = 0;
+                    next = (sorted_header_no.load() + 1) % HEADER_COUNT;
                     sorted_header_no.store(next);
+                    break;
+                case 'P':
+                case 'p':
+                    if (cpu.cores > 8) {
+                        skip_cpu_group = (skip_cpu_group + 1) % (cpu.cores / 2);
+                    }
                     break;
                 case 'R':
                 case 'r':
@@ -511,13 +530,21 @@ int main(int argc, char *argv[]) {
                 case '7':
                     ev1.stop();
                     ev2.stop();
-                    look_for(static_cast<Header>(input.input.keyboard.key - '0'));
+                    look_for(static_cast<Header>(input.input.keyboard.key - '0' - 1));
                     from_user.store(true);
                     ev1.run();
                     ev2.run();
                     break;
                 case KEY_SPECIAL:
                     switch (input.input.keyboard.sp_key) {
+                        case SP_SHIFT_TAB:
+                            if (sorted_header_no.load() == 0) {
+                                sorted_header_no.store(6);
+                            } else {
+                                next = (sorted_header_no.load() - 1) % HEADER_COUNT;
+                                sorted_header_no.store(next);
+                            }
+                            break;
                         case SP_KEY_F1:
                         case '1':
                             sorted_header_no.store(H_PID);
@@ -548,24 +575,35 @@ int main(int argc, char *argv[]) {
                             break;
                         case SP_KEY_DOWN:
                             skip_index = (skip_index + 1) % proc_list.size();
-                            update_proc.store(true);
+                            draw_proc.store(true);
                             break;
                         case SP_KEY_UP:
                             skip_index -= 1;
                             if (skip_index >= SIZE_T_MAX - 1) skip_index = proc_list.size() - 1;
-                            update_proc.store(true);
+                            draw_proc.store(true);
                             break;
                         case SP_KEY_HOME:
                             skip_index = 0;
-                            update_proc.store(true);
+                            draw_proc.store(true);
                             break;
                         case SP_KEY_END:
                             skip_index = proc_list.size() - 1;
-                            update_proc.store(true);
+                            draw_proc.store(true);
                             break;
                         default:
                             break;
                     }
+                    break;
+                case KEY_CTRL_R:
+                    multiselect.store(!multiselect.load());
+                    if (selected_pids.size() > 1) {
+                        selected_pids.clear();
+                        draw_proc.store(true);
+                    }
+                    break;
+                case KEY_CTRL_D:
+                    selected_pids.clear();
+                    draw_proc.store(true);
                     break;
                 case KEY_ESC:
                 case KEY_CTRL_C:
@@ -575,10 +613,66 @@ int main(int argc, char *argv[]) {
                     break;
             }
             from_user.store(true);
+        } else if (input.type == InputEvent::M) {
+            if (input.input.mouse.button == MOUSE_WHEEL_DOWN) {
+                if (input.input.mouse.position.row >= 7) {
+                    skip_index = std::min(skip_index + 1, proc_list.size() - 1);
+                    draw_proc.store(true);
+                } else if (cpu.cores > 8 && input.input.mouse.position.row >= 1 && input.input.mouse.position.row < 6) {
+                    if (skip_cpu_group < cpu.cores / 2 - 1) skip_cpu_group += 1;
+                    draw_info.store(true);
+                }
+            } else if (input.input.mouse.button == MOUSE_WHEEL_UP) {
+                if (input.input.mouse.position.row >= 7) {
+                    if (skip_index > 0) skip_index -= 1;
+                    draw_proc.store(true);
+                } else if (cpu.cores > 8 && input.input.mouse.position.row >= 1 && input.input.mouse.position.row < 6) {
+                    if (skip_cpu_group > 0) skip_cpu_group -= 1;
+                    draw_info.store(true);
+                }
+            } else if (input.input.mouse.button == MOUSE_LEFT_BUTTON && input.input.mouse.is_pressed) {
+                if (input.input.mouse.position.row >= 7 && input.input.mouse.position.row <= screen_size.height - 2) {
+                    uint32_t C = input.input.mouse.position.row - 7;
+                    if (skip_index + C < proc_list.size()) {
+                        auto pid = proc_list[skip_index + C].pid;
+                        if (multiselect.load()) {
+                            auto iter = std::find(selected_pids.begin(), selected_pids.end(), pid);
+                            if (iter == selected_pids.end()) {
+                                selected_pids.push_back(pid);
+                            } else {
+                                selected_pids.erase(iter);
+                            }
+                        } else {
+                            if (selected_pids.empty()) selected_pids.push_back(pid);
+                            else selected_pids.front() = pid;
+                        }
+                        draw_proc.store(true);
+                    }
+                } else if (input.input.mouse.position.row == 6) {
+                    auto col = input.input.mouse.position.column;
+                    size_t ID = 0;
+                    for (auto& cols_range: mlabels) {
+                        if (col >= cols_range.start && col <= cols_range.end) {
+                            if (sorted_header_no.load() == ID) {
+                                reversed_sort.store(!reversed_sort.load());
+                            } else {
+                                sorted_header_no.store(ID);
+                            }
+                            from_user.store(true);
+                            break;
+                        }
+                        ID += 1;
+                    }
+                }
+            }
         }
         if (ed - st >= 50) {
             st = ed;
             draw();
+        }
+        if (cur - last >= delay_ms) {
+            last = cur;
+            update_proc.store(true);
         }
     }
     return 0;

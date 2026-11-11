@@ -524,9 +524,9 @@ namespace Tiny {
         return _is_in_raw_mode;
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         HANDLE console = GetStdHandle(STD_INPUT_HANDLE);
-        if (console != INVALID_HANDLE_VALUE) return false;
+        if (console == INVALID_HANDLE_VALUE) return false;
         DWORD mode = 0;
-        if (!GetConsoleMode(console, &mode)) return 0;
+        if (!GetConsoleMode(console, &mode)) return false;
         return !(mode & (ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT));
 #endif
     }
@@ -1074,7 +1074,7 @@ namespace Tiny {
         if (console == INVALID_HANDLE_VALUE) {
             return ev;
         }
-        Sleep(10);
+        // Sleep(10);
         INPUT_RECORD input;
         DWORD get_length = 0;
         DWORD length = 0;
@@ -1104,9 +1104,6 @@ namespace Tiny {
         auto real_color = info.wAttributes;
         real_color &= ~(BACKGROUND_RED | BACKGROUND_GREEN | BACKGROUND_BLUE | BACKGROUND_INTENSITY);
         switch (color) {
-            case Color::Black:
-                real_color |= 0;
-                break;
             case Color::Red:
                 real_color |= BACKGROUND_RED;
                 break;
@@ -1129,7 +1126,6 @@ namespace Tiny {
                 real_color |= BACKGROUND_RED | BACKGROUND_GREEN | BACKGROUND_BLUE;
                 break;
             default:
-                real_color |= 0;
                 break;
         }
         if (intensity) real_color |= BACKGROUND_INTENSITY;
@@ -1150,7 +1146,6 @@ namespace Tiny {
             WriteConsole(console, cmd.c_str(), cmd.length(), nullptr, nullptr);
         }
 #endif
-
     }
 
     void TUI::Terminal::setForegroundColor(Color color, bool intensity) {
@@ -1170,9 +1165,6 @@ namespace Tiny {
         auto real_color = info.wAttributes;
         real_color &= ~(FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY);
         switch (color) {
-            case Color::Black:
-                real_color |= 0;
-                break;
             case Color::Red:
                 real_color |= FOREGROUND_RED;
                 break;
@@ -1195,7 +1187,6 @@ namespace Tiny {
                 real_color |= FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE;
                 break;
             default:
-                real_color |= 0;
                 break;
         }
         if (intensity) real_color |= FOREGROUND_INTENSITY;
@@ -1439,6 +1430,8 @@ namespace Tiny {
             result.input.keyboard.is_pressed = input->Event.KeyEvent.bKeyDown;
             SP_Keys sp_key{};
             auto& ev = input->Event.KeyEvent;
+            bool is_alter_down = ev.dwControlKeyState & (LEFT_ALT_PRESSED | RIGHT_ALT_PRESSED);
+            bool is_shift_down = ev.dwControlKeyState & SHIFT_PRESSED;
             auto v_keycode = ev.wVirtualKeyCode;
             uint8_t ch = ev.uChar.AsciiChar;
             result.input.keyboard.key = KEY_SPECIAL;
@@ -1535,6 +1528,18 @@ namespace Tiny {
                     break;
                 default:
                     result.input.keyboard.key = ch > 0 ? ch : KEY_NONE;
+                    break;
+            }
+            if (is_alter_down) {
+                result.input.keyboard.key = KEY_SPECIAL;
+                if (ch >= SP_ALT_SPACE && ch <= SP_ALT_BACKSPACE) sp_key = static_cast<SP_Keys>(ch);
+                else if (ch == KEY_BK) sp_key = SP_ALT_BACKSPACE;
+                else sp_key = SP_KEY_ALT;
+            } else if (is_shift_down) {
+                if (ch == KEY_TAB) {
+                    result.input.keyboard.key = KEY_SPECIAL;
+                    sp_key = SP_SHIFT_TAB;
+                }
             }
             result.input.keyboard.sp_key = sp_key;
         } else if (input->EventType == MOUSE_EVENT) {

@@ -27,11 +27,9 @@
 
 #include <cstdint>
 #include <cstdlib>
-#include <machine/param.h>
 #include <stdexcept>
 #include <algorithm>
 #include <atomic>
-#include <sys/param.h>
 #include <thread>
 #include <mutex>
 #include <sstream>
@@ -199,7 +197,7 @@ namespace {
                 new_proc.pid = proc_entry.th32ProcessID;
                 new_proc.ppid = proc_entry.th32ParentProcessID;
                 new_proc.name = wide2String(proc_entry.szExeFile);
-                new_proc.command = "???\\" + new_proc.name;
+                new_proc.command = new_proc.name;
                 new_proc.user_name = "???";
                 new_proc.status = Tiny::OS::Process::Status::Running;
                 if (readd_prg || list.empty()) {
