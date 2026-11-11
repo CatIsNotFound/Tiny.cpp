@@ -8,6 +8,7 @@ using namespace Tiny;
 
 struct ColsRange {
     uint16_t start{}, end{};
+    ColsRange(uint16_t start, uint16_t end) : start{start}, end{end} {}
 };
 
 template <typename T>
@@ -490,12 +491,12 @@ int main(int argc, char *argv[]) {
     std::array<ColsRange, HEADER_COUNT> mlabels = {
         {
            {0, 7},
-            {8, 15},
-            {16, 23},
-            {24, 31},
-            {32, 41},
-            {42, 57},
-            {57, 255}
+           {8, 15},
+           {16, 23},
+           {24, 31},
+           {32, 41},
+           {42, 57},
+           {57, 255}
         }
     };
 
