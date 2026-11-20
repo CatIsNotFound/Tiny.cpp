@@ -161,8 +161,10 @@ namespace Tiny {
             };
 
             std::vector<Process> listProcess(bool get_more = false, size_t delay_ms = 500, bool *ok = nullptr);
+            bool listProcess(std::vector<Process>& list, bool get_more = false, size_t delay_ms = 500,
+                             bool remove_terminated_process = true, std::vector<size_t>* remove_pid_list = nullptr);
             bool updateProcessList(std::vector<Process>& list, bool get_more = false, size_t delay_ms = 500,
-                                   bool remove_terminated_process = true);
+                                   bool remove_terminated_process = true, std::vector<size_t>* remove_pid_list = nullptr);
 
             class Child {
             public:

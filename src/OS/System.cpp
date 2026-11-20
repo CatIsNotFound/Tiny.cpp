@@ -177,8 +177,10 @@ namespace {
         return static_cast<float>(usage);
     }
 
-    bool listAllProcess(std::vector<Tiny::OS::Process::Process>& list, const size_t C_PID = 0, bool readd_prg = false,
-                        bool get_more = false, size_t delay_ms = 500, bool remove_term_prg = false) {
+    bool listAllProcess(std::vector<Tiny::OS::Process::Process>& list, const size_t C_PID = 0, 
+                        bool readd_prg = false, bool only_update = false,
+                        bool get_more = false, size_t delay_ms = 500, bool remove_term_prg = false, 
+                        std::vector<size_t>* rm_pids = nullptr) {
         if (readd_prg && !list.empty()) list.clear();
         else {
             for (auto& process: list) {
@@ -208,7 +210,7 @@ namespace {
                     });
                     if (found != list.end()) {
                         *found = std::move(new_proc);
-                    } else {
+                    } else if (!only_update) {
                         list.emplace_back(new_proc);
                     }
                 }
@@ -217,10 +219,12 @@ namespace {
         CloseHandle(procs_list);
         if (remove_term_prg) {
             std::stack<int64_t> rm_idxs;
+            if (rm_pids) rm_pids->clear();
             int64_t idx = 0;
             for (auto& process: list) {
                 if (process.status == Tiny::OS::Process::Status::Terminated) {
                     rm_idxs.push(idx);
+                    if (rm_pids) rm_pids->push_back(process.pid);
                 }
                 ++idx;
             }
@@ -322,7 +326,7 @@ namespace {
         std::vector<Tiny::OS::Process::Process> list;
         list.emplace_back();
         list.back().pid = pid;
-        listAllProcess(list, pid, false, get_more, delay_ms);
+        listAllProcess(list, pid, false, false, get_more, delay_ms);
         auto proc = list.front();
         return list.empty() ? Tiny::OS::Process::Process() : Tiny::OS::Process::Process(list.front());
     }
@@ -864,8 +868,10 @@ bool getDetailFromProcess(std::vector<Tiny::OS::Process::Process>& proc_list, si
 #endif
 }
 
-bool listAllProcess(std::vector<Tiny::OS::Process::Process>& dest, size_t PID = 0, bool readd_list = false,
-                    bool get_more = false, size_t internal = 1000, bool rm_term_proc = true) {
+bool listAllProcess(std::vector<Tiny::OS::Process::Process>& dest, size_t PID = 0, 
+                    bool readd_list = false, bool only_update = false,
+                    bool get_more = false, size_t internal = 1000, bool rm_term_proc = true, 
+                    std::vector<size_t>* rm_pids_list = nullptr) {
     if (readd_list) {
         dest.clear();
     } else {
@@ -903,7 +909,7 @@ bool listAllProcess(std::vector<Tiny::OS::Process::Process>& dest, size_t PID = 
                     return p.pid == proc.pid;
                 });
                 if (iter == dest.end()) {
-                    dest.emplace_back(p);
+                    if (!only_update) dest.emplace_back(p);
                 } else {
                     *iter = p;
                 }
@@ -932,7 +938,7 @@ bool listAllProcess(std::vector<Tiny::OS::Process::Process>& dest, size_t PID = 
                     return p.pid == proc.pid;
                 });
                 if (iter == dest.end()) {
-                    dest.emplace_back(p);
+                    if (!only_update) dest.emplace_back(p);
                 } else {
                     *iter = p;
                 }
@@ -964,7 +970,7 @@ bool listAllProcess(std::vector<Tiny::OS::Process::Process>& dest, size_t PID = 
                     return p.pid == proc.pid;
                 });
                 if (iter == dest.end()) {
-                    dest.emplace_back(p);
+                    if (!only_update) dest.emplace_back(p);
                 } else {
                     *iter = p;
                 }
@@ -974,9 +980,11 @@ bool listAllProcess(std::vector<Tiny::OS::Process::Process>& dest, size_t PID = 
 #endif
     if (!readd_list && rm_term_proc) {
         std::stack<size_t> rm_idx;
+        if (rm_pids_list) rm_pids_list->clear();
         for (size_t i = 0; i < dest.size(); ++i) {
             if (dest[i].status == Tiny::OS::Process::Status::Terminated) {
                 rm_idx.push(i);
+                if (rm_pids_list) rm_pids_list->push_back(dest[i].pid);
             }
         }
         while (!rm_idx.empty()) {
@@ -996,7 +1004,7 @@ Tiny::OS::Process::Process getOneProcess(size_t pid, bool get_more, size_t delay
     std::vector<Tiny::OS::Process::Process> list;
     list.emplace_back();
     list.back().pid = pid;
-    listAllProcess(list, pid, false, get_more, delay_ms);
+    listAllProcess(list, pid, false, false, get_more, delay_ms);
     auto proc = list.front();
     return list.empty() ? Tiny::OS::Process::Process() : Tiny::OS::Process::Process(list.front());
 }
@@ -2524,18 +2532,19 @@ namespace Tiny {
 
     std::vector<OS::Process::Process> OS::Process::listProcess(bool get_more, size_t delay_ms, bool *ok) {
         std::vector<Process> processes;
-        bool is_ok = listAllProcess(processes, 0, true, get_more, delay_ms);
+        bool is_ok = listAllProcess(processes, 0, true, false, get_more, delay_ms);
         if (ok) *ok = is_ok;
         return processes;
     }
 
-    bool OS::Process::updateProcessList(std::vector<Process> &list, bool get_more, size_t delay_ms, bool remove_terminated_process) {
-#ifdef TINY_CPP_MY_OS_WINDOWS
-        return listAllProcess(list, 0, false, get_more, delay_ms, remove_terminated_process);
-#else
-        return listAllProcess(list, 0, false, get_more, delay_ms, remove_terminated_process);
-#endif
-        return false;
+    bool OS::Process::listProcess(std::vector<Process> &list, bool get_more, size_t delay_ms, bool remove_terminated_process, 
+                                  std::vector<size_t>* remove_pid_list) {
+        return listAllProcess(list, 0, false, false, get_more, delay_ms, remove_terminated_process, remove_pid_list);
+    }
+
+    bool OS::Process::updateProcessList(std::vector<Process> &list, bool get_more, size_t delay_ms,
+                                        bool remove_terminated_process, std::vector<size_t>* remove_pid_list) {
+        return listAllProcess(list, 0, false, true, get_more, delay_ms, remove_terminated_process, remove_pid_list);
     }
 
     OS::Process::Child::Child(bool catch_mode, bool use_pipe2) {

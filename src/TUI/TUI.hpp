@@ -242,6 +242,7 @@ namespace Tiny {
 
             const Char& charAt(const Position& position);
             const Style& styleAt(const Position& position);
+            bool isValid(const Position& position);
         protected:
             Renderer();
             virtual void renderEvent();
@@ -263,10 +264,8 @@ namespace Tiny {
             std::mutex _resize_mutex{};
             std::function<void(Renderer&)> _resize_event{};
             std::thread::id _th_id{};
-#ifdef TINY_CPP_MY_OS_WINDOWS
             std::thread _resize_win_signal{};
             std::atomic<bool> _is_running{};
-#endif
         };
 
         template<typename ... Args>

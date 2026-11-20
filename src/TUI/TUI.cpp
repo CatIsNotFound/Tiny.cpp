@@ -251,18 +251,27 @@ namespace Tiny {
         return *this;
     }
 
-
+    static void safeToQuit(int signal) {
+        TUI::Terminal::setMouseEnabled(false);
+        TUI::Terminal::setCursorVisible(true);
+        TUI::Terminal::reset();
+        TUI::Terminal::clearScreen();
+        TUI::Terminal::leaveRawMode();
+        TUI::Terminal::printError(signal == SIGSEGV ?
+            "Segmentation Fault!!!\r\n" : "Terminated!!!\r\n");
+        exit(255);
+    }
 
     TUI::Renderer & TUI::Renderer::self() {
         static Renderer instance;
+        static auto ret_1 = signal(SIGSEGV, safeToQuit);
+        static auto ret_2 = signal(SIGTERM, safeToQuit);
         return instance;
     }
 
     TUI::Renderer::~Renderer() {
-#ifdef TINY_CPP_MY_OS_WINDOWS
         _is_running.store(false);
         if (_resize_win_signal.joinable()) _resize_win_signal.join();
-#endif
         Terminal::setMouseEnabled(false);
         Terminal::setCursorVisible(true);
         Terminal::reset();
@@ -508,6 +517,10 @@ namespace Tiny {
         throw std::runtime_error("Tiny::TUI::Renderer::styleAt(): The specified position is out of range!");
     }
 
+    bool TUI::Renderer::isValid(const Position& position) {
+        return !isOutOfRange(position.row, position.column);
+    }
+
     TUI::Renderer::Renderer() {
 #ifdef TINY_CPP_MY_OS_UNIX
         setlocale(LC_ALL, "");
@@ -644,20 +657,14 @@ namespace Tiny {
     }
 
     void TUI::Renderer::initSignal() {
-#ifdef TINY_CPP_MY_OS_WINDOWS
         _is_running.store(true);
         _resize_win_signal = std::thread(&Renderer::resizeWindow, 0);
         // _resize_win_signal.detach();
-#else
-        signal(SIGWINCH, Renderer::resizeWindow);
-
-#endif
     }
 
     void TUI::Renderer::resizeWindow(int) {
-#ifdef TINY_CPP_MY_OS_WINDOWS
         while (self()._is_running.load()) {
-            Sleep(100);
+            std::this_thread::sleep_for(std::chrono::milliseconds(250));
             Size new_size = Terminal::screenSize();
             if (new_size != self()._term_size) {
                 std::unique_lock<std::mutex> lock(self()._resize_mutex);
@@ -665,21 +672,13 @@ namespace Tiny {
                 self()._is_resizing.store(true);
             }
         }
-#else
-        std::unique_lock<std::mutex> lock(self()._resize_mutex);
-        usleep(100000);
-        Size new_size = Terminal::screenSize();
-        if (new_size != self()._term_size) {
-            self()._is_resizing.store(true);
-            self()._term_size = new_size;
-        }
-#endif
     }
 
     void TUI::Renderer::formatStyles(const Position& pos, const std::string &fmt, const StyleList &styles) {
+        if (fmt.empty() || styles.empty()) return;
         uint32_t n = 0, i = 0, st = 0;
         Style current_style{};
-        for (; i < fmt.size(); ) {
+        while (i < fmt.size()) {
             if (fmt[i] == '<') {
                 int id = 0;
                 bool flag = false;
@@ -707,7 +706,6 @@ namespace Tiny {
         }
         if (fmt.back() != '>') {
             setChars({pos.row, pos.column + n}, fmt.substr(st, i - st), current_style);
-
         }
     }
 
