@@ -1826,7 +1826,7 @@ namespace Tiny {
             } while (true);
             cpu_info.close();
         }
-
+        if (info.name.empty()) info.name = "Unknown";
         info.cores = get_nprocs();
         info.usages.resize(info.cores);
 
