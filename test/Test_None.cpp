@@ -60,36 +60,37 @@ std::string status(OS::Process::Status status) {
 using namespace TUI;
 using namespace OS;
 
-static StyleList generate() {
-    StyleList style_list;
-    Style s_normal, s_bold, s_err, s_title, s_sorted, s_header, s_low, s_warn, s_high, s_pids;
+static TermStyleList generate() {
+    TermStyleList style_list;
+    TermStyle s_normal, s_bold, s_err, s_title, s_sorted, s_header, s_low, s_warn, s_high, s_pids;
     s_normal.intensity = 2;
-    s_normal.fg_color = Color::Default;
-    s_normal.bg_color = Color::Default;
+    s_normal.colors.color.fg = Color::Default;
+    s_normal.colors.color.bg = Color::Default;
     s_bold.intensity = 2;
-    s_bold.fg_color = Color::Blue;
-    s_bold.bg_color = Color::Default;
+    s_bold.colors.color.fg = Color::Blue;
+    s_bold.colors.color.bg = Color::Default;
     s_err.intensity = 2;
-    s_err.fg_color = Color::Red;
-    s_err.bg_color = Color::Black;
+    s_err.colors.color.fg = Color::Red;
+    s_err.colors.color.bg = Color::Black;
     s_title.intensity = 1;
-    s_title.fg_color = Color::Black;
-    s_title.bg_color = Color::Cyan;
+    s_title.colors.color.fg = Color::Black;
+    s_title.colors.color.bg = Color::Cyan;
     s_sorted.intensity = 1;
-    s_sorted.fg_color = Color::Black;
-    s_sorted.bg_color = Color::Green;
+    s_sorted.colors.color.fg = Color::Black;
+    s_sorted.colors.color.bg = Color::Green;
     s_low.intensity = 2;
-    s_low.fg_color = Color::Green;
-    s_low.bg_color = Color::Default;
+    s_low.colors.color.fg = Color::Green;
+    s_low.colors.color.bg = Color::Default;
     s_warn.intensity = 2;
-    s_warn.fg_color = Color::Yellow;
-    s_warn.bg_color = Color::Default;
+    s_warn.colors.color.fg = Color::Yellow;
+    s_warn.colors.color.bg = Color::Default;
     s_high.intensity = 2;
-    s_high.fg_color = Color::Red;
-    s_high.bg_color = Color::Default;
-    s_pids.fg_color = Color::White;
-    s_pids.bg_color = Color::Blue;
+    s_high.colors.color.fg = Color::Red;
+    s_high.colors.color.bg = Color::Default;
+    s_pids.colors.color.fg = Color::White;
+    s_pids.colors.color.bg = Color::Blue;
     s_pids.intensity = 3;
+    style_list.emplace_back();
     style_list.push_back(s_normal);
     style_list.push_back(s_bold);
     style_list.push_back(s_err);
@@ -103,9 +104,9 @@ static StyleList generate() {
     return style_list;
 }
 
-static StyleList styles;
+static TermStyleList styles;
 enum Header : uint8_t {
-    H_PID, H_PPID, H_STATES, H_CPU, H_MEM, H_USER, H_PRG_NAME, H_NONE
+    H_PID, H_PPID, H_STATES, H_CPU, H_MEM, H_USER, H_PRG_NAME
 };
 
 #define HEADER_COUNT 7
@@ -282,20 +283,20 @@ static std::string strip(const std::string &s) {
     return s.substr(st_pos, ed_pos - st_pos + 1);
 }
 
-StyleList init_help_style() {
-    Style bold_style;
-    bold_style.fg_color = Color::Green;
+TermStyleList init_help_style() {
+    TermStyle bold_style;
+    bold_style.colors.color.fg = Color::Green;
     bold_style.intensity = 2;
-    Style def_style;
+    TermStyle def_style;
     def_style.intensity = 2;
-    Style title_style;
-    title_style.fg_color = Color::Blue;
+    TermStyle title_style;
+    title_style.colors.color.fg = Color::Blue;
     title_style.intensity = 2;
     return {bold_style, def_style, title_style, {}};
 }
 
 void draw_help() {
-    auto& renderer = Renderer::self();
+    auto& renderer = TermBuffer::self();
     auto help_styles = init_help_style();
     if (from_user.load()) {
         static auto helps = split(help_infos, '\n'); 
@@ -303,23 +304,23 @@ void draw_help() {
         skip_help_text = min(skip_help_text, static_cast<uint64_t>(helps.size() - 1));
         for (uint32_t i = 0; i < helps.size(); i++) {
             if (i >= screen_size.height - 2 || i + skip_help_text >= helps.size()) break;
-            renderer.setSSFX({i, 0}, helps[i + skip_help_text].data(), help_styles);
+            renderer.drawString({i, 0}, helps[i + skip_help_text].data(), help_styles);
         }
         static std::string key_tips_1 = "<4><Esc><5> Quit <4><PgUp>/<PgDn><5> Scroll Page ";
         renderer.fillRows(screen_size.height - 1, screen_size.height, ' ', styles[4]);
-        renderer.setSSFX({screen_size.height - 1, 0}, key_tips_1.data(), styles);
+        renderer.drawString({screen_size.height - 1, 0}, key_tips_1.data(), styles);
         renderer.present();
         from_user.store(false);
     }
 }
 
 void draw() {
-    auto& renderer = Renderer::self();
+    auto& renderer = TermBuffer::self();
     if (screen_size.width < 64 || screen_size.height < 8) {
         renderer.fillScreen();
-        renderer.setSSF({0, 0}, "To continue, please resize the terminal size!", styles[8]);
-        renderer.setSSFX({1, 0}, "<9>Type <8><Esc><9> or <8><Ctrl+C><9> to quit.", styles);
-        renderer.setSSF({2, 0}, "Current size: {:>#3d}x{:<#3d}", styles[8], screen_size.width, screen_size.height);
+        renderer.drawString({0, 0}, "To continue, please resize the terminal size!", styles[8]);
+        renderer.drawString({1, 0}, "<9>Type <8><Esc><9> or <8><Ctrl+C><9> to quit.", styles);
+        renderer.drawString({2, 0}, "Current size: {:>#3d}x{:<#3d}", styles[8], screen_size.width, screen_size.height);
         renderer.present();
         if (!disabled_mode.load()) disabled_mode.store(true);
         return;
@@ -329,7 +330,7 @@ void draw() {
         auto now = DT::currentTimestamps(true);
         auto mem_usage = static_cast<double>(memory.used_ram) / static_cast<double>(memory.total_ram) * 100.f;
         auto mem_avail = static_cast<double>(memory.available_ram) / static_cast<double>(memory.total_ram) * 100.f;
-        renderer.setStrF({0, 0},
+        renderer.drawString({0, 0},
             "HTOP {:12s}, CPU: {:#2d} core(s), {:5.1f}% total, Memory: {:5.1f}% used, {:5.1f}% available",
             DT::formatTime("d:hh:mm:ss", now),  cpu.cores, cpu.total_usage, mem_usage, mem_avail);
         auto cpu_width = screen_size.width / 2 - 1;
@@ -341,7 +342,7 @@ void draw() {
             if (idx >= cpu.cores) break;
             auto c = static_cast<uint32_t>((static_cast<float>(cpu_bar_width) * (cpu.usages[idx] * 0.01f)));
             auto prg = Terminal::formatString("{:{}c}", c, '|').substr(0, cpu_bar_width);
-            renderer.setSSFX({i / 2 + 1, (i + 1) % 2 ? 0 : cpu_width}, "<2>{:*0>2#d}:<{}>{:<{}s}", styles,
+            renderer.drawString({i / 2 + 1, (i + 1) % 2 ? 0 : cpu_width}, "<2>{:*0>2#d}:<{}>{:<{}s}", styles,
                 idx + 1, cpu.usages[idx] >= 85.f ? 9 : (cpu.usages[idx] >= 60.f ? 8 : 7), cpu_bar_width, prg);
         }
         draw_info.store(false);
@@ -355,11 +356,11 @@ void draw() {
             if (i == H_USER) col_width = 16;
             if (i == H_PRG_NAME) col_width = PW;
             if (sorted_header_no.load() == i) {
-                renderer.setSSFX({6, col}, "<5>{}{:{}{}s}", styles,
+                renderer.drawString({6, col}, "<5>{}{:{}{}s}", styles,
                     reversed_sort ? "▼" : "▲", i < HEADER_COUNT - 1 ? '>' : '<', col_width - 1,
                     headerName(static_cast<Header>(i)));
             } else {
-                renderer.setSSFX({6, col}, "<4> {:{}{}s}", styles,
+                renderer.drawString({6, col}, "<4> {:{}{}s}", styles,
                     i < HEADER_COUNT - 1 ? '>' : '<', col_width - 1, headerName(static_cast<Header>(i)));
             }
             col += col_width;
@@ -368,7 +369,7 @@ void draw() {
         static std::string key_tips_1 = "<4><F1>/<?><5> Help <4><Tab><5> Sort Header <4>1~7<5> Column Filter <4><R><5> Reversed Sort <4><P><5> Scroll CPU Usage <4><Esc><5> Quit";
         static std::string key_tips_2 = "<4><F1>/<?><5> Help <4><Backspace><5> Leave Filter Mode <4>1~7<5> Column Filter <4><R><5> Reversed Sort <4><P><5> Scroll CPU Usage <4><Esc><5> Quit";
         renderer.fillRows(screen_size.height - 1, screen_size.height, ' ', styles[4]);
-        renderer.setSSFX({screen_size.height - 1, 0}, filter_mode.load() ? key_tips_2.data() : key_tips_1.data(), styles);
+        renderer.drawString({screen_size.height - 1, 0}, filter_mode.load() ? key_tips_2.data() : key_tips_1.data(), styles);
         from_user.store(false);
     }
 
@@ -386,21 +387,21 @@ void draw() {
         }
         for (auto i = 0; i < PH; ++i) {
             if (skip_my_index + i >= my_proc_list->size()) {
-                renderer.fillRows(7 + i, 7 + i);
+                renderer.fillRows(7 + i, 7 + i + 1);
                 continue;
             }
             DataUnit data_unit;
             auto& process = my_proc_list->at(skip_my_index + i);
             auto sz = autoConvertDataSize(process.memory, data_unit);
             bool is_selected = std::find(selected_pids.begin(), selected_pids.end(), process.pid) != selected_pids.end();
-            renderer.setSSFX({static_cast<uint32_t>(7 + i), 0}, "{}{:>8s}{:>8s}{:>8s}{:>8.1f} {:>6.1f}{:<3s}{:>16s} {:<{}s}", styles,
+            renderer.drawString({static_cast<uint32_t>(7 + i), 0}, "{}{:>8s}{:>8s}{:>8s}{:>8.1f} {:>6.1f}{:<3s}{:>16s} {:<{}s}", styles,
                 is_selected ? "<10>" : "", process.pid, process.ppid, status(process.status), process.cpu, sz, dataUnitName(data_unit), process.user_name.substr(0, 16),
                 PW, process.command.substr(0, PW));
         }
         
         if (screen_size.height > 6) {
-            renderer.fillRows(5, 5);
-            renderer.setSSFX({5, 0}, "<10>{}<7>{:>#5d}/{:<#5d} <2>Process(es), <7>{:#5d} <2>selected", styles, 
+            renderer.fillRows(5, 6);
+            renderer.drawString({5, 0}, "<10>{}<7>{:>#5d}/{:<#5d} <2>Process(es), <7>{:#5d} <2>selected", styles, 
                             filter_mode.load() ? "FILTER_MODE" : "", skip_my_index, my_proc_list->size(), selected_pids.size());
         }
         draw_proc.store(false);
@@ -408,7 +409,7 @@ void draw() {
 
     if (show_cursor.load() && changed_cur_pos.load() && renderer.isValid(mouse_pos)) {
         auto temp_style = renderer.styleAt(mouse_pos);
-        temp_style.property |= Style::Reverse;
+        temp_style.property |= TermStyle::Reverse;
         renderer.setStyle(mouse_pos, temp_style);
         changed_cur_pos.store(false);
     }
@@ -416,7 +417,7 @@ void draw() {
 }
 
 bool look_for(Header header) {
-    auto& renderer = Renderer::self();
+    auto& renderer = TermBuffer::self();
     // auto scr_size = Terminal::screenSize();
     static std::array<std::string, HEADER_COUNT> range_tips = {
         "",
@@ -429,7 +430,7 @@ bool look_for(Header header) {
     };
     renderer.fillRows(5, 5, ' ', styles[3]);
     std::string h_name = headerName(header);
-    renderer.setSSFX({5, 0}, "<4>Search {}: {} ", styles, h_name, range_tips[header]);
+    renderer.drawString({5, 0}, "<4>Search {}: {} ", styles, h_name, range_tips[header]);
     renderer.present();
     Terminal::setCursorVisible(true);
     size_t st_pos_col = 10 + h_name.size() + range_tips[header].size();
@@ -566,7 +567,7 @@ bool look_for(Header header) {
     }
     if (!is_ok) {
         renderer.fillRows(5, 5, ' ', styles[3]);
-        renderer.setSSFX({5, 0}, "<4>Invalid value! Press any key to continue... ", styles);
+        renderer.drawString({5, 0}, "<4>Invalid value! Press any key to continue... ", styles);
         renderer.present();
         Terminal::getKey();
         renderer.fillRows(5, 5, ' ', styles[0]);
@@ -667,7 +668,7 @@ int main(int argc, char *argv[]) {
     screen_size = Terminal::screenSize();
     auto shown_proc_count = screen_size.height - 8;
     running_main.store(true);
-    Renderer::self().setResizeEvent([&shown_proc_count](Renderer& renderer) {
+    TermBuffer::self().setResizeEvent([&shown_proc_count](TermBuffer& renderer) {
         screen_size = Terminal::screenSize();
         shown_proc_count = screen_size.height - 8;
         if (show_cursor.load()) {
@@ -981,10 +982,10 @@ int main(int argc, char *argv[]) {
         } else if (input.type == InputEvent::M) {
             if (show_cursor.load() && input.input.mouse.button == MOUSE_MOVED && 
                     mouse_pos != input.input.mouse.position) {
-                if (Renderer::self().isValid(mouse_pos)) {
-                    auto temp_style = Renderer::self().styleAt(mouse_pos);
-                    temp_style.property &= ~(Style::Reverse);
-                    Renderer::self().setStyle(mouse_pos, temp_style);
+                if (TermBuffer::self().isValid(mouse_pos)) {
+                    auto temp_style = TermBuffer::self().styleAt(mouse_pos);
+                    temp_style.property &= ~(TermStyle::Reverse);
+                    TermBuffer::self().setStyle(mouse_pos, temp_style);
                 }
                 mouse_pos = input.input.mouse.position;
                 changed_cur_pos.store(true);
@@ -1059,6 +1060,7 @@ int main(int argc, char *argv[]) {
             }
         }
     }
+
     return 0;
 }
 

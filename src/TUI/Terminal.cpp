@@ -25,6 +25,8 @@
 
 #include "../TUI/Terminal.hpp"
 
+
+
 #if defined(TINY_CPP_MY_OS_WINDOWS)
 #include <windows.h>
 #include <conio.h>
@@ -326,8 +328,6 @@ namespace Tiny {
                 }
                 return buf.data();
             }
-        } else if (KEY == KEY_UNKNOWN) {
-            return "Unknown";
         } else if (KEY == KEY_NULL) {
             return "NULL";
         } else if (KEY == KEY_SOH) {
@@ -628,6 +628,19 @@ namespace Tiny {
         return true;
     }
 
+    bool TUI::Terminal::print(const char *text, size_t size) {
+#ifdef TINY_CPP_MY_OS_UNIX
+        write(STDOUT_FILENO, text, size);
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return false;
+        if (!WriteConsoleA(console, text, size, nullptr, nullptr)) {
+            return false;
+        }
+#endif
+        return true;
+    }
+
     bool TUI::Terminal::printW(const std::wstring &text) {
 #ifdef TINY_CPP_MY_OS_UNIX
         auto data = U8Code::wide2String(text);
@@ -636,6 +649,21 @@ namespace Tiny {
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return false;
         if (!WriteConsoleW(console, text.c_str(), text.length(), nullptr, nullptr)) {
+            return false;
+        }
+#endif
+        return true;
+    }
+
+    bool TUI::Terminal::printW(const wchar_t *text, size_t size) {
+#ifdef TINY_CPP_MY_OS_UNIX
+        std::wstring w_text(text, size);
+        auto data = U8Code::wide2String(w_text);
+        write(STDOUT_FILENO, data.c_str(), data.length());
+#elif defined(TINY_CPP_MY_OS_WINDOWS)
+        auto console = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (console == INVALID_HANDLE_VALUE) return false;
+        if (!WriteConsoleW(console, text, size, nullptr, nullptr)) {
             return false;
         }
 #endif
@@ -757,9 +785,6 @@ namespace Tiny {
 #elif defined(TINY_CPP_MY_OS_WINDOWS)
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return false;
-        auto scr = screenSize();
-        if (column >= scr.width) column = scr.width - 1;
-        if (row >= scr.height) row = scr.height - 1;
         if (!SetConsoleCursorPosition(console, {static_cast<short>(column), static_cast<short>(row)})) return false;
 #endif
         return true;
@@ -1372,6 +1397,10 @@ namespace Tiny {
         auto console = GetStdHandle(STD_OUTPUT_HANDLE);
         if (console == INVALID_HANDLE_VALUE) return;
         SetConsoleTextAttribute(console, FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_GREEN);
+#ifdef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+        std::wstring cmd = L"\x1b[0m";
+        WriteConsoleW(console, cmd.c_str(), cmd.size(), nullptr, nullptr);
+#endif
 #endif
     }
 

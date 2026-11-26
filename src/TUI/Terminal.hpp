@@ -23,6 +23,7 @@
  *                                                                                   *
  *************************************************************************************/
 
+#pragma once
 #ifndef TINY_CPP_TUI_TERMINAL_HPP
 #define TINY_CPP_TUI_TERMINAL_HPP
 #include <string>
@@ -251,13 +252,12 @@ namespace Tiny {
             KEY_CTRL_Y      = 25,
             KEY_CTRL_Z      = 26,
 
-            KEY_SPECIAL     = 254,
-            KEY_UNKNOWN     = 255
+            KEY_SPECIAL     = 255
         };
 
         constexpr bool KEY_BACKSPACE(uint8_t key) { return key == KEY_BK || key == KEY_DEL; }
         constexpr bool KEY_ENTER(uint8_t key)     { return key == KEY_CR || key == KEY_LF; }
-        constexpr bool KEY_RETURN(uint8_t key)     { return key == KEY_CR || key == KEY_LF; }
+        constexpr bool KEY_RETURN(uint8_t key)    { return key == KEY_CR || key == KEY_LF; }
         constexpr bool KEY_CONFIRM(uint8_t key)   { return key == KEY_SPACE || key == KEY_CR || key == KEY_LF; }
         constexpr bool KEY_CANCEL(uint8_t key)    { return key == KEY_BK || key == KEY_DEL || key == KEY_ESC; }
 
@@ -338,9 +338,9 @@ namespace Tiny {
             } type;
             union Input {
                 struct Keyboard {
-                    uint8_t key;
-                    SP_Keys sp_key;     // P.s: Specially, `32` ~ `127` is set as `Alt`+`<ASCII>`.
-                    bool is_pressed;    // P.s: Only Windows can captured, otherwise it is always `true`!
+                    uint8_t key;        // p.s: Store the ASCII values of the keys, except for special keys
+                    SP_Keys sp_key;     // p.s: Specially, `32` ~ `127` is set as `Alt`+`<ASCII>`.
+                    bool is_pressed;    // p.s: Only Windows can captured, otherwise it is always `true`!
                 } keyboard;
                 struct Mouse {
                     Position position;
@@ -363,7 +363,9 @@ namespace Tiny {
             static bool print(char ch);
             static bool printW(wchar_t ch);
             static bool print(const std::string &text);
+            static bool print(const char* text, size_t size);
             static bool printW(const std::wstring &text);
+            static bool printW(const wchar_t* text, size_t size);
             static bool printLine(const std::string &text = {});
             static bool printLineW(const std::wstring &text = {});
             template<typename ... Args>

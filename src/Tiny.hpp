@@ -23,6 +23,7 @@
  *                                                                                   *
  *************************************************************************************/
 
+#pragma once
 #ifndef TINY_HPP
 #define TINY_HPP
 
@@ -31,6 +32,7 @@
 #include "DateTime/DateTime.hpp"
 #include "Events/Events.hpp"
 #include "TUI/Terminal.hpp"
+#include "TUI/Renderer.hpp"
 #include "TUI/TUI.hpp"
 #include "Parser/CommandParser.hpp"
 #include "Parser/IniParser.hpp"

@@ -12,11 +12,15 @@ option(TINY_DOCS "Include docs of this project." ON)
 message("-- Tiny.cpp is configuring...")
 message("-- Build Test Module: ${TINY_BUILD_TEST}")
 message("-- Build Demo Module: ${TINY_BUILD_DEMO}")
-message("-- Include documents: ${TINY_DOCS}")
+message("-- Build documents: ${TINY_DOCS}")
 message("-- Installation path: ${CMAKE_INSTALL_PREFIX}")
-message("-- P.S: To disabled building test module, please set '-DTINY_BUILD_TEST=OFF' option.")
-message("--      If your GTest submodule is already installed by package manager, please set") 
-message("--      '-DTINY_GTEST_SRC=OFF' option.")
+if (TINY_BUILD_TEST)
+    message("-- p.s: To disabled building test module, please set '-DTINY_BUILD_TEST=OFF' option.")
+    if (TINY_GTEST_SRC)
+        message("-- p.s: If your GTest submodule is already installed by package manager, please set")
+        message("--      '-DTINY_GTEST_SRC=OFF' option.")
+    endif ()
+endif ()
 
 if (TINY_USE_GPM)
 if (LINUX)
@@ -53,6 +57,8 @@ set(SOURCE_FILES
         src/TUI/Terminal.hpp
         src/TUI/Terminal.cpp
         src/TUI/Format.hpp
+        src/TUI/Renderer.hpp
+        src/TUI/Renderer.cpp
         src/TUI/TUI.hpp
         src/TUI/TUI.cpp
         src/Parser/CommandParser.hpp

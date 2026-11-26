@@ -23,6 +23,7 @@
  *                                                                                   *
  *************************************************************************************/
 
+#pragma once
 #ifndef TINY_CPP_TUI_FORMAT_HPP
 #define TINY_CPP_TUI_FORMAT_HPP
 #include <algorithm>
@@ -58,6 +59,7 @@ namespace Tiny {
                 char data_type{};
                 /** Control the width of the string. `-1` means no width is specified. **/
                 int32_t width{-1};
+                /** Control the precision of the floating-point. **/
                 int32_t precision{-1};
             };
 
@@ -141,7 +143,7 @@ namespace Tiny {
                 }
             }
 
-            template <typename T, typename E = void>
+            template <typename T, typename = void>
             struct Formatter {
                 static void format(std::string& dest, const T& value, const FmtSpec& fmt) {
                     Sink sink{dest};
@@ -238,8 +240,9 @@ namespace Tiny {
             };
 
             void formatTo(Sink& sink, const std::string& str_view, const FmtSpec& fmt) {
-                auto pad = fmt.width > 0 ? fmt.width - str_view.size(): 0;
-                if (pad == 0 || fmt.width <= str_view.size()) {
+                size_t dis_sz{U8Code::calcDisplaySize(str_view)};
+                auto pad = fmt.width > 0 ? fmt.width - dis_sz: 0;
+                if (pad == 0 || fmt.width <= dis_sz) {
                     sink.append(str_view);
                     return;
                 }
@@ -491,8 +494,6 @@ namespace Tiny {
 
             return ret;
         }
-
-
 
         inline void Terminal::render(std::string& dest, const char* byte) {
             if (!byte) return;
