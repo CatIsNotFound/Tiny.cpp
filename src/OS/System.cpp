@@ -495,22 +495,28 @@ std::string getArgsInApple(size_t pid, const char* prg_path) {
     size_t arg_max{};
     size_t sz{sizeof(arg_max)};
     int mm[] = {CTL_KERN, KERN_PROCARGS2, static_cast<int>(pid)};
-    char buf[4095];
-    sz = 4095;
+    char buf[8192];
+    sz = 8192;
     if (sysctl(mm, sizeof(mm), buf, &sz, nullptr, 0) == -1) return ret;
+    //ret.assign(buf, sz);
     ret.clear();
-    size_t st = 4, argc = 0, n = 0;
+    char t[4];
+    strncpy(t, buf, 4);
+    uint32_t argc = *reinterpret_cast<uint32_t*>(t);
+    size_t st = 4;
+    uint32_t n = 0;
     bool parsed_space = false;
-    for (size_t i = 0; i < sz; ++i) {
-        if (i < 4) {
-            argc = argc * 10 + buf[i];
-        } else if (n >= argc) {
-            break;
-        } else if (!parsed_space && buf[i] == '\0') {
+    for (size_t i = 4; i < sz; ++i) {
+        if (n >= argc) break;
+        if (!parsed_space && buf[i] == '\0') {
             if (n > 0) {
                 if (n > 1) ret += ' ';
                 const char* BUF_ARG = buf + st;
-                ret.append(BUF_ARG, i - st);
+                size_t r_st{};
+                while (!*(BUF_ARG + r_st)) {
+                    r_st += 1;
+                }
+                ret.append(BUF_ARG + r_st, i - st - r_st);
             }
             st = i + 1;
             n += 1;
@@ -518,6 +524,7 @@ std::string getArgsInApple(size_t pid, const char* prg_path) {
         }
         if (parsed_space && buf[i] != '\0') parsed_space = false;
     }
+    if (ret.empty()) ret = prg_path;
     return ret;
 }
 #elif defined(__FreeBSD__)

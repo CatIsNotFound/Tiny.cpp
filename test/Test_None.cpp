@@ -993,9 +993,9 @@ int main(int argc, char *argv[]) {
             if (input.input.mouse.button == MOUSE_WHEEL_DOWN) {
                 if (input.input.mouse.position.row >= 7) {
                     if (filter_mode.load()) {
-                        skip_filter_index = min(skip_filter_index + 1, filter_list.size() - 1);
+                        skip_filter_index = min(skip_filter_index + 1, static_cast<uint64_t>(filter_list.size() - 1));
                     } else {
-                        skip_index = min(skip_index + 1, proc_list.size() - 1);
+                        skip_index = min(skip_index + 1, static_cast<uint64_t>(proc_list.size() - 1));
                     }
                     draw_proc.store(true);
                 } else if (cpu.cores > 8 && input.input.mouse.position.row >= 1 && input.input.mouse.position.row < 6) {
