@@ -33,7 +33,6 @@
 #include "Events/Events.hpp"
 #include "TUI/Terminal.hpp"
 #include "TUI/Renderer.hpp"
-#include "TUI/TUI.hpp"
 #include "Parser/CommandParser.hpp"
 #include "Parser/IniParser.hpp"
 #include "Net/Socket.hpp"

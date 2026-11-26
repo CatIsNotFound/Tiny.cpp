@@ -63,10 +63,6 @@ addModule(TestHostResolver MY_MODULE_WITHOUT_GTEST
         Test_HostResolver.cpp
 )
 
-addModule(TestTUI MY_MODULE_WITHOUT_GTEST
-        Test_TUI.cpp
-)
-
 addModule(TestCommand MY_MODULE_WITHOUT_GTEST
         Test_Command.cpp
 )

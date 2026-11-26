@@ -35,8 +35,6 @@
 #include <condition_variable>
 #include <thread>
 
-#include "TUI.hpp"
-
 
 namespace Tiny {
     namespace TUI {

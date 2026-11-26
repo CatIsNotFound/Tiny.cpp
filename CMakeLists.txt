@@ -59,8 +59,6 @@ set(SOURCE_FILES
         src/TUI/Format.hpp
         src/TUI/Renderer.hpp
         src/TUI/Renderer.cpp
-        src/TUI/TUI.hpp
-        src/TUI/TUI.cpp
         src/Parser/CommandParser.hpp
         src/Parser/CommandParser.cpp
         src/Parser/IniParser.hpp

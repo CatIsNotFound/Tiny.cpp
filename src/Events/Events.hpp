@@ -33,8 +33,11 @@
 #include <atomic>
 #include <condition_variable>
 #include <vector>
+#include <deque>
 #include <unordered_map>
-#include <stdexcept>
+#include <unordered_set>
+#include <algorithm>
+#include <typeindex>
 #include <cstdint>
 
 namespace Tiny {
@@ -118,6 +121,104 @@ namespace Tiny {
         private:
             std::unordered_map<size_t, Event> _event_map{};
         };
+
+        class AbstractEvent {
+        public:
+            AbstractEvent(std::type_index type)
+                : _type_hash(type.hash_code()) {}
+            virtual ~AbstractEvent() = default;
+            size_t hash() const { return _type_hash; }
+        private:
+            size_t _type_hash;
+        };
+
+        using Subscriber = std::function<void(const AbstractEvent&)>;
+        using SubscriberMap = std::unordered_map<size_t, Subscriber>;
+        using SubscriberID = size_t;
+
+        class EventBus {
+            struct Runner {
+                size_t         type_index;
+                SubscriberID   id;
+                AbstractEvent* sender;
+                size_t         priority;
+            };
+            friend class Application;
+        public:
+            static EventBus& self();
+            virtual ~EventBus();
+
+            template <typename T>
+            SubscriberID subscribe(const Subscriber& subscriber);
+            template <typename T>
+            SubscriberID subscribe(Subscriber&& subscriber);
+
+            template <typename T>
+            void unsubscribe(SubscriberID id);
+
+            template <typename T>
+            void publish(SubscriberID id, AbstractEvent *event, size_t priority = 0);
+            template <typename T>
+            void publish(AbstractEvent *event, size_t priority = 0);
+
+            void pollEvents();
+            void clear();
+        protected:
+            EventBus() : _th_id(std::this_thread::get_id()) {}
+        private:
+            std::unordered_map<size_t, SubscriberMap> _event_map;
+            std::deque<Runner> _running_deque;
+            std::unordered_set<AbstractEvent*> _temp_mem;
+            size_t _next_id{};
+            std::thread::id _th_id{};
+        };
+
+        template<typename T>
+        SubscriberID EventBus::subscribe(const Subscriber &subscriber) {
+            _event_map[typeid(T).hash_code()].emplace(++_next_id, subscriber);
+            return _next_id;
+        }
+
+        template<typename T>
+        SubscriberID EventBus::subscribe(Subscriber &&subscriber) {
+            _event_map[typeid(T).hash_code()].emplace(++_next_id, std::move(subscriber));
+            return _next_id;
+        }
+
+        template<typename T>
+        void EventBus::unsubscribe(SubscriberID id) {
+            auto hash = typeid(T).hash_code();
+            _event_map[hash];
+            if (_event_map[hash].find(id) != _event_map[hash].end()) {
+                _event_map[hash].erase(id);
+            }
+        }
+
+        template<typename T>
+        void EventBus::publish(SubscriberID id, AbstractEvent *event, size_t priority) {
+            auto hash = typeid(T).hash_code();
+            _event_map[hash];
+            if (_event_map[hash].find(id) != _event_map[hash].end()) {
+                _temp_mem.emplace(event);
+                _running_deque.push_back({hash, id, event, priority});
+                std::sort(_running_deque.begin(), _running_deque.end(), [](const Runner& a, const Runner& b) {
+                    return a.priority > b.priority;
+                });
+            }
+        }
+
+        template<typename T>
+        void EventBus::publish(AbstractEvent *event, size_t priority) {
+            auto hash = typeid(T).hash_code();
+            _event_map[hash];
+            _temp_mem.emplace(event);
+            for (auto& ev : _event_map[hash]) {
+                _running_deque.push_back({hash, ev.first, event, priority});
+                std::sort(_running_deque.begin(), _running_deque.end(), [](const Runner& a, const Runner& b) {
+                    return a.priority > b.priority;
+                });
+            }
+        }
     }
 }
 

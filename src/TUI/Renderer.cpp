@@ -563,6 +563,7 @@ namespace Tiny {
                     last_index = parsed_num;
                     parsed_num = 0;
                     out.emplace_back();
+                    stop = false;
                 } else {
                     out.back().text.push_back('<');
                     out.back().text.push_back(c);

@@ -42,54 +42,54 @@ T max(T value1, T value2) {
     return value1 > value2 ? value1 : value2;
 }
 
-void drawInfo(TUI::Renderer& renderer) {
+void drawInfo(TUI::TermBuffer& renderer) {
     auto win_width = TUI::Terminal::screenSize().width;
     const auto W = min(win_width, 60U);
     const auto IW = min(win_width, 40U);
     const auto II = IW / 2;
     renderer.drawBorder({0, 0}, {2, W}, {}, {});
     const auto III = max(static_cast<int>(II - 8), 0);
-    renderer.setStrF({1, 6}, "{:>{}c}Host Information", III, ' ');
+    renderer.drawString({1, 6}, "{:>{}c}Host Information", III, ' ');
 
-    TUI::StyleList styles;
-    TUI::Style style_1, style_2;
+    TUI::TermStyleList styles;
+    TUI::TermStyle style_1, style_2;
     style_1.intensity = 2;
-    style_1.fg_color = TUI::Color::Blue;
+    style_1.colors.color.fg = TUI::Color::Blue;
     style_2.intensity = 2;
-    style_2.fg_color = TUI::Color::Yellow;
+    style_2.colors.color.fg = TUI::Color::Yellow;
     styles.push_back(style_1);
     styles.push_back(style_2);
 
     auto os_info = OS::currentHostInfo();
     renderer.drawBorder({2, 0}, {10, W}, {}, {});
-    renderer.setSSFX({3, 1}, "<1>{:>{}s}: <2>{:<{}s}", styles, II, "Hostname", II, os_info.host_name);
-    renderer.setSSFX({4, 1}, "<1>{:>{}s}: <2>{:<{}s}", styles, II, "Username", II, os_info.user_name);
-    renderer.setSSFX({5, 1}, "<1>{:>{}s}: <2>{:<{}s}", styles, II, "OS", II, os_info.os_name);
-    renderer.setSSFX({6, 1}, "<1>{:>{}s}: <2>{:<{}s}", styles, II, "Version", II, os_info.version);
-    renderer.setSSFX({7, 1}, "<1>{:>{}s}: <2>{:<{}s}", styles, II, "Arch", II, os_info.machine);
-    renderer.setSSFX({8, 1}, "<1>{:>{}s}: <2>{:<{}s}", styles, II, "Memory", II, "Processing...");
-    renderer.setSSFX({9, 1}, "<1>{:>{}s}: <2>{:<{}s}", styles, II, "Disk", II, "Processing...");
+    renderer.drawString({3, 1}, "</>{:>{}s}: <1>{:<{}s}", styles, II, "Hostname", II, os_info.host_name);
+    renderer.drawString({4, 1}, "</>{:>{}s}: <1>{:<{}s}", styles, II, "Username", II, os_info.user_name);
+    renderer.drawString({5, 1}, "</>{:>{}s}: <1>{:<{}s}", styles, II, "OS", II, os_info.os_name);
+    renderer.drawString({6, 1}, "</>{:>{}s}: <1>{:<{}s}", styles, II, "Version", II, os_info.version);
+    renderer.drawString({7, 1}, "</>{:>{}s}: <1>{:<{}s}", styles, II, "Arch", II, os_info.machine);
+    renderer.drawString({8, 1}, "</>{:>{}s}: <1>{:<{}s}", styles, II, "Memory", II, "Processing...");
+    renderer.drawString({9, 1}, "</>{:>{}s}: <1>{:<{}s}", styles, II, "Disk", II, "Processing...");
 }
 
-void updateInfo(TUI::Renderer& renderer, OS::CPU& cpu, OS::Memory& memory, OS::DiskSpace& disk_space) {
+void updateInfo(TUI::TermBuffer& renderer, OS::CPU& cpu, OS::Memory& memory, OS::DiskSpace& disk_space) {
     // std::lock_guard<std::mutex> lock_guard(mutex);
     const auto W = min(TUI::Terminal::screenSize().width, 60U);
     if (need_refresh.load()) {
-        TUI::StyleList styles;
-        TUI::Style style_1, style_2, style_def;
+        TUI::TermStyleList styles;
+        TUI::TermStyle style_1, style_2, style_def;
         style_1.intensity = 2;
-        style_1.fg_color = TUI::Color::Yellow;
+        style_1.colors.color.fg = TUI::Color::Yellow;
         style_2.intensity = 2;
-        style_2.fg_color = TUI::Color::Green;
+        style_2.colors.color.fg = TUI::Color::Green;
         styles.push_back(style_def);
         styles.push_back(style_1);
         styles.push_back(style_2);
-        renderer.setSSFX({8, 1}, "{:>20s}: <2>{:.1f}GB / {:.1f}GB ({:.2f} GB free)", styles, "Memory",
+        renderer.drawString({8, 1}, "{:>20s}: <1>{:.1f}GB / {:.1f}GB ({:.2f} GB free)", styles, "Memory",
             OS::convertDataSize(memory.used_ram, OS::DataUnit::GiB), 
             OS::convertDataSize(memory.total_ram, OS::DataUnit::GiB), 
             OS::convertDataSize(memory.free_ram, OS::DataUnit::GiB)
         );
-        renderer.setSSFX({9, 1}, "{:>20s}: <2>{:.1f}GB / {:.1f}GB ({:.1f}GB free)", styles, "Disk",
+        renderer.drawString({9, 1}, "{:>20s}: <1>{:.1f}GB / {:.1f}GB ({:.1f}GB free)", styles, "Disk",
             OS::convertDataSize(disk_space.used_bytes, OS::DataUnit::GiB), 
             OS::convertDataSize(disk_space.total_bytes, OS::DataUnit::GiB), 
             OS::convertDataSize(disk_space.free_bytes, OS::DataUnit::GiB)
@@ -99,8 +99,8 @@ void updateInfo(TUI::Renderer& renderer, OS::CPU& cpu, OS::Memory& memory, OS::D
         renderer.drawBorder({10, 0}, {13, W}, {}, {});
         renderer.drawBorder({13, 0}, {14 + cpu.cores, W}, {}, {});
         const auto FW = W - 13;
-        renderer.setSSFX({11, 2}, "CPU Name : <2>{:<{}s}", styles, FW, cpu.name.substr(0, FW));
-        renderer.setSSFX({12, 2}, "CPU Total: <2>{:5.1f}%  ", styles, cpu.total_usage);
+        renderer.drawString({11, 2}, "CPU Name : <1>{:<{}s}", styles, FW, cpu.name.substr(0, FW));
+        renderer.drawString({12, 2}, "CPU Total: <1>{:5.1f}%  ", styles, cpu.total_usage);
         const auto M = W - 10;
         for (size_t i = 0; i < cpu.cores; i++) {
             auto repeat = static_cast<uint8_t>(static_cast<float>(M) * (cpu.usages[i] * 0.01f));
@@ -108,7 +108,7 @@ void updateInfo(TUI::Renderer& renderer, OS::CPU& cpu, OS::Memory& memory, OS::D
             for (size_t j = 0; j < repeat; j++) {
                 s += '|';
             }
-            renderer.setSSFX({14 + static_cast<uint32_t>(i), 2}, "<2>CPU{:>2s}: <3>{:<{}s}", styles, i, M, s);
+            renderer.drawString({14 + static_cast<uint32_t>(i), 2}, "<1>CPU{:>2s}: <2>{:<{}s}", styles, i, M, s);
         }
         need_refresh.store(false);
     }
@@ -131,12 +131,12 @@ int main() {
         need_refresh.store(true);
     });
 
-    auto& ren = TUI::Renderer::self();
+    auto& ren = TUI::TermBuffer::self();
     term::setCursorVisible(false);
     // ren.setResizeEvent(drawInfo);
-    TUI::EventBus::self().subscribe<TUI::Renderer>([&ren](const TUI::AbstractEvent&) {
-        ren.clear();
-        drawInfo(ren);
+    TUI::TermBuffer::self().setResizeEvent([](TUI::TermBuffer& r) {
+        r.fillScreen();
+        drawInfo(r);
     });
     e1.setDelayMS(10);
     e1.setRepeatCount(0);
@@ -144,7 +144,6 @@ int main() {
     drawInfo(ren);
     auto start_ts = DT::currentTimestamps();
     while (true) {
-        TUI::EventBus::self().pollEvents();
         auto now_ts = DT::currentTimestamps();
         if (now_ts - start_ts > 1000) {
             updateInfo(ren, cpu_info, memory, disk_space);
@@ -157,14 +156,13 @@ int main() {
         }
 
         if (input.type == TUI::InputEvent::Keyboard && 
-            input.input.keyboard.key == TUI::KEY_CTRL_C ||
-            input.input.keyboard.key == TUI::KEY_ESC) break;
+            (input.input.keyboard.key == TUI::KEY_CTRL_C ||
+            input.input.keyboard.key == TUI::KEY_ESC)) break;
     }
     term::setCursorVisible(true);
-    ren.clear();
     term::clearScreen();
-    ren.setStrF({1, 1}, "Now Exiting...");
-    ren.present();
+    term::moveCursor(1, 1);
+    term::print("Now Exiting...");
     return 0;
 }
 

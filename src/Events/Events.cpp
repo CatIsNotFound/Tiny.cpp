@@ -24,6 +24,7 @@
  *************************************************************************************/
 
 #include "Events.hpp"
+#include <stdexcept>
 
 namespace Tiny {
     EV::Event::Event(uint32_t id, std::string name,
@@ -334,6 +335,40 @@ namespace Tiny {
             event_ids.push_back(ev.first);
         }
         return event_ids;
+    }
+    
+    EV::EventBus& EV::EventBus::self() {
+        static EventBus _instance;
+        return _instance;
+    }
+
+    EV::EventBus::~EventBus() {
+        if (_temp_mem.empty()) return;
+        for (auto ptr : _temp_mem) {
+            delete ptr;
+            ptr = nullptr;
+        }
+    }
+
+    void EV::EventBus::pollEvents() {
+        if (std::this_thread::get_id() != _th_id) {
+            throw std::runtime_error("Tiny::EV::EventBus::pollEvents(): Eventbus can not used by another thread!");
+        }
+        for (auto& runner : _running_deque) {
+            if (_event_map[runner.type_index].find(runner.id) != _event_map[runner.type_index].end()) {
+                if (_event_map[runner.type_index][runner.id]) _event_map[runner.type_index][runner.id](*runner.sender);
+            }
+        }
+        for (auto ptr : _temp_mem) {
+            delete ptr;
+            ptr = nullptr;
+        }
+        _running_deque.clear();
+        _temp_mem.clear();
+    }
+
+    void EV::EventBus::clear() {
+        _event_map.clear();
     }
 }
 
